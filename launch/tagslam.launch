@@ -1,0 +1,11 @@
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="calibration_file" default="$(find tagslam)/config/example_cameras.yaml"/>
+  <arg name="tag_poses_file" default="$(find tagslam)/config/tag_poses.yaml"/>
+  <!-- apriltag detector nodes -->
+  <node pkg="tagslam" type="tagslam_node" name="tagslam" output="$(arg output)">
+    <rosparam command="load" file="$(arg calibration_file)"/>
+    <rosparam param="tag_poses" command="load" file="$(arg tag_poses_file)"/>
+    -->
+  </node>
+</launch>
