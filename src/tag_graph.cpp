@@ -12,7 +12,9 @@
 #include <gtsam/nonlinear/Marginals.h>
 
 namespace tagslam {
-  typedef gtsam::GenericProjectionFactor<gtsam::Pose3, gtsam::Point3, gtsam::Cal3DS2> ProjectionFactor;
+  typedef gtsam::GenericProjectionFactor<gtsam::Pose3,
+                                         gtsam::Point3,
+                                         gtsam::Cal3DS2> ProjectionFactor;
   using boost::irange;
   static const gtsam::Symbol sym_T_w_o(int tagId) {
     return (gtsam::Symbol('s', tagId));
@@ -38,10 +40,12 @@ namespace tagslam {
     return (staticObjects_.count(name) != 0);
   }
 
-#if 0  
-  void TagGraph::addStaticObject(const std::string &objectName, const gtsam::Pose3 &pose,
+#if 0 
+  void TagGraph::addStaticObject(const std::string &objectName,
+                                 const gtsam::Pose3 &pose,
                                  const utils::PoseNoise &poseNoise) {
-    staticObjects_.insert(std::map<std::string, int>::value_type(objectName, staticObjects_.size()));
+    staticObjects_.insert(std::map<std::string, int>::value_type(objectName,
+                                                                 staticObjects_.size()));
     int objectIdx = staticObjects_.size() - 1;
     gtsam::Symbol T_w_s = sym_T_w_s(objectIdx);
     graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_s, pose, poseNoise));
@@ -49,31 +53,28 @@ namespace tagslam {
     ROS_INFO_STREAM("added static object: " << objectName);
   }
 #endif
-  
+
   void TagGraph::addTags(const std::string &objectName, const gtsam::Pose3 &objPose,
                          const utils::PoseNoise &objPoseNoise, const std::vector<Tag> &tags) {
-#if 0    
-    if (hasStaticObject(objectName)) {
-      std::cout << "ERROR: duplicate static object: " << objectName << std::endl;
-      return;
-    }
-    addStaticObject(objectName, objPose, objPoseNoise);
-#endif    
-#if 1
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
+      std::cout << "graph tag: adding new tag: " << tag.id << std::endl;
+      gtsam::Pose3   tagPose = tag.pose;
+      Tag::PoseNoise tagNoise = tag.noise;
       // ----- insert transform T_s_o and pin it down with prior factor
       gtsam::Symbol T_s_o_sym = sym_T_s_o(tag.id);
       if (values_.find(T_s_o_sym) != values_.end()) {
         std::cout << "ERROR: duplicate tag id inserted: " << tag.id << std::endl;
         return;
       }
-      values_.insert(T_s_o_sym, tag.pose);
-      graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_s_o_sym, tag.pose, tag.noise));
+      values_.insert(T_s_o_sym, tagPose);
+      std::cout << "tag has T_s_o: " << tagPose << std::endl;
+      graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_s_o_sym, tagPose, tagNoise));
       // ------ now object-to-world transform
       // T_w_o  = T_w_s * T_s_o
       gtsam::Symbol T_w_o_sym = sym_T_w_o(tag.id);
-      gtsam::Pose3  T_w_o     = objPose * tag.pose;
+      gtsam::Pose3  T_w_o     = objPose * tagPose;
+      std::cout << "tag has T_w_o: " << T_w_o << std::endl;
       values_.insert(T_w_o_sym, T_w_o);
       graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(T_s_o_sym, T_w_o_sym, objPose, objPoseNoise));
             
@@ -86,26 +87,7 @@ namespace tagslam {
         graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
                          gtsam::Pose3>(X_o_i, T_w_o_sym, X_w_i, smallNoise));
       }
-      
     }
-#else
-    const gtsam::Pose3 T_w_s = objPose;
-    for (const auto &tag: tags) {
-      const gtsam::Pose3  T_s_o = tag.pose;
-      // ------ insert the corner positions
-      for (const auto i: irange(0, 4)) {
-        gtsam::Symbol X_o_i_sym  = sym_X_o_i(tag.type, i);
-        gtsam::Symbol X_s_i_sym  = sym_X_s_i(tag.id, i);
-        gtsam::Symbol X_w_i_sym  = sym_X_w_i(tag.id, i);
-
-        gtsam::Point3 X_obj_corn = insertTagType(tag, i); // inserts X_o_i_sym!
-        values_.insert(X_s_i_sym,  T_s_o * X_obj_corn);
-        values_.insert(X_w_i_sym,  T_w_s * T_s_o * X_obj_corn);
-        graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(X_o_i_sym, X_s_i_sym, T_s_o, tag.noise));
-        graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(X_s_i_sym, X_w_i_sym, T_w_s, objPoseNoise));
-      }
-    }
-#endif    
   }
 
   gtsam::Point3 TagGraph::insertTagType(const Tag &tag, int corner) {
@@ -122,8 +104,7 @@ namespace tagslam {
     return (X);
   }
 
-  void TagGraph::addCamera(int cam_idx, double fx, double fy,
-                           double cx, double cy,
+  void TagGraph::addCamera(int cam_idx, const std::vector<double> &intr,
                            const std::string &distModel,
                            const std::vector<double> &distCoeff) {
     if (cameras_.count(cam_idx) > 0) {
@@ -137,12 +118,13 @@ namespace tagslam {
       dc[i] = distCoeff[i];
     }
     boost::shared_ptr<gtsam::Cal3DS2> cam(
-      new gtsam::Cal3DS2(fx, fy, 0.0, cx, cy, 
+      new gtsam::Cal3DS2(intr[0], intr[1], 0.0, intr[2], intr[3],
                          dc[0], dc[1], dc[2], dc[3]));
-    cameras_.insert(CamMap::value_type(cam_idx, cam));
+    cameras_.insert(CamMap::value_type(cam_idx, GraphCam(cam, intr,
+                                                         distModel, distCoeff)));
   }
 
-  void TagGraph::getPoints(std::vector<cv::Point2f> *img_pts,
+  bool TagGraph::getPoints(std::vector<cv::Point2f> *img_pts,
                            std::vector<cv::Point3f> *world_pts,
                            const std::vector<Tag> &tags) const {
     img_pts->clear();
@@ -153,7 +135,7 @@ namespace tagslam {
         const gtsam::Symbol sym = sym_X_w_i(tag.id, i);
         gtsam::Values::const_iterator it = values_.find(sym);
         if (it == values_.end()) {
-          throw std::runtime_error("cannot find symbol for tag id " + std::to_string(tag.id));
+          continue; // tag is not in graph yet because it has not been localized!
         }
         gtsam::Point3 X_w = values_.at<gtsam::Point3>(it->key); 
         gtsam::Point2 uv  = tag.corners[i];
@@ -161,13 +143,16 @@ namespace tagslam {
         img_pts->push_back(cv::Point2f(uv.x(), uv.y()));
       }
     }
+    return (!world_pts->empty());
   }
 
 
 
   void TagGraph::observedTags(int cam_idx, const std::vector<Tag> &tags,
-                              unsigned int frame_num, const cv::Mat &K,
-                              const cv::Mat &D) {
+                              unsigned int frame_num,
+                              const gtsam::Pose3 &T_w_c_guess) {
+    std::cout << "-- observed tags for cam " << cam_idx << " frame " << frame_num << " tags: " << tags.size() << std::endl;
+    std::cout << "initial camera pose: " << std::endl << T_w_c_guess << std::endl;
     if (cam_idx < 0 || cam_idx >= cameras_.size()) {
       std::cout << "ERROR: invalid camera index!" << std::endl;
       return;
@@ -177,37 +162,29 @@ namespace tagslam {
       return;
     }
     gtsam::Symbol T_w_c_sym = sym_T_c_t(cam_idx, frame_num);
-    std::vector<cv::Point2f> img_pts;
-    std::vector<cv::Point3f> world_pts;
-    getPoints(&img_pts, &world_pts, tags);
-    std::cout << "---------- points used: " << std::endl;
-    for (const auto i: irange(0ul, img_pts.size())) {
-      std::cout << i << " " << img_pts[i] << " " << world_pts[i] << std::endl;
-    }
-    bool success{false};
-    gtsam::Pose3 T_w_c_guess = utils::get_init_pose_pnp(world_pts, img_pts, K, D, &success);
-    std::cout << " ======= pnp pose: " << std::endl << T_w_c_guess << std::endl;
-    if (!success) {
-      std::cout << "frame " << frame_num << " cam " << cam_idx
-                << ": could not find start pose guess!" << std::endl;
-      return;
-    }
     values_.insert(T_w_c_sym, T_w_c_guess);
 
     IsotropicNoisePtr pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     for (const auto &tag: tags) {
       for (const auto i: irange(0, 4)) {
-        gtsam::Point2 uv(tag.corners[i].x(), tag.corners[i].y());
         gtsam::Symbol X_w_i = sym_X_w_i(tag.id, i);
-        graph_.push_back(ProjectionFactor(uv, pixelNoise,
-                                          T_w_c_sym, X_w_i, cameras_[cam_idx]));
+        // This tag may not be in the graph yet because its pose
+        // could not be estimated due to lack of camera pose!
+        if (values_.exists(X_w_i)) {
+          gtsam::Point2 uv(tag.corners[i].x(), tag.corners[i].y());
+          graph_.push_back(ProjectionFactor(uv, pixelNoise,
+                                            T_w_c_sym, X_w_i,
+                                            cameras_[cam_idx].gtsamCameraModel));
+        } else {
+          std::cout << "tag " << tag.id << " not observed yet!" << std::endl;
+        }
       }
     }
     std::cout << frame_num << " cam " << cam_idx << " observed " << tags.size() << " tags" << std::endl;
     optimize();
+    updateCameraPoses(frame_num);
   }
 
-  
   static double tryOptimization(gtsam::Values *result,
                                 const gtsam::NonlinearFactorGraph &graph,
                                 const gtsam::Values &values,
@@ -224,16 +201,36 @@ namespace tagslam {
   }
 
   void
-  TagGraph::getCameraPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses,
-                           unsigned int frame_num) const {
+  TagGraph::updateCameraPoses(unsigned int frameNum) {
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      const gtsam::Symbol sym = sym_T_c_t(cam_idx, frame_num);
+      const gtsam::Symbol sym = sym_T_c_t(cam_idx, frameNum);
       if (optimizedValues_.find(sym) != optimizedValues_.end()) {
-        poses->push_back(std::pair<int, gtsam::Pose3>(cam_idx,
-                                                      optimizedValues_.at<gtsam::Pose3>(sym.key())));
+        cameras_[cam_idx].lastPose = optimizedValues_.at<gtsam::Pose3>(sym.key());
+        cameras_[cam_idx].hasValidPose = true;
       }
     }
   }
+
+  void
+  TagGraph::getCameraPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses,
+                           unsigned int frame_num) const {
+    for (const auto &cam: cameras_) {
+      if (cam.second.hasValidPose) {
+        poses->push_back(std::pair<int, gtsam::Pose3>(cam.first, cam.second.lastPose));
+      }
+    }
+  }
+  
+  bool
+  TagGraph::getCameraPose(int cam_idx, gtsam::Pose3 *pose) const {
+    const auto it = cameras_.find(cam_idx);
+    if (it != cameras_.end() && it->second.hasValidPose) {
+      *pose = it->second.lastPose;
+      return (true);
+    }
+    return (false);
+  }
+
 
   void
   TagGraph::getTagPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const {

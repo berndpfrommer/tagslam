@@ -24,7 +24,9 @@ namespace tagslam {
     // obviously this is just a starting guess.
     gtsam::Pose3 get_init_pose(const std::vector<gtsam::Point3> &world_points,
                                const std::vector<gtsam::Point2> &image_points,
-                               const Eigen::Matrix<double, 3, 3> &K);
+                               const std::vector<double> &intrinsics,
+                               const std::string &distModel,
+                               const std::vector<double> &distcoeff);
     gtsam::Pose3 get_init_pose_pnp(const std::vector<cv::Point3f> &world_points,
                                    const std::vector<cv::Point2f> &image_points,
                                    const cv::Mat &K, const cv::Mat &D,

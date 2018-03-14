@@ -19,6 +19,36 @@ namespace tagslam {
     return (c[i]);
   }
 
+  std::vector<gtsam::Point3> Tag::get_object_corners(double size) {
+    const double s = size;
+    const std::vector<gtsam::Point3> c =
+      {gtsam::Point3(-s/2,-s/2, 0),
+       gtsam::Point3( s/2,-s/2, 0),
+       gtsam::Point3( s/2, s/2, 0),
+       gtsam::Point3(-s/2, s/2, 0)};
+    return (c);
+  }
+
+  std::vector<gtsam::Point3> Tag::getObjectCorners() const {
+    return (get_object_corners(size));
+  }
+  
+  std::vector<gtsam::Point2> Tag::getImageCorners() const {
+    std::vector<gtsam::Point2> v;
+    for (int i = 0; i < 4; i++) {
+      v.push_back(corners[i]);
+    }
+    return (v);
+  }
+  bool Tag::hasValidImageCorners() const {
+    for (int i = 0; i < 4; i++) {
+      if (corners[i].x() != 0 || corners[i].y() != 0) {
+        return (true);
+      }
+    }
+    return (false);
+  }
+  
   gtsam::Point3 Tag::getWorldCorner(int i) const {
     return (pose.transform_from(getObjectCorner(i)));
   }

@@ -47,16 +47,31 @@ namespace tagslam {
       ros::Time    time;
       std::string  frame_id;
     };
+    struct StaticObject {
+      StaticObject(const std::string &n  = std::string(""),
+                   const gtsam::Pose3 &p = gtsam::Pose3(),
+                   const Tag::PoseNoise &pn = Tag::PoseNoise()) :
+        name(n), pose(p), noise(pn) {};
+      std::string    name;
+      gtsam::Pose3   pose;
+      Tag::PoseNoise noise;
+    };
     void parseStaticObject(const std::string &name,
                            XmlRpc::XmlRpcValue &staticObject);
     void process(const std::vector<TagArrayConstPtr> &msgvec);
     bool subscribe();
-    bool filterTags(std::vector<Tag> *newTags, std::vector<Tag> *observedTags,
+    bool filterTags(int cam_idx, std::vector<Tag> *newTags, std::vector<Tag> *observedTags,
                     TagArrayConstPtr tags);
     void broadcastTransforms(const std::vector<PoseInfo> &poses);
     void broadcastCameraPoses(const ros::Time &t);
     void broadcastTagPoses(const ros::Time &t);
+    bool estimateInitialTagPose(int cam_idx, const gtsam::Pose3 &T_w_c,
+                                const geometry_msgs::Point *corners,
+                                gtsam::Pose3 *pose) const;
 
+    bool estimateInitialTagPose(int cam_idx, const Tag &tag, gtsam::Pose3 *pose) const;
+    bool estimateCameraPose(const Camera &cam, const std::vector<Tag> &tags,
+                            gtsam::Pose3 *pose);
     typedef message_filters::Subscriber<TagArray> TagSubscriber;
     typedef std::unordered_map<int, Tag>          IdToTagMap;
     ros::Subscriber                               singleCamSub_;
@@ -68,6 +83,7 @@ namespace tagslam {
     TagGraph                                      tagGraph_;
     std::map<double, int>                         tagTypeMap_;
     IdToTagMap                                    idToTag_;
+    std::vector<StaticObject>                     staticObjects_;
     double                                        defaultTagSize_{0.5};
     unsigned int                                  frameNum_{0};
     tf::TransformBroadcaster                      tfBroadcaster_;

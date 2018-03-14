@@ -14,6 +14,7 @@
 #include <map>
 #include <vector>
 #include <memory>
+#include <string>
 
 namespace tagslam {
   class TagGraph {
@@ -29,30 +30,51 @@ namespace tagslam {
                  const utils::PoseNoise &objPoseNoise,
                  const std::vector<Tag> &tags);
     void observedTags(int cam_idx, const std::vector<Tag> &tags,
-                      unsigned int frame_num, const cv::Mat &K,
-                      const cv::Mat &D);
+                      unsigned int frame_num,
+                      const gtsam::Pose3 &cam_init_pose);
 
-    void addCamera(int cam_idx, double fx, double fy,
-                   double cx, double cy,
+    void addCamera(int cam_idx,
+                   const std::vector<double> &intr,
                    const std::string &distModel,
                    const std::vector<double> &distCoeff);
     bool hasStaticObject(const std::string &name) const;
+    bool getCameraPose(int cam_idx, gtsam::Pose3 *pose) const;
+
     void getCameraPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses,
                         unsigned int frame_num) const;
     void getTagPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const;
 
   private:
+    struct GraphCam {
+      GraphCam(const boost::shared_ptr<gtsam::Cal3DS2> &m =
+               boost::shared_ptr<gtsam::Cal3DS2>(),
+               const std::vector<double> &i = std::vector<double>(),
+               const std::string &dm  = "radtan",
+               const std::vector<double> &dc = std::vector<double>()) :
+        gtsamCameraModel(m), intrinsics(i), distModel(dm), distCoeff(dc) {
+      };
+      boost::shared_ptr<gtsam::Cal3DS2> gtsamCameraModel;
+      std::vector<double> intrinsics;
+      std::string         distModel;
+      std::vector<double> distCoeff;
+      gtsam::Pose3        lastPose;
+      bool                hasValidPose{false};
+    };
     void optimize();
-    void getPoints(std::vector<cv::Point2f> *img_pts,
+    bool getPoints(std::vector<cv::Point2f> *img_pts,
                    std::vector<cv::Point3f> *world_pts,
                    const std::vector<Tag> &tags) const;
+    bool findInitialTagPose(const Tag &tag, gtsam::Pose3 *pose,
+                            Tag::PoseNoise *noise) const;
+    void updateCameraPoses(unsigned int frameNum);
+    gtsam::Point3 insertTagType(const Tag &tag, int corner);
+
 #if 0    
     void addStaticObject(const std::string &objectName, const gtsam::Pose3 &pose,
                          const utils::PoseNoise &poseNoise);
 #endif    
 
-    typedef std::map<int, boost::shared_ptr<gtsam::Cal3DS2> > CamMap;
-    gtsam::Point3 insertTagType(const Tag &tag, int corner);
+    typedef std::map<int, GraphCam> CamMap;
     gtsam::Values                 values_;
     gtsam::Values                 optimizedValues_;
     gtsam::NonlinearFactorGraph   graph_;
