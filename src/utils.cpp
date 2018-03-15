@@ -135,22 +135,68 @@ namespace utils {
     return (pose);
   }
 
-  gtsam::Pose3 get_init_pose_pnp(const std::vector<cv::Point3f> &world_points,
-                                 const std::vector<cv::Point2f> &image_points,
-                                 const cv::Mat &K, const cv::Mat &D,
-                                 bool *success) {
-    cv::Mat rvec, tvec;
+  //
+  // Will return T_c_w, i.e. world-to-camera transform
+  //
+
+  bool get_init_pose_pnp(const std::vector<cv::Point3d> &world_points,
+                         const std::vector<cv::Point2d> &image_points,
+                         const cv::Mat &K,
+                         const std::string &distModel,
+                         const cv::Mat &D,
+                         cv::Mat *rvec,
+                         cv::Mat *tvec) {
+    if (distModel == "plumb_bob" || distModel == "radtan") {
+    } else {
+      throw std::runtime_error("camera model equidistant not implemented!");
+    }
     bool sc = cv::solvePnP(world_points, image_points, K, D,
-                           rvec, tvec);
-    if (!sc) {
-      std::cout << "WARNING: solvePnP failed!" << std::endl;
+                           *rvec, *tvec);
+    if (tvec->at<double>(2) < 0.0) {
+      sc = false;
     }
-    if (success) {
-      *success = sc;
-    }
-    gtsam::Vector tvec_gtsam = (gtsam::Vector(3) << tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2)).finished();
-    gtsam::Pose3 pose(gtsam::Rot3::rodriguez(rvec.at<double>(0), rvec.at<double>(1), rvec.at<double>(2)), tvec_gtsam);
-    return (pose);
+    return (sc);
   }
+
+  
+  void project_points(const std::vector<cv::Point3d> &wp,
+                      const cv::Mat &rvec,
+                      const cv::Mat &tvec,
+                      const cv::Mat &K,
+                      const std::string &distModel,
+                      const cv::Mat &D, 
+                      std::vector<cv::Point2d> *ip) {
+      if (distModel == "equidistant") {
+        cv::Affine3d::Vec3 arvec = rvec;
+        cv::Affine3d::Vec3 atvec = tvec;
+        cv::fisheye::projectPoints(wp, *ip, arvec, atvec, K, D);
+      } else if (distModel == "radtan") {
+        cv::projectPoints(wp, rvec, tvec, K, D, *ip);
+      } else {
+        std::cout << "WARNING: unknown distortion model: " << distModel << " using radtan!" << std::endl;
+        cv::projectPoints(wp, rvec, tvec, K, D, *ip);
+      }
+    }
+
+  double reprojection_error(const std::vector<cv::Point3d> &wp,
+                            const std::vector<cv::Point2d> &ip,
+                            const cv::Mat &rvec,
+                            const cv::Mat &tvec,
+                            const cv::Mat &K,
+                            const std::string &distModel,
+                            const cv::Mat &D) {
+    if (wp.empty()) {
+      return (0.0);
+    }
+    std::vector<cv::Point2d> ipp;
+    project_points(wp, rvec, tvec, K, distModel, D, &ipp);
+    double err(0);
+    for (unsigned int i = 0; i < ipp.size(); i++) {
+      cv::Point diff = ipp[i] - ip[i];
+      err += sqrt(diff.x * diff.x + diff.y * diff.y);
+    }
+    return (err / (double) ipp.size());
+  }
+
 }
 }

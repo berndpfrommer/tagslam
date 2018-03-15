@@ -48,6 +48,12 @@ namespace tagslam {
     }
     return (false);
   }
+
+  void Tag::setCorners(const geometry_msgs::Point *corn) {
+    for (int i = 0; i < 4; i++) {
+      corners[i] = gtsam::Point2(corn[i].x, corn[i].y);
+    }
+  }
   
   gtsam::Point3 Tag::getWorldCorner(int i) const {
     return (pose.transform_from(getObjectCorner(i)));

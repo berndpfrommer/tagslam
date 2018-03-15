@@ -16,9 +16,11 @@ namespace tagslam {
                                          gtsam::Point3,
                                          gtsam::Cal3DS2> ProjectionFactor;
   using boost::irange;
+  // transform from object (tag) coordinate space to static object
   static const gtsam::Symbol sym_T_w_o(int tagId) {
     return (gtsam::Symbol('s', tagId));
   }
+  // transform from object (tag) coordinate space to static object
   static const gtsam::Symbol sym_T_s_o(int tagId) {
     return (gtsam::Symbol('t', tagId));
   }
@@ -58,7 +60,6 @@ namespace tagslam {
                          const utils::PoseNoise &objPoseNoise, const std::vector<Tag> &tags) {
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
-      std::cout << "graph tag: adding new tag: " << tag.id << std::endl;
       gtsam::Pose3   tagPose = tag.pose;
       Tag::PoseNoise tagNoise = tag.noise;
       // ----- insert transform T_s_o and pin it down with prior factor
@@ -68,13 +69,11 @@ namespace tagslam {
         return;
       }
       values_.insert(T_s_o_sym, tagPose);
-      std::cout << "tag has T_s_o: " << tagPose << std::endl;
       graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_s_o_sym, tagPose, tagNoise));
       // ------ now object-to-world transform
       // T_w_o  = T_w_s * T_s_o
       gtsam::Symbol T_w_o_sym = sym_T_w_o(tag.id);
       gtsam::Pose3  T_w_o     = objPose * tagPose;
-      std::cout << "tag has T_w_o: " << T_w_o << std::endl;
       values_.insert(T_w_o_sym, T_w_o);
       graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(T_s_o_sym, T_w_o_sym, objPose, objPoseNoise));
             
@@ -151,8 +150,6 @@ namespace tagslam {
   void TagGraph::observedTags(int cam_idx, const std::vector<Tag> &tags,
                               unsigned int frame_num,
                               const gtsam::Pose3 &T_w_c_guess) {
-    std::cout << "-- observed tags for cam " << cam_idx << " frame " << frame_num << " tags: " << tags.size() << std::endl;
-    std::cout << "initial camera pose: " << std::endl << T_w_c_guess << std::endl;
     if (cam_idx < 0 || cam_idx >= cameras_.size()) {
       std::cout << "ERROR: invalid camera index!" << std::endl;
       return;
@@ -168,27 +165,20 @@ namespace tagslam {
     for (const auto &tag: tags) {
       for (const auto i: irange(0, 4)) {
         gtsam::Symbol X_w_i = sym_X_w_i(tag.id, i);
-        // This tag may not be in the graph yet because its pose
-        // could not be estimated due to lack of camera pose!
-        if (values_.exists(X_w_i)) {
-          gtsam::Point2 uv(tag.corners[i].x(), tag.corners[i].y());
-          graph_.push_back(ProjectionFactor(uv, pixelNoise,
-                                            T_w_c_sym, X_w_i,
-                                            cameras_[cam_idx].gtsamCameraModel));
-        } else {
-          std::cout << "tag " << tag.id << " not observed yet!" << std::endl;
-        }
+        gtsam::Point2 uv(tag.corners[i].x(), tag.corners[i].y());
+        graph_.push_back(ProjectionFactor(uv, pixelNoise,
+                                          T_w_c_sym, X_w_i,
+                                          cameras_[cam_idx].gtsamCameraModel));
       }
     }
-    std::cout << frame_num << " cam " << cam_idx << " observed " << tags.size() << " tags" << std::endl;
     optimize();
     updateCameraPoses(frame_num);
   }
 
-  static double tryOptimization(gtsam::Values *result,
-                                const gtsam::NonlinearFactorGraph &graph,
-                                const gtsam::Values &values,
-                                const std::string &verbosity, int maxIter) {
+  double TagGraph::tryOptimization(gtsam::Values *result,
+                                   const gtsam::NonlinearFactorGraph &graph,
+                                   const gtsam::Values &values,
+                                   const std::string &verbosity, int maxIter) {
       gtsam::LevenbergMarquardtParams lmp;
       lmp.setVerbosity(verbosity);
       lmp.setMaxIterations(maxIter);
@@ -196,8 +186,9 @@ namespace tagslam {
       lmp.setRelativeErrorTol(0);
       gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
       *result = lmo.optimize();
-      double err = lmo.error();
-      return (err);
+      optimizerError_ = lmo.error();
+      optimizerIterations_ = lmo.iterations();
+      return (optimizerError_);
   }
 
   void
@@ -232,8 +223,14 @@ namespace tagslam {
   }
 
 
+  gtsam::Pose3
+  TagGraph::getTagWorldPose(int tagId) const {
+    return (optimizedValues_.at<gtsam::Pose3>(sym_T_w_o(tagId)));
+  }
+
+  
   void
-  TagGraph::getTagPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const {
+  TagGraph::getTagWorldPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const {
     gtsam::Values::const_iterator it_start = optimizedValues_.lower_bound(gtsam::Symbol('s', 0));
     gtsam::Values::const_iterator it_stop  = optimizedValues_.upper_bound(gtsam::Symbol('s', 1024*1024));
     for (gtsam::Values::const_iterator it = it_start; it != it_stop; ++it) {
@@ -247,7 +244,9 @@ namespace tagslam {
   void TagGraph::optimize() {
     //graph_.print();
     //values_.print();
-    double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
+    //double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
+    double err = tryOptimization(&optimizedValues_, graph_, values_, "SILENT", 100);
+    values_ = optimizedValues_;
     //result.print();
   }
 

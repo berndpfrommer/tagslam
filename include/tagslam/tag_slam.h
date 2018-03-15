@@ -60,18 +60,31 @@ namespace tagslam {
                            XmlRpc::XmlRpcValue &staticObject);
     void process(const std::vector<TagArrayConstPtr> &msgvec);
     bool subscribe();
-    bool filterTags(int cam_idx, std::vector<Tag> *newTags, std::vector<Tag> *observedTags,
-                    TagArrayConstPtr tags);
     void broadcastTransforms(const std::vector<PoseInfo> &poses);
     void broadcastCameraPoses(const ros::Time &t);
     void broadcastTagPoses(const ros::Time &t);
     bool estimateInitialTagPose(int cam_idx, const gtsam::Pose3 &T_w_c,
-                                const geometry_msgs::Point *corners,
+                                const gtsam::Point2 *corners,
                                 gtsam::Pose3 *pose) const;
 
     bool estimateInitialTagPose(int cam_idx, const Tag &tag, gtsam::Pose3 *pose) const;
-    bool estimateCameraPose(const Camera &cam, const std::vector<Tag> &tags,
-                            gtsam::Pose3 *pose);
+    bool estimateCameraPose(int cam_idx, const std::vector<Tag> &tags,
+                            gtsam::Pose3 *pose, double *err);
+    void updateTagPosesFromGraph(const std::vector<Tag> &tags);
+    Tag  makeTag(int id, double size, const gtsam::Pose3 &pose,
+                 const Tag::PoseNoise &noise,
+                 const geometry_msgs::Point *corners,
+                 int parentIdx);
+    int  findTagType(double size);
+    void findKnownTags(const TagArrayConstPtr &observedTags,
+                       std::vector<Tag> *knownTags,
+                       std::vector<Tag> *unknownTags);
+    void findTagInitialPoses(std::vector<Tag> *tagsWithPoses,
+                             const std::vector<Tag> &newTags, int cam_idx,
+                             const gtsam::Pose3 &T_w_c);
+
+
+    // ----------------------------------------------------------
     typedef message_filters::Subscriber<TagArray> TagSubscriber;
     typedef std::unordered_map<int, Tag>          IdToTagMap;
     ros::Subscriber                               singleCamSub_;

@@ -25,6 +25,9 @@ namespace tagslam {
     TagGraph(const TagGraph&) = delete;
     TagGraph& operator=(const TagGraph&) = delete;
 
+    double getError() { return (optimizerError_); }
+    int    getIterations() { return (optimizerIterations_); }
+    
     void addTags(const std::string &objectName,
                  const gtsam::Pose3 &objPose,
                  const utils::PoseNoise &objPoseNoise,
@@ -42,7 +45,8 @@ namespace tagslam {
 
     void getCameraPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses,
                         unsigned int frame_num) const;
-    void getTagPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const;
+    gtsam::Pose3 getTagWorldPose(int tagId) const;
+    void getTagWorldPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const;
 
   private:
     struct GraphCam {
@@ -69,6 +73,10 @@ namespace tagslam {
     void updateCameraPoses(unsigned int frameNum);
     gtsam::Point3 insertTagType(const Tag &tag, int corner);
 
+    double tryOptimization(gtsam::Values *result,
+                           const gtsam::NonlinearFactorGraph &graph,
+                           const gtsam::Values &values,
+                           const std::string &verbosity, int maxIter);
 #if 0    
     void addStaticObject(const std::string &objectName, const gtsam::Pose3 &pose,
                          const utils::PoseNoise &poseNoise);
@@ -80,6 +88,8 @@ namespace tagslam {
     gtsam::NonlinearFactorGraph   graph_;
     std::map<std::string, int>    staticObjects_;
     CamMap                        cameras_;
+    double                        optimizerError_{0};
+    int                           optimizerIterations_{0};
   };
 }
 

@@ -51,6 +51,10 @@ namespace tagslam {
         parseStaticObject(it->first, it->second);
       }
     }
+    if (staticObjects_.empty()) {
+      staticObjects_.push_back(StaticObject("world", gtsam::Pose3(),
+                                            utils::make_pose_noise(1e-4, 1e-4)));
+    }
     return (true);
   }
 
@@ -83,6 +87,15 @@ namespace tagslam {
     return (true);
   }
 
+  int TagSlam::findTagType(double size) {
+    // check if this tag is of unknown size. If yes,
+    // declare it a new type.
+    if (tagTypeMap_.count(size) == 0) {
+      tagTypeMap_.insert(std::map<double,int>::value_type(size, tagTypeMap_.size()));
+    }
+    return (tagTypeMap_.find(size)->second);
+  }
+
   void TagSlam::parseStaticObject(const std::string &name,
                                   XmlRpc::XmlRpcValue &staticObject) {
     gtsam::Pose3 pose;
@@ -110,14 +123,10 @@ namespace tagslam {
             ROS_ERROR_STREAM("duplicate tag id in input file: " << t.id);
             ros::shutdown();
           }
-          // check if this tag is of unknown size. If yes,
-          // declare it a new type.
-          if (tagTypeMap_.count(t.size) == 0) {
-            tagTypeMap_.insert(std::map<double,int>::value_type(t.size, tagTypeMap_.size()));
-          }
-          t.type = tagTypeMap_[t.size];
+          t.type = findTagType(t.size);
           t.parentIdx = objIdx;
           idToTag_.insert(IdToTagMap::value_type(t.id, t));
+          ROS_INFO_STREAM("adding to static object " << name << " tag with id: " << t.id);
         }
         tagGraph_.addTags(name, pose, noise, tags);
         return;
@@ -134,52 +143,155 @@ namespace tagslam {
     return (t);
   }
 
-  bool TagSlam::estimateCameraPose(const Camera &cam, const std::vector<Tag> &tags,
-                                   gtsam::Pose3 *pose) {
+//#define DEBUG_CAM_POSE_INIT
+
+  // computes estimated T_w_c
+  bool TagSlam::estimateCameraPose(int cam_idx, const std::vector<Tag> &tags,
+                                   gtsam::Pose3 *pose, double *err) {
     if (tags.empty()) {
       return (false);
     }
+    const Camera &cam = cameras_[cam_idx];
+#ifdef DEBUG_CAM_POSE_INIT
+    std::cout << "---------- points used for cam " << cam_idx << " pose estimation: " << std::endl;
+#endif    
     const auto &ci = cam.intrinsics;
-    std::vector<cv::Point2f> ip;
-    std::vector<cv::Point3f> wp;
+    std::vector<cv::Point2d> ip;
+    std::vector<cv::Point3d> wp;
     for (const auto &tag: tags) {
       for (const auto i: irange(0, 4)) {
         gtsam::Point2 uv  = tag.corners[i];
         const gtsam::Pose3  &T_w_s = staticObjects_[tag.parentIdx].pose;
         gtsam::Point3 p =  T_w_s * tag.pose * tag.getObjectCorner(i);
-        wp.push_back(cv::Point3f(p.x(), p.y(), p.z()));
-        ip.push_back(cv::Point2f(uv.x(), uv.y()));
+        wp.push_back(cv::Point3d(p.x(), p.y(), p.z()));
+        ip.push_back(cv::Point2d(uv.x(), uv.y()));
+#ifdef DEBUG_CAM_POSE_INIT
+        std::cout << tag.id << " " << ip.back().x << " " << ip.back().y << " " << wp.back().x << " "
+                  << wp.back().y << " " << wp.back().z << std::endl;
+#endif
       }
     }
-#if 0
-    std::cout << "---------- points used for cam pose estimation: " << std::endl;
-    for (const auto i: irange(0ul, ip.size())) {
-      std::cout << i << " " << ip[i] << " " << wp[i] << std::endl;
-    }
-#endif    
 
-    bool rc(true);
-    gtsam::Pose3 T_w_c_guess = utils::get_init_pose_pnp(wp, ip, ci.K, ci.D, &rc);
+    gtsam::Pose3 prevPose;
+    bool hasPrevPose = tagGraph_.getCameraPose(cam_idx, &prevPose);
+    cv::Mat rvec, tvec;
+    bool rc = utils::get_init_pose_pnp(wp, ip, ci.K, ci.distortion_model, ci.D, &rvec, &tvec);
+    if (!rc) {
+      if (hasPrevPose) {
+        *pose = prevPose;
+        return (true);
+      }
+      return (false);
+    }
+    *err = utils::reprojection_error(wp, ip, rvec, tvec, ci.K, ci.distortion_model, ci.D);
+    gtsam::Vector tvec_gtsam = (gtsam::Vector(3) << tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2)).finished();
+    gtsam::Pose3 T_c_w_guess(gtsam::Rot3::rodriguez(rvec.at<double>(0), rvec.at<double>(1), rvec.at<double>(2)), tvec_gtsam);
+    gtsam::Pose3 T_w_c_guess = T_c_w_guess.inverse();
+#ifdef DEBUG_CAM_POSE_INIT
+    std::cout << "reprojection error: " << *err <<std::endl;
+    std::cout << "pnp pose T_c_w guess: " << std::endl << T_c_w_guess << std::endl;
+#endif
+    
+    if (hasPrevPose) {
+      gtsam::Pose3 errPose = prevPose.between(T_w_c_guess);
+#ifdef DEBUG_CAM_POSE_INIT      
+      std::cout << "prev pose: " << prevPose << std::endl;
+#endif
+      gtsam::Vector3 er   = gtsam::Rot3::Logmap(errPose.rotation());
+      gtsam::Vector3 et = errPose.translation();
+      double roterr = std::sqrt(er(0)*er(0) + er(1)*er(1) + er(2)*er(2));
+      double transerr = std::sqrt(et(0)*et(0) + et(1)*et(1) + et(2)*et(2));
+#ifdef DEBUG_CAM_POSE_INIT
+      std::cout << "rotation error: " << roterr <<  " translation error: " << transerr << std::endl;
+#endif
+    }
+    
     *pose = T_w_c_guess;
     return (rc);
   }
 
+  void TagSlam::updateTagPosesFromGraph(const std::vector<Tag> &tags) {
+    //std::cout << "!!!!!!!! updating tag poses !!!!!!!!!!!!!!" << std::endl;
+    for (const auto &tag: tags) {
+      const gtsam::Pose3 T_w_o = tagGraph_.getTagWorldPose(tag.id);
+      Tag &newTag = idToTag_[tag.id];
+      //std::cout << "initial guess: " << std::endl << newTag.pose << std::endl;
+      //std::cout << "updated to: " << std::endl << T_w_o << std::endl;
+      newTag.pose = T_w_o;
+    }
+  }
+
+  Tag TagSlam::makeTag(int id, double size, const gtsam::Pose3 &pose,
+                       const Tag::PoseNoise &noise,
+                       const geometry_msgs::Point *corners,
+                       int parentIdx) {
+    Tag newTag(id, findTagType(size), size, pose, noise);
+    newTag.parentIdx = 0; // default to "first static object"
+    newTag.setCorners(corners);
+    return (newTag);
+  }
+
+
+  void TagSlam::findKnownTags(const TagArrayConstPtr &observedTags,
+                              std::vector<Tag> *knownTags,
+                              std::vector<Tag> *unknownTags) {
+    for (const auto &tag: observedTags->apriltags) {
+      if (idToTag_.empty()) {
+        // no pre-defined tags, make first visible tag
+        // the center of world!
+                             
+        Tag::PoseNoise tagNoise = utils::make_pose_noise(1e-4, 1e-4);
+        gtsam::Pose3   tagPose;
+        Tag newTag = makeTag(tag.id, defaultTagSize_, tagPose,
+                             tagNoise, &tag.corners[0], 0);
+        knownTags->push_back(newTag);
+        const StaticObject &so = staticObjects_[0];
+        tagGraph_.addTags(so.name, so.pose, so.noise, *knownTags);
+        return; // ignore all other tags for now
+      }
+      const auto it = idToTag_.find(tag.id);
+      if (it != idToTag_.end()) {
+        // tag is known, just update corners
+        Tag newTag(it->second);
+        newTag.setCorners(&tag.corners[0]);
+        knownTags->push_back(newTag);
+      } else {
+        // unknown tag, will determine approximate pose later
+        Tag::PoseNoise tagNoise = utils::make_pose_noise(30, 10);
+        Tag newTag = makeTag(tag.id, defaultTagSize_, gtsam::Pose3(),
+                             tagNoise, &tag.corners[0], 0);
+        unknownTags->push_back(newTag);
+      }
+    }
+  }
+        
   void TagSlam::process(const std::vector<TagArrayConstPtr> &msgvec) {
     for (const auto cam_idx: irange(0ul, msgvec.size())) {
       const auto tags = msgvec[cam_idx];
-      std::vector<Tag> newTags, observedTags;
-      if (filterTags(cam_idx, &newTags, &observedTags, tags)) {
-        tagGraph_.addTags("unknown", gtsam::Pose3(),
-                          utils::make_pose_noise(0.001, 0.001), newTags);
-      }
-      std::cout << "out of " << tags->apriltags.size() << " useful tags: " << observedTags.size() << std::endl;
-
+      std::vector<Tag> knownTags, unknownTags;
+      findKnownTags(tags, &knownTags, &unknownTags);
       gtsam::Pose3 cameraPose;
-      if (estimateCameraPose(cameras_[cam_idx], observedTags, &cameraPose)) {
-        ROS_INFO_STREAM("have pose and useful tags!");
-        tagGraph_.observedTags(cam_idx, observedTags, frameNum_, cameraPose);
-      } else {
-        std::cout << "no camera pose found!" << std::endl;
+      double err;
+      // estimate camera just from the known tags
+      bool havePose = estimateCameraPose(cam_idx, knownTags, &cameraPose, &err);
+      if (havePose) {
+        std::vector<Tag> tagsWithPoses;
+        findTagInitialPoses(&tagsWithPoses, unknownTags, cam_idx, cameraPose);
+        tagGraph_.addTags("unknown", gtsam::Pose3(),
+                          utils::make_pose_noise(0.001, 0.001), tagsWithPoses);
+        for (const auto &tag : tagsWithPoses) {
+          knownTags.push_back(tag);
+          idToTag_[tag.id] = tag;
+        }
+        // this will also run the optimizer
+        tagGraph_.observedTags(cam_idx, knownTags, frameNum_, cameraPose);
+        // after the optimizer has run, update
+        // the tag poses one more time
+        updateTagPosesFromGraph(tagsWithPoses);
+        ROS_INFO_STREAM("observed " << knownTags.size()
+                        << " tags on cam: " << cam_idx << " repro err: " << err
+                        << " opt err: " << tagGraph_.getError()
+                        << " opt iter: " << tagGraph_.getIterations());
       }
     }
     ros::Time t = get_latest_time(msgvec);
@@ -188,56 +300,17 @@ namespace tagslam {
     frameNum_++;
   }
 
-  bool TagSlam::filterTags(int cam_idx, std::vector<Tag> *newTags,
-                           std::vector<Tag> *observedTags,
-                           TagArrayConstPtr tags) {
-    gtsam::Pose3 T_w_c;
-    bool hasValidCameraPose = tagGraph_.getCameraPose(cam_idx, &T_w_c);
-
-    for (const auto &tag: tags->apriltags) {
-      bool isNewTag(false);
-      if (idToTag_.count(tag.id) == 0) { // new, unknown tag
-        ROS_INFO_STREAM("found unknown tag with id: " << tag.id << " for cam: " << cam_idx);
-        gtsam::Pose3 tagPose;
-        Tag::PoseNoise tagNoise = utils::make_pose_noise(30.0, 1.0e3);
-        if (!hasValidCameraPose || !estimateInitialTagPose(cam_idx, T_w_c,
-                                                           &tag.corners[0], &tagPose)) {
-          ROS_INFO_STREAM("cannot estimate tag pose for tag " << tag.id);
-          // hmm, cannot estimate tag pose. If no other tags are
-          // already there with known position (i.e. pre-defined in file,
-          // or found earlier), this tag becomes the center of the universe!
-          if (idToTag_.empty()) {
-            ROS_INFO_STREAM("first tag observed, making tag " << tag.id << " center of universe!");
-            tagPose = gtsam::Pose3(); // not really necessary ....
-            tagNoise = utils::make_pose_noise(1e-4, 1e-4);
-          } else {
-            ROS_INFO_STREAM("ignoring tag " << tag.id);
-            // TODO: the continue is tricky code, don't like it
-            continue; // ignore new tag if we cannot locate it!
-          }
-        }
-        // ok, we have a new tag, and we have a clue about its pose.
-        // enter it into the tag database
-        Tag newTag(tag.id, tagTypeMap_[defaultTagSize_],
-                   defaultTagSize_, tagPose, tagNoise);
-        idToTag_.insert(IdToTagMap::value_type(tag.id, newTag));
-        isNewTag = true;
-      } else {
-        ROS_INFO_STREAM("found known tag with id: " << tag.id << " for cam: " << cam_idx);
-      }
-      // at this point we have a valid tag, and we
-      // know its pose. Let's put the corners on it as well
-      Tag &obsTag = idToTag_.find(tag.id)->second;
-      for (int i = 0; i < 4; i++) {
-        obsTag.corners[i] = gtsam::Point2(tag.corners[i].x,
-                                          tag.corners[i].y);
-      }
-      observedTags->push_back(obsTag);
-      if (isNewTag) {
-        newTags->push_back(obsTag);
+  void TagSlam::findTagInitialPoses(std::vector<Tag> *tagsWithPoses,
+                                    const std::vector<Tag> &newTags, int cam_idx,
+                                    const gtsam::Pose3 &T_w_c) {
+    for (auto &tag: newTags) {
+      gtsam::Pose3 tagPose;
+      if (estimateInitialTagPose(cam_idx, T_w_c, &tag.corners[0], &tagPose)) {
+        Tag t(tag);
+        t.pose = tagPose;
+        tagsWithPoses->push_back(t);
       }
     }
-    return (!newTags->empty());
   }
 
   static tf::Transform gtsam_pose_to_tf(const gtsam::Pose3 &p) {
@@ -254,19 +327,17 @@ namespace tagslam {
   void TagSlam::broadcastCameraPoses(const ros::Time &t) {
     std::vector<std::pair<int, gtsam::Pose3>> camPoses;
     tagGraph_.getCameraPoses(&camPoses, frameNum_);
-    std::cout << "got camera positions: " << camPoses.size() << std::endl;
     std::vector<PoseInfo> camPoseInfo;
     for (const auto &cp: camPoses) {
       const std::string frame_id = "cam_" + std::to_string(cp.first);
       camPoseInfo.push_back(PoseInfo(cp.second, t, frame_id));
-      std::cout << "publishing camera position: " << frame_id << std::endl;
     }
     broadcastTransforms(camPoseInfo);
   }
 
   void TagSlam::broadcastTagPoses(const ros::Time &t) {
     std::vector<std::pair<int, gtsam::Pose3>> tagPoses;
-    tagGraph_.getTagPoses(&tagPoses);
+    tagGraph_.getTagWorldPoses(&tagPoses);
     std::vector<PoseInfo> tagPoseInfo;
     for (const auto &cp: tagPoses) {
       const std::string frame_id = "tag_" + std::to_string(cp.first);
@@ -281,17 +352,18 @@ namespace tagslam {
       tfBroadcaster_.sendTransform(tf::StampedTransform(tf, p.time, "world", p.frame_id));
     }
   }
-    
+
+//#define DEBUG_TAG_POSE_INIT
   bool TagSlam::estimateInitialTagPose(int cam_idx, const gtsam::Pose3 &T_w_c,
-                                       const geometry_msgs::Point *corners,
-                                       gtsam::Pose3 *pose) const {
+                                       const gtsam::Point2 *corners,
+                                       gtsam::Pose3 *tagPose) const {
     std::vector<gtsam::Point3> wp = Tag::get_object_corners(defaultTagSize_);
     std::vector<gtsam::Point2> ip;
     for (const auto i: irange(0, 4)) {
-      ip.emplace_back(corners[i].x, corners[i].y);
+      ip.push_back(corners[i]);
     }
 
-#if 0
+#ifdef DEBUG_TAG_POSE_INIT
     std::cout << "world points: " << std::endl;
     for (const auto &p: wp) {
       std::cout << p << std::endl;
@@ -306,14 +378,20 @@ namespace tagslam {
     gtsam::Pose3 T_c_o = utils::get_init_pose(wp, ip, ci.intrinsics,
                                               ci.distortion_model,
                                               ci.distortion_coeffs);
-    //std::cout << "estimated T_c_o: " << std::endl << T_c_o << std::endl;
-    //std::cout << "camera T_w_c: "    << std::endl << T_w_c << std::endl;
+#ifdef DEBUG_TAG_POSE_INIT    
+    std::cout << "estimated T_c_o: " << std::endl << T_c_o << std::endl;
+    std::cout << "camera T_w_c: "    << std::endl << T_w_c << std::endl;
+#endif    
     // unknown tags belong to static object 0 by default
     const gtsam::Pose3 &T_s_w = staticObjects_[0].pose.inverse();
-    //std::cout << "object pose T_s_w: " << std::endl << T_s_w << std::endl;
+#ifdef DEBUG_TAG_POSE_INIT    
+    std::cout << "object pose T_s_w: " << std::endl << T_s_w << std::endl;
+#endif    
     const gtsam::Pose3 T_s_o = T_s_w * T_w_c * T_c_o;
-    *pose = T_s_o;
-    //std::cout << "tag pose T_s_o: " << std::endl << *pose << std::endl;
+    *tagPose = T_s_o;
+#ifdef DEBUG_TAG_POSE_INIT
+    std::cout << "tag pose T_s_o: " << std::endl << *tagPose << std::endl;
+#endif
     return (true);
   }
   
