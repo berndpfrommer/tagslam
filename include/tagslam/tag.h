@@ -36,6 +36,7 @@ namespace tagslam {
     PoseNoise      noise;
     gtsam::Point2  corners[4];  // u,v of last observed corner points
     unsigned int   parentIdx{0}; // parent object idx
+    bool           initialPoseKnown{false};
     static std::vector<Tag> parseTags(XmlRpc::XmlRpcValue poses);
   };
 }

@@ -7,13 +7,14 @@
 
 #include "tagslam/camera.h"
 #include "tagslam/tag_graph.h"
+#include "tagslam/initial_pose_graph.h"
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <apriltag_msgs/ApriltagArrayStamped.h>
-#include <vector>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
+#include <vector>
 #include <memory>
 #include <map>
 #include <string>
@@ -66,6 +67,11 @@ namespace tagslam {
     bool estimateInitialTagPose(int cam_idx, const gtsam::Pose3 &T_w_c,
                                 const gtsam::Point2 *corners,
                                 gtsam::Pose3 *pose) const;
+    void getTagPoints(std::vector<gtsam::Point2> *imgPoints,
+                      std::vector<gtsam::Point3> *worldPoints,
+                      std::vector<cv::Point2d> *imgPointsCv,
+                      std::vector<cv::Point3d> *worldPointsCv,
+                      const std::vector<Tag> &tags) const;
 
     bool estimateInitialTagPose(int cam_idx, const Tag &tag, gtsam::Pose3 *pose) const;
     bool estimateCameraPose(int cam_idx, const std::vector<Tag> &tags,
@@ -82,7 +88,7 @@ namespace tagslam {
     void findTagInitialPoses(std::vector<Tag> *tagsWithPoses,
                              const std::vector<Tag> &newTags, int cam_idx,
                              const gtsam::Pose3 &T_w_c);
-
+    void playFromBag(const std::string &fname);
 
     // ----------------------------------------------------------
     typedef message_filters::Subscriber<TagArray> TagSubscriber;
@@ -94,6 +100,7 @@ namespace tagslam {
     ros::NodeHandle                               nh_;
     CameraVec                                     cameras_;
     TagGraph                                      tagGraph_;
+    InitialPoseGraph                              initialPoseGraph_;
     std::map<double, int>                         tagTypeMap_;
     IdToTagMap                                    idToTag_;
     std::vector<StaticObject>                     staticObjects_;

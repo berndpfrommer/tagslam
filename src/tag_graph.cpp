@@ -69,7 +69,9 @@ namespace tagslam {
         return;
       }
       values_.insert(T_s_o_sym, tagPose);
-      graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_s_o_sym, tagPose, tagNoise));
+      if (tag.initialPoseKnown) {
+        graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_s_o_sym, tagPose, tagNoise));
+      }
       // ------ now object-to-world transform
       // T_w_o  = T_w_s * T_s_o
       gtsam::Symbol T_w_o_sym = sym_T_w_o(tag.id);
