@@ -25,14 +25,11 @@ catkin_package(
 	CATKIN_DEPENDS geometry_msgs roscpp
 	)
 
-#
-# NOTE the missing S at the end of GTSAM_INCLUDE_DIR!!!
-#
 include_directories(
   include
   ${Eigen_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  ${GTSAM_INCLUDE_DIR}
+  ${GTSAM_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -40,7 +37,7 @@ add_library(${PROJECT_NAME} src/tag_slam.cpp src/camera.cpp
 src/tag.cpp src/yaml_utils.cpp src/utils.cpp src/tag.cpp
 src/tag_graph.cpp src/initial_pose_graph.cpp)
 
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${GTSAM_LIBRARIES} -lgtsam -ltbb -ltbbmalloc)
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${GTSAM_LIBRARIES})
 
 add_dependencies(${PROJECT_NAME}
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
