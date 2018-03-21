@@ -1,8 +1,9 @@
-/* -*-c++-*--------------------------------------------------------------------
+/* -*-c++-*--------------------------------------------------------------------s
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
 #include "tagslam/tag_slam.h"
+#include "tagslam/pose_estimate.h"
 #include "tagslam/tag.h"
 #include "tagslam/yaml_utils.h"
 #include <boost/range/irange.hpp>
@@ -133,7 +134,7 @@ namespace tagslam {
     for (XmlRpc::XmlRpcValue::iterator it = staticObject.begin();
          it != staticObject.end(); ++it) {
       if (it->first == "tags") {
-        std::vector<Tag> tags = Tag::parseTags(it->second);
+        TagVec tags = Tag::parseTags(it->second);
         ROS_INFO_STREAM("adding static object: " << name <<
                         " with " << tags.size() << "tags");
         for (Tag &t: tags) {
@@ -165,11 +166,11 @@ namespace tagslam {
 //#define DEBUG_CAM_POSE_INIT
 
 
-  void TagSlam::getTagPoints(std::vector<gtsam::Point2> *imgPoints,
-                             std::vector<gtsam::Point3> *worldPoints,
-                             std::vector<cv::Point2d> *imgPointsCv,
-                             std::vector<cv::Point3d> *worldPointsCv,
-                             const std::vector<Tag> &tags) const {
+  void TagSlam::makeTagPoints(std::vector<gtsam::Point2> *imgPoints,
+                              std::vector<gtsam::Point3> *worldPoints,
+                              std::vector<cv::Point2d> *imgPointsCv,
+                              std::vector<cv::Point3d> *worldPointsCv,
+                              const TagVec &tags) const {
     std::vector<cv::Point2d> &ip = *imgPointsCv;
     std::vector<cv::Point3d> &wp = *worldPointsCv;
 #ifdef DEBUG_CAM_POSE_INIT
@@ -194,74 +195,67 @@ namespace tagslam {
     }
   }
 
-  static PoseError pose_error(const gtsam::Pose3 &p1, const gtsam::Pose3 &p2) {
-    gtsam::Pose3 errPose = p1.between(p2);
-    gtsam::Vector3 er = gtsam::Rot3::Logmap(errPose.rotation());
-    gtsam::Vector3 et = errPose.translation();
-    return (PoseError(std::sqrt(er(0)*er(0) + er(1)*er(1) + er(2)*er(2)),
-                      std::sqrt(et(0)*et(0) + et(1)*et(1) + et(2)*et(2))));
-  }
-
-  // computes estimated T_w_c
-  bool TagSlam::estimateCameraPose(int cam_idx, const std::vector<Tag> &tags,
-                                   gtsam::Pose3 *pose, double *err) {
-    if (tags.empty()) {
-      return (false);
-    }
-    const Camera &cam = cameras_[cam_idx];
-#ifdef DEBUG_CAM_POSE_INIT
-    std::cout << "---------- points used for cam " << cam_idx << " pose estimation: " << std::endl;
-#endif    
-    const auto &ci = cam.intrinsics;
-    
-    std::vector<cv::Point2d> ip;
-    std::vector<cv::Point3d> wp;
-    std::vector<gtsam::Point2> imgPts;
-    std::vector<gtsam::Point3> worldPts;
-    getTagPoints(&imgPts, &worldPts, &ip, &wp, tags);
-    cv::Mat rvec, tvec;
-    bool rc = utils::get_init_pose_pnp(wp, ip, ci.K, ci.distortion_model, ci.D, &rvec, &tvec);
-    gtsam::Pose3 prevPose;
-    bool hasPrevPose = tagGraph_.getCameraPose(cam_idx, &prevPose);
-    if (!rc) {
-      if (hasPrevPose) {
-        gtsam::Pose3 graphGuess;
-        double graphErr(0);
-        int graphIter(0);
-        initialPoseGraph_.estimateCameraPose(cam_idx, worldPts, imgPts,
-                                             prevPose, &graphGuess,
-                                             &graphErr, &graphIter);
-        PoseError poseErr = pose_error(graphGuess, prevPose);
-        ROS_WARN_STREAM("PNP failed, using graph guess err: " << graphErr << " iter: "
-                        << graphIter << " err(prev) = rot: " << poseErr.rot  << " trans: "
-                        << poseErr.trans);
-        if (graphErr > 10.0) {
-          ROS_WARN("cannot find new pose, using old one!");
-          *pose = prevPose;
-          *err  = -1.0;
-        } else {
-          *pose = graphGuess;
-          *err = graphErr;
-        }
-        return (true);
-      } else {
-        ROS_WARN("PNP failed, cannot find initial pose!");
-        return (false);
+  PoseEstimate
+  TagSlam::estimatePosePNP(int cam_idx,
+                           const std::vector<cv::Point2d>&ip,
+                           const std::vector<cv::Point3d>&wp,
+                           const gtsam::Pose3 &prevPose,
+                           bool hasValidPrevPose) const {
+    PoseEstimate pe;
+    pe.err = 1e10;
+    if (!ip.empty()) {
+      const auto   &ci  = cameras_[cam_idx].intrinsics;
+      cv::Mat rvec, tvec;
+      bool rc = utils::get_init_pose_pnp(wp, ip, ci.K,
+                                         ci.distortion_model,
+                                         ci.D, &rvec, &tvec);
+      if (rc) {
+        gtsam::Vector tvec_gtsam = (gtsam::Vector(3) <<
+                                    tvec.at<double>(0),
+                                    tvec.at<double>(1),
+                                    tvec.at<double>(2)).finished();
+        gtsam::Pose3 T_c_w(gtsam::Rot3::rodriguez(
+                                   rvec.at<double>(0),
+                                   rvec.at<double>(1),
+                                   rvec.at<double>(2)), tvec_gtsam);
+        pe.pose = T_c_w.inverse();
+        pe.err = utils::reprojection_error(wp, ip, rvec, tvec, ci.K,
+                                           ci.distortion_model, ci.D);
+        pe.poseChange = PoseEstimate::pose_change(prevPose, pe.pose);
       }
     }
-    *err = utils::reprojection_error(wp, ip, rvec, tvec, ci.K, ci.distortion_model, ci.D);
-    gtsam::Vector tvec_gtsam = (gtsam::Vector(3) << tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2)).finished();
-    gtsam::Pose3 T_c_w_guess(gtsam::Rot3::rodriguez(rvec.at<double>(0), rvec.at<double>(1), rvec.at<double>(2)), tvec_gtsam);
-    gtsam::Pose3 T_w_c_guess = T_c_w_guess.inverse();
-#ifdef DEBUG_CAM_POSE_INIT
-    std::cout << "reprojection error: " << *err <<std::endl;
-    std::cout << "pnp pose T_c_w guess: " << std::endl << T_c_w_guess << std::endl;
-#endif
-    *pose = T_w_c_guess;
-    return (rc);
+    return (pe);
+  }
+                              
+
+  PoseEstimate
+  TagSlam::estimateCameraPose(int cam_idx, const TagVec &tags) {
+    std::vector<cv::Point2d>   ip;
+    std::vector<cv::Point3d>   wp;
+    std::vector<gtsam::Point2> imgPts;
+    std::vector<gtsam::Point3> worldPts;
+    makeTagPoints(&imgPts, &worldPts, &ip, &wp, tags);
+
+    gtsam::Pose3 prevPose;
+    bool hasPrevPose = tagGraph_.getCameraPose(cam_idx, &prevPose);
+    //
+    // first try estimating pose via PNP off of the known tags
+    //
+    PoseEstimate pe  = estimatePosePNP(cam_idx, ip, wp,
+                                       prevPose, hasPrevPose);
+    if (pe.err > 10.0) {
+      // PNP failed, try with a local graph
+      pe = initialPoseGraph_.estimateCameraPose(cam_idx, worldPts, imgPts,
+                                                prevPose, hasPrevPose);
+      if (pe.err > 10.0) {
+        ROS_WARN_STREAM("cannot find pose of camera, err: " << pe.err);
+        pe.err = 1e10;
+      }
+    }
+    return (pe);
   }
 
-  void TagSlam::updateTagPosesFromGraph(const std::vector<Tag> &tags) {
+  void TagSlam::updateTagPosesFromGraph(const TagVec &tags) {
     for (const auto &tag: tags) {
       const gtsam::Pose3 T_w_o = tagGraph_.getTagWorldPose(tag.id);
       Tag &newTag = idToTag_[tag.id];
@@ -283,8 +277,8 @@ namespace tagslam {
 
 
   void TagSlam::findKnownTags(const TagArrayConstPtr &observedTags,
-                              std::vector<Tag> *knownTags,
-                              std::vector<Tag> *unknownTags) {
+                              TagVec *knownTags,
+                              TagVec *unknownTags) {
     for (const auto &tag: observedTags->apriltags) {
       if (idToTag_.empty()) {
         // no pre-defined tags, make first visible tag
@@ -320,29 +314,31 @@ namespace tagslam {
   void TagSlam::process(const std::vector<TagArrayConstPtr> &msgvec) {
     for (const auto cam_idx: irange(0ul, msgvec.size())) {
       const auto tags = msgvec[cam_idx];
-      std::vector<Tag> knownTags, unknownTags;
+      TagVec knownTags, unknownTags;
       findKnownTags(tags, &knownTags, &unknownTags);
       gtsam::Pose3 cameraPose;
       double err;
       // estimate camera just from the known tags
-      bool havePose = estimateCameraPose(cam_idx, knownTags, &cameraPose, &err);
-      if (havePose) {
-        std::vector<Tag> tagsWithPoses;
-        findTagInitialPoses(&tagsWithPoses, unknownTags, cam_idx, cameraPose);
+      PoseEstimate pe = estimateCameraPose(cam_idx, knownTags);
+      if (pe.err < 1e10) {
+        // for any discovered unknown tags, determine their initial pose
+        TagVec tagsWithPoses;
+        findInitialTagPoses(&tagsWithPoses, unknownTags, cam_idx, pe.pose);
         tagGraph_.addTags("unknown", gtsam::Pose3(),
                           utils::make_pose_noise(0.001, 0.001), tagsWithPoses);
+        // the unknown tags have now become known tags!
         for (const auto &tag : tagsWithPoses) {
           knownTags.push_back(tag);
           idToTag_[tag.id] = tag;
         }
         // this will also run the optimizer
-        tagGraph_.observedTags(cam_idx, knownTags, frameNum_, cameraPose);
+        tagGraph_.observedTags(cam_idx, knownTags, frameNum_, pe.pose);
         // after the optimizer has run, update
         // the tag poses one more time
         updateTagPosesFromGraph(knownTags);
         ROS_INFO_STREAM(tags->header.stamp << " " << knownTags.size()
-                        << " tags cam: " << cam_idx << " repro err: " << err
-                        << " opt err: " << tagGraph_.getError()
+                        << " tags cam: " << cam_idx << " init err: " << pe.err
+                        << " opt err: "  << tagGraph_.getError()
                         << " opt iter: " << tagGraph_.getIterations());
         std::cout << std::flush;
       }
@@ -353,10 +349,11 @@ namespace tagslam {
     frameNum_++;
   }
 
-  void TagSlam::findTagInitialPoses(std::vector<Tag> *tagsWithPoses,
-                                    const std::vector<Tag> &newTags, int cam_idx,
+  void TagSlam::findInitialTagPoses(TagVec *tagsWithPoses,
+                                    const TagVec &tagsWithoutPoses,
+                                    int cam_idx,
                                     const gtsam::Pose3 &T_w_c) {
-    for (auto &tag: newTags) {
+    for (auto &tag: tagsWithoutPoses) {
       gtsam::Pose3 tagPose;
       if (estimateInitialTagPose(cam_idx, T_w_c, &tag.corners[0], &tagPose)) {
         Tag t(tag);

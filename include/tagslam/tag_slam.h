@@ -67,26 +67,30 @@ namespace tagslam {
     bool estimateInitialTagPose(int cam_idx, const gtsam::Pose3 &T_w_c,
                                 const gtsam::Point2 *corners,
                                 gtsam::Pose3 *pose) const;
-    void getTagPoints(std::vector<gtsam::Point2> *imgPoints,
-                      std::vector<gtsam::Point3> *worldPoints,
-                      std::vector<cv::Point2d> *imgPointsCv,
-                      std::vector<cv::Point3d> *worldPointsCv,
-                      const std::vector<Tag> &tags) const;
+    void makeTagPoints(std::vector<gtsam::Point2> *imgPoints,
+                       std::vector<gtsam::Point3> *worldPoints,
+                       std::vector<cv::Point2d> *imgPointsCv,
+                       std::vector<cv::Point3d> *worldPointsCv,
+                       const TagVec &tags) const;
 
     bool estimateInitialTagPose(int cam_idx, const Tag &tag, gtsam::Pose3 *pose) const;
-    bool estimateCameraPose(int cam_idx, const std::vector<Tag> &tags,
-                            gtsam::Pose3 *pose, double *err);
-    void updateTagPosesFromGraph(const std::vector<Tag> &tags);
+    PoseEstimate estimateCameraPose(int cam_idx, const TagVec &tags);
+    PoseEstimate estimatePosePNP(int cam_idx,
+                                 const std::vector<cv::Point2d>&ip,
+                                 const std::vector<cv::Point3d>&wp,
+                                 const gtsam::Pose3 &prevPose,
+                                 bool hasValidPrevPose) const;
+
+    void updateTagPosesFromGraph(const TagVec &tags);
     Tag  makeTag(int id, double size, const gtsam::Pose3 &pose,
                  const Tag::PoseNoise &noise,
                  const geometry_msgs::Point *corners,
                  int parentIdx);
     int  findTagType(double size);
     void findKnownTags(const TagArrayConstPtr &observedTags,
-                       std::vector<Tag> *knownTags,
-                       std::vector<Tag> *unknownTags);
-    void findTagInitialPoses(std::vector<Tag> *tagsWithPoses,
-                             const std::vector<Tag> &newTags, int cam_idx,
+                       TagVec *knownTags, TagVec *unknownTags);
+    void findInitialTagPoses(TagVec *tagsWithPoses,
+                             const TagVec &newTags, int cam_idx,
                              const gtsam::Pose3 &T_w_c);
     void playFromBag(const std::string &fname);
 

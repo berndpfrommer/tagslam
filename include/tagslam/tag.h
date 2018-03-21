@@ -39,6 +39,7 @@ namespace tagslam {
     bool           initialPoseKnown{false};
     static std::vector<Tag> parseTags(XmlRpc::XmlRpcValue poses);
   };
+  typedef std::vector<Tag> TagVec;
 }
 
 #endif

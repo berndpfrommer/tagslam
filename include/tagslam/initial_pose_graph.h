@@ -5,6 +5,7 @@
 #define TAGSLAM_INITIAL_POSE_GRAPH_H
 
 #include "tagslam/graph_cam.h"
+#include "tagslam/pose_estimate.h"
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <vector>
@@ -24,12 +25,12 @@ namespace tagslam {
                    const std::vector<double> &intr,
                    const std::string &distModel,
                    const std::vector<double> &distCeff);
-    bool estimateCameraPose(int cam_idx,
-                            const std::vector<gtsam::Point3> &wp,
-                            const std::vector<gtsam::Point2> &ip,
-                            gtsam::Pose3 const &initialPose,
-                            gtsam::Pose3 *pose, double *err,
-                            int *numIter);
+    PoseEstimate
+    estimateCameraPose(int cam_idx,
+                       const std::vector<gtsam::Point3> &wp,
+                       const std::vector<gtsam::Point2> &ip,
+                       gtsam::Pose3 const &initialPose,
+                       bool hasInitialPose);
   private:
     gtsam::Values                 values_;
     gtsam::Values                 optimizedValues_;

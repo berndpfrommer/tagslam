@@ -19,13 +19,16 @@ namespace tagslam {
     cameras_.push_back(GraphCam(intr, distModel, distCoeff));
   }
 
-  bool
+  PoseEstimate
   InitialPoseGraph::estimateCameraPose(int cam_idx,
                                        const std::vector<gtsam::Point3> &wp,
                                        const std::vector<gtsam::Point2> &ip,
                                        gtsam::Pose3 const &initialPose,
-                                       gtsam::Pose3 *pose, double *err,
-                                       int *numIter) {
+                                       bool hasInitPose) {
+    PoseEstimate pe;
+    if (wp.empty()) {
+      return (pe);
+    }
     auto pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     boost::shared_ptr<gtsam::Cal3DS2> cam = cameras_[cam_idx].cameraModel;
     gtsam::Symbol P = gtsam::Symbol('P', 0); // pose symbol
@@ -37,26 +40,17 @@ namespace tagslam {
                          pixelNoise, P, cam, ip[i], wp[i]));
     }
     gtsam::LevenbergMarquardtParams lmp;
-    //lmp.setVerbosity("TERMINATION");
     lmp.setVerbosity("SILENT");
     lmp.setMaxIterations(100);
     lmp.setAbsoluteErrorTol(1e-7);
     lmp.setRelativeErrorTol(0);
-#if 0    
-    std::cout << "-------------- initial values: " << std::endl;
-    graph_.print();
-    values_.print();
-#endif    
     gtsam::LevenbergMarquardtOptimizer lmo(graph_, values_, lmp);
     optimizedValues_ = lmo.optimize();
-#if 0    
-    std::cout << "-------------- optimized values: " << std::endl;
-    optimizedValues_.print();
-#endif    
-    *err = lmo.error() / graph_.size();
-    *numIter = lmo.iterations();
-    *pose = optimizedValues_.at<gtsam::Pose3>(P);
-    return (true);
+    pe.err = lmo.error() / graph_.size();
+    pe.numIter = lmo.iterations();
+    pe.pose = optimizedValues_.at<gtsam::Pose3>(P);
+    pe.poseChange = PoseEstimate::pose_change(initialPose, pe.pose);
+    return (pe);
   }
 
 }  // namespace
