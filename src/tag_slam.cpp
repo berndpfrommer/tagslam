@@ -1,4 +1,4 @@
-/* -*-c++-*--------------------------------------------------------------------s
+/* -*-c++-*--------------------------------------------------------------------
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
@@ -10,6 +10,7 @@
 #include <XmlRpcException.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
+#include <fstream>
 
 namespace tagslam {
   using boost::irange;
@@ -47,6 +48,8 @@ namespace tagslam {
     XmlRpc::XmlRpcValue static_objects;
     nh_.getParam("tag_poses/static_objects", static_objects);
     nh_.param<double>("default_tag_size", defaultTagSize_, 0.04);
+    nh_.param<std::string>("tag_poses_out_file", tagPosesOutFile_,
+                           "static_poses_out.yaml");
     if (static_objects.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
       ROS_ERROR("cannot find static_objects in yaml file!");
       return (false);
@@ -146,7 +149,9 @@ namespace tagslam {
           t.parentIdx = objIdx;
           t.initialPoseKnown = true;
           idToTag_.insert(IdToTagMap::value_type(t.id, t));
-          ROS_INFO_STREAM("adding to static object " << name << " tag with id: " << t.id);
+          staticObjects_.back().tagIds.insert(t.id);
+          ROS_INFO_STREAM("adding to static object " <<
+                          name << " tag with id: " << t.id);
         }
         tagGraph_.addTags(name, pose, noise, tags);
         return;
@@ -290,7 +295,8 @@ namespace tagslam {
                              tagNoise, &tag.corners[0], 0);
         newTag.initialPoseKnown = true;
         knownTags->push_back(newTag);
-        const StaticObject &so = staticObjects_[0];
+        StaticObject &so = staticObjects_[0];
+        so.tagIds.insert(tag.id);
         tagGraph_.addTags(so.name, so.pose, so.noise, *knownTags);
         return; // ignore all other tags for now
       }
@@ -330,6 +336,7 @@ namespace tagslam {
         for (const auto &tag : tagsWithPoses) {
           knownTags.push_back(tag);
           idToTag_[tag.id] = tag;
+          staticObjects_[0].tagIds.insert(tag.id);
         }
         // this will also run the optimizer
         tagGraph_.observedTags(cam_idx, knownTags, frameNum_, pe.pose);
@@ -346,6 +353,7 @@ namespace tagslam {
     ros::Time t = get_latest_time(msgvec);
     broadcastCameraPoses(t);
     broadcastTagPoses(t);
+    writeTagPoses(tagPosesOutFile_);
     frameNum_++;
   }
 
@@ -400,6 +408,58 @@ namespace tagslam {
     for (const auto &p: poses) {
       const auto &tf = gtsam_pose_to_tf(p.pose);
       tfBroadcaster_.sendTransform(tf::StampedTransform(tf, p.time, "world", p.frame_id));
+    }
+  }
+
+  
+  static void write_vec(std::ofstream &of,
+                        const std::string &prefix,
+                        double x, double y, double z) {
+    of << prefix << "x: " << x << std::endl;
+    of << prefix << "y: " << y << std::endl;
+    of << prefix << "z: " << z << std::endl;
+  }
+
+  static void write_pose(std::ofstream &of, const std::string &prefix,
+                         const gtsam::Pose3 &pose,
+                         const Tag::PoseNoise &n) {
+    gtsam::Vector rt = gtsam::Pose3::Logmap(pose);
+    const std::string pps = prefix + "  ";
+    of << prefix << "center:" << std::endl;
+    write_vec(of, pps, rt(3), rt(4), rt(5));
+    of << prefix << "rotvec:" << std::endl;
+    write_vec(of, pps, rt(0), rt(1), rt(2));
+ 
+    gtsam::Vector nvec = n->sigmas();
+    of << prefix << "position_noise:" << std::endl;
+    write_vec(of, pps, nvec(3),nvec(4),nvec(5));
+    of << prefix << "rotation_noise:" << std::endl;
+    write_vec(of, pps, nvec(0),nvec(1),nvec(2));
+  }
+
+  void TagSlam::writeTagPoses(const std::string &poseFile) const {
+    std::ofstream pf(poseFile);
+    std::vector<std::pair<int, gtsam::Pose3>> tagPoses;
+    tagGraph_.getTagWorldPoses(&tagPoses);
+    std::map<int, gtsam::Pose3> idToPose;
+    for (const auto &cp: tagPoses) {
+      idToPose[cp.first] = cp.second;
+    }
+    if (!staticObjects_.empty()) {
+      pf << "static_objects:" << std::endl;
+    }
+    for (const StaticObject &sobj : staticObjects_) {
+      pf << " - " << sobj.name << ":" << std::endl;
+      std::string pfix = "     ";
+      pf << pfix << "pose:" << std::endl;;
+      write_pose(pf, pfix + "  ", sobj.pose, sobj.noise);
+      pf << pfix << "tags: " << std::endl;
+      for (const auto &id: sobj.tagIds) {
+        const Tag &tag = idToTag_.find(id)->second;
+        pf << pfix << "- id: "   << tag.id << std::endl;
+        pf << pfix << "  size: " << tag.size << std::endl;
+        write_pose(pf, pfix + "  ", tag.pose, tag.noise);
+      }
     }
   }
 

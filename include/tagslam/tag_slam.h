@@ -56,6 +56,7 @@ namespace tagslam {
       std::string    name;
       gtsam::Pose3   pose;
       Tag::PoseNoise noise;
+      std::set<int>  tagIds;
     };
     void parseStaticObject(const std::string &name,
                            XmlRpc::XmlRpcValue &staticObject);
@@ -92,6 +93,7 @@ namespace tagslam {
     void findInitialTagPoses(TagVec *tagsWithPoses,
                              const TagVec &newTags, int cam_idx,
                              const gtsam::Pose3 &T_w_c);
+    void writeTagPoses(const std::string &poseFile) const;
     void playFromBag(const std::string &fname);
 
     // ----------------------------------------------------------
@@ -111,6 +113,7 @@ namespace tagslam {
     double                                        defaultTagSize_{0.5};
     unsigned int                                  frameNum_{0};
     tf::TransformBroadcaster                      tfBroadcaster_;
+    std::string                                   tagPosesOutFile_;
   };
 
 }
