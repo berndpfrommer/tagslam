@@ -48,6 +48,7 @@ namespace tagslam {
     XmlRpc::XmlRpcValue static_objects;
     nh_.getParam("tag_poses/static_objects", static_objects);
     nh_.param<double>("default_tag_size", defaultTagSize_, 0.04);
+    nh_.param<bool>("discover_tags", discoverTags_, true);
     nh_.param<std::string>("tag_poses_out_file", tagPosesOutFile_,
                            "static_poses_out.yaml");
     if (static_objects.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
@@ -288,7 +289,6 @@ namespace tagslam {
       if (idToTag_.empty()) {
         // no pre-defined tags, make first visible tag
         // the center of world!
-                             
         Tag::PoseNoise tagNoise = utils::make_pose_noise(1e-4, 1e-4);
         gtsam::Pose3   tagPose;
         Tag newTag = makeTag(tag.id, defaultTagSize_, tagPose,
@@ -307,12 +307,14 @@ namespace tagslam {
         newTag.setCorners(&tag.corners[0]);
         knownTags->push_back(newTag);
       } else {
-        // unknown tag, will determine approximate pose later
-        ROS_INFO_STREAM("found new tag with id " << tag.id);
-        Tag::PoseNoise tagNoise = utils::make_pose_noise(30, 10);
-        Tag newTag = makeTag(tag.id, defaultTagSize_, gtsam::Pose3(),
-                             tagNoise, &tag.corners[0], 0);
-        unknownTags->push_back(newTag);
+        if (discoverTags_) {
+          // unknown tag, will determine approximate pose later
+          ROS_INFO_STREAM("found new tag with id " << tag.id);
+          Tag::PoseNoise tagNoise = utils::make_pose_noise(30, 10);
+          Tag newTag = makeTag(tag.id, defaultTagSize_, gtsam::Pose3(),
+                               tagNoise, &tag.corners[0], 0);
+          unknownTags->push_back(newTag);
+        }
       }
     }
   }
@@ -423,12 +425,13 @@ namespace tagslam {
   static void write_pose(std::ofstream &of, const std::string &prefix,
                          const gtsam::Pose3 &pose,
                          const Tag::PoseNoise &n) {
-    gtsam::Vector rt = gtsam::Pose3::Logmap(pose);
+    gtsam::Vector r = gtsam::Rot3::Logmap(pose.rotation());
+    gtsam::Vector t(pose.translation());
     const std::string pps = prefix + "  ";
     of << prefix << "center:" << std::endl;
-    write_vec(of, pps, rt(3), rt(4), rt(5));
+    write_vec(of, pps, t(0), t(1), t(2));
     of << prefix << "rotvec:" << std::endl;
-    write_vec(of, pps, rt(0), rt(1), rt(2));
+    write_vec(of, pps, r(0), r(1), r(2));
  
     gtsam::Vector nvec = n->sigmas();
     of << prefix << "position_noise:" << std::endl;
