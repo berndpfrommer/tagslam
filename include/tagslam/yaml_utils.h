@@ -15,7 +15,7 @@ namespace tagslam {
   // from world and image points. Distortion is not taken into account,
   // obviously this is just a starting guess.
   namespace yaml_utils {
-    Eigen::Vector3d get_vec(XmlRpc::XmlRpcValue v);
+    Eigen::Vector3d get_vec(const std::string &name, XmlRpc::XmlRpcValue v);
     void get_pose_and_noise(XmlRpc::XmlRpcValue pose_and_noise,
                             gtsam::Pose3 *pose, utils::PoseNoise *noise);
   }

@@ -18,7 +18,7 @@ namespace tagslam {
     gtsam::Pose3      pose;
     double            err{1e10};
     int               numIter{1000};
-    PoseChange        poseChange;
+    bool isValid() const { return (err < 1e10); }
     // -----------
     static PoseChange pose_change(const gtsam::Pose3 &p1, const gtsam::Pose3 &p2);
   };

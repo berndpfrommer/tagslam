@@ -6,6 +6,9 @@
 
 #include "tagslam/camera_intrinsics.h"
 #include "tagslam/camera_extrinsics.h"
+#include "tagslam/pose_estimate.h"
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/geometry/Cal3DS2.h>
 #include <Eigen/Dense>
 #include <ros/ros.h>
 #include <memory>
@@ -13,18 +16,26 @@
 #include <set>
 
 namespace tagslam {
-  class TagSlam;
   struct Camera {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     std::string       name;
+    int               index{-1};
     CameraIntrinsics  intrinsics;
     CameraExtrinsics  T_cam_body;
     CameraExtrinsics  T_cn_cnm1;
     std::string       tagtopic;
-    static std::vector<Camera, Eigen::aligned_allocator<Camera> > parse_cameras(const ros::NodeHandle &nh);
+    PoseEstimate      poseEstimate; // T_c_w
+    gtsam::Pose3      optimizedPose;
+    int               lastFrameNumber{-1};
+    boost::shared_ptr<gtsam::Cal3DS2> gtsamCameraModel;
+    typedef std::shared_ptr<Camera> CameraPtr;
+    typedef std::shared_ptr<const Camera> CameraConstPtr;
+    typedef std::vector<CameraPtr> CameraVec;
+    static CameraVec parse_cameras(const ros::NodeHandle &nh);
   };
-  typedef std::vector<Camera, Eigen::aligned_allocator<Camera> > CameraVec;
-  typedef std::shared_ptr<Camera> CamPtr;
+  using CameraPtr = Camera::CameraPtr;
+  using CameraConstPtr = Camera::CameraConstPtr;
+  using CameraVec = Camera::CameraVec;
 }
 
 #endif
