@@ -23,9 +23,9 @@ namespace tagslam {
     return (tag_size_map.find(size)->second);
   }
 
-  Tag::Tag(int ida, int tp, double s, const gtsam::Pose3 &p,
-           const PoseNoise &pn, bool hasKPose) :
-    id(ida), type(tp), size(s), pose(p), noise(pn), hasKnownPose(hasKPose) {
+  Tag::Tag(int ida, int tp, double s, const PoseEstimate &pe,
+           bool hasKPose) :
+    id(ida), type(tp), size(s), poseEstimate(pe), hasKnownPose(hasKPose) {
     objectCorners = make_object_corners(size);
     imageCorners.resize(4);
   }
@@ -50,7 +50,7 @@ namespace tagslam {
   }
   
   gtsam::Point3 Tag::getWorldCorner(int i) const {
-    return (pose.transform_from(getObjectCorner(i)));
+    return (poseEstimate.transform_from(getObjectCorner(i)));
   }
 
   TagVec Tag::parseTags(XmlRpc::XmlRpcValue xmltags, double size) {
@@ -67,17 +67,27 @@ namespace tagslam {
         }
       }
       gtsam::Pose3 pose;
-      utils::PoseNoise noise;
-      yaml_utils::get_pose_and_noise(xmltags[i], &pose, &noise);
-      tags.push_back(makeTag(id, sz, pose, noise, true));
+      PoseNoise noise;
+      if (yaml_utils::get_pose_and_noise(xmltags[i], &pose, &noise)) {
+        PoseEstimate pe(pose, 0.0, 0, noise);
+        tags.push_back(makeTag(id, sz, pe, true));
+      } else {
+        tags.push_back(makeTag(id, sz, PoseEstimate(), false));
+      }
     }
+    /*
+      std::cout << "-------tags: " << std::endl;
+      for (const auto &tag:tags) {
+      std::cout << *tag << std::endl;
+      }
+    */
     return (tags);
   }
 
-  TagPtr Tag::makeTag(int tagId, double size, const gtsam::Pose3 &pose,
-                      const PoseNoise &pn, bool hasKnownPose) {
+  TagPtr Tag::makeTag(int tagId, double size, const PoseEstimate &pe,
+                      bool hasKnownPose) {
     TagPtr tagPtr(new Tag(tagId, find_tag_type(size),
-                       size, pose, pn, hasKnownPose));
+                       size, pe, hasKnownPose));
     return (tagPtr);
   }
   
@@ -90,5 +100,8 @@ namespace tagslam {
        gtsam::Point3(-s/2, s/2, 0)};
     return (c);
   }
-
+  std::ostream &operator<<(std::ostream &os, const Tag &tag) {
+    os << tag.id << " sz: " << tag.size << " ty: " << tag.type << " " << tag.poseEstimate;
+    return (os);
+  }
 }  // namespace

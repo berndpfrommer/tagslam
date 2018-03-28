@@ -5,6 +5,7 @@
 #ifndef TAGSLAM_RIGID_BODY_H
 #define TAGSLAM_RIGID_BODY_H
 
+#include "tagslam/pose_estimate.h"
 #include "tagslam/tag.h"
 #include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <map>
@@ -15,15 +16,13 @@ namespace tagslam {
   using TagArrayConstPtr = TagArray::ConstPtr;
   struct RigidBody {
     RigidBody(const std::string &n  = std::string(""),
-              const gtsam::Pose3 &p = gtsam::Pose3(),
-              const Tag::PoseNoise &pn = Tag::PoseNoise(),
               bool iS = false) :
-      name(n), pose(p), noise(pn), isStatic(iS) {};
+      name(n), isStatic(iS) {};
+
+    void   setPoseEstimate(const PoseEstimate &pe) { poseEstimate = pe; }
+    void   setIsDefaultBody(bool b) { isDefaultBody = b; }
     bool   hasTag(int tagId) const { return (findTag(tagId) != NULL); }
-    TagPtr findTag(int tagId) const {
-      const auto it = tags.find(tagId);
-      return (it == tags.end() ? NULL: it->second);
-    }
+    TagPtr findTag(int tagId) const;
     TagPtr addDefaultTag(int tagId);
     void   addTag(const TagPtr &tag);
     void   addTags(const TagVec &tags);
@@ -42,11 +41,9 @@ namespace tagslam {
     typedef std::vector<RigidBodyPtr> RigidBodyVec;
     std::string         name;
     int                 index{-1};
-    gtsam::Pose3        pose;
-    Tag::PoseNoise      noise;
-    bool                isStatic;
-    bool                isDefaultBody;
-    bool                hasValidPoseEstimate{false};
+    PoseEstimate        poseEstimate;
+    bool                isStatic{true};
+    bool                isDefaultBody{false};
     TagMap              tags;
     CamToTagVec         observedTags;
     double              defaultSize{0};

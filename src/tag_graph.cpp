@@ -69,8 +69,8 @@ namespace tagslam {
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
       std::cout << "adding tag with id: " << tag->id << std::endl;
-      gtsam::Pose3   tagPose  = tag->pose;
-      Tag::PoseNoise tagNoise = tag->noise;
+      gtsam::Pose3   tagPose  = tag->poseEstimate;
+      PoseNoise tagNoise = tag->poseEstimate.getNoise();
       // ----- insert transform T_b_o and pin it down with prior factor if known
       gtsam::Symbol T_b_o_sym = sym_T_b_o(tag->id);
       if (values_.find(T_b_o_sym) != values_.end()) {
@@ -96,10 +96,11 @@ namespace tagslam {
         // ------ now object-to-world transform
         // T_w_o  = T_w_b * T_b_o
         gtsam::Symbol T_w_o_sym = sym_T_w_o(tag->id);
-        gtsam::Pose3  T_w_o     = rb->pose * tagPose;
+        gtsam::Pose3  T_w_o     = rb->poseEstimate * tagPose;
         values_.insert(T_w_o_sym, T_w_o);
         graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(
-                           T_b_o_sym, T_w_o_sym, rb->pose, rb->noise));
+                           T_b_o_sym, T_w_o_sym, rb->poseEstimate,
+                           rb->poseEstimate.getNoise()));
             
         // ------ insert the corner positions
         for (const auto i: irange(0, 4)) {
@@ -134,8 +135,7 @@ namespace tagslam {
     PoseEstimate pe;
     gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, frame_num);
     if (values_.find(T_w_c_sym) != values_.end()) {
-      pe.pose = values_.at<gtsam::Pose3>(T_w_c_sym);
-      pe.err = 0;
+      pe = PoseEstimate(values_.at<gtsam::Pose3>(T_w_c_sym), 0.0, 0);
     }
     return (pe);
   }
@@ -153,21 +153,21 @@ namespace tagslam {
                 <<  " in frame " << frame_num << std::endl;
       return;
     }
-    if (!rb->hasValidPoseEstimate) {
+    if (!rb->poseEstimate.isValid()) {
       std::cout << "WARN: no pose estimate for body " << rb->name
                 <<  " in frame " << frame_num << std::endl;
       return;
     }
     // new camera location
     gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, frame_num);
-    values_.insert(T_w_c_sym, cam->poseEstimate.pose.inverse());
+    values_.insert(T_w_c_sym, cam->poseEstimate.inverse());
 
     IsotropicNoisePtr pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
       std::cout << rb->name <<  " graph observed tag: " << tag->id << std::endl;
       if (!rb->isStatic) {
-        const gtsam::Pose3 &T_w_b = rb->pose;
+        const gtsam::Pose3 &T_w_b = rb->poseEstimate;
         gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, frame_num);
         values_.insert(T_w_b_sym, T_w_b);
         for (const auto i: irange(0, 4)) {
@@ -229,11 +229,11 @@ namespace tagslam {
                           gtsam::Pose3 *pose) const {
     if (rb->isStatic) {
       gtsam::Symbol T_w_o_sym = sym_T_w_o(tagId);
-      if (rb->hasValidPoseEstimate &&
+      if (rb->poseEstimate.isValid() &&
           values_.find(T_w_o_sym) != values_.end()) {
         const gtsam::Pose3 T_w_o = values_.at<gtsam::Pose3>(T_w_o_sym);
         // we need T_b_o = T_b_w * T_w_o
-        *pose = rb->pose.inverse() * T_w_o;
+        *pose = rb->poseEstimate.inverse() * T_w_o;
         return (true);
       }
     } else {

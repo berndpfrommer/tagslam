@@ -15,11 +15,7 @@
 
 namespace tagslam {
   namespace utils {
-    typedef gtsam::noiseModel::Diagonal::shared_ptr   PoseNoise;
     gtsam::Matrix3 rotmat(const Eigen::Vector3d &rvec);
-    PoseNoise      make_pose_noise(const Eigen::Vector3d &a,
-                                   const Eigen::Vector3d &p);
-    PoseNoise      make_pose_noise(double angle, double position);
     // computes a pose (rotation vector, translation) via homography
     // from world and image points.
     gtsam::Pose3 get_init_pose(const std::vector<gtsam::Point3> &world_points,

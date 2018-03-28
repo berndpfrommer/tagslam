@@ -4,6 +4,9 @@
 #ifndef TAGSLAM_TAG_H
 #define TAGSLAM_TAG_H
 
+#include "tagslam/pose_estimate.h"
+#include "tagslam/pose_noise.h"
+
 #include <gtsam/geometry/Point3.h>
 #include <gtsam/linear/NoiseModel.h>
 #include <gtsam/geometry/Pose3.h>
@@ -14,12 +17,12 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <iostream>
 
 namespace tagslam {
   struct Tag {
-    typedef gtsam::noiseModel::Diagonal::shared_ptr   PoseNoise;
-    Tag(int ida, int tp, double sz,
-        const gtsam::Pose3 &p,  const PoseNoise &pn, bool hasKPose);
+    Tag(int ida, int tp, double sz, 
+        const PoseEstimate &pe, bool hasKPose);
 
     gtsam::Point3 getObjectCorner(int i) const;
     const std::vector<gtsam::Point3> &getObjectCorners() const {
@@ -36,22 +39,19 @@ namespace tagslam {
     int            id;
     int            type;  // distinguishes different size tags!
     double         size;  // tag size in meters
-    gtsam::Pose3   pose;  // tag pose relative to rigid body: T_s_o
-    PoseNoise      noise; // known noise of pose
+    PoseEstimate   poseEstimate; // tag pose relative body: T_b_o
     bool           hasKnownPose; // tag pose is known from the start
-    bool           hasEstimatedPose{false}; // tag pose has valid estimate
     //
     typedef std::shared_ptr<Tag>        TagPtr;
     typedef std::shared_ptr<const Tag>  TagConstPtr;
     typedef std::vector<TagPtr>         TagVec;
     // ----------- static methods
     static std::vector<gtsam::Point3> make_object_corners(double size);
-    static TagPtr makeTag(int ida, double sz,
-                          const gtsam::Pose3 &p = gtsam::Pose3(),
-                          const PoseNoise &pn = gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector(6)),
+    static TagPtr makeTag(int ida, double sz, const PoseEstimate &pe = PoseEstimate(),
                           bool hasKPose = false);
 
     static TagVec parseTags(XmlRpc::XmlRpcValue xmltags, double sz);
+    friend std::ostream &operator<<(std::ostream &os, const Tag &tag);
   private:
     std::vector<gtsam::Point3>  objectCorners;  // 3d object coordinates
     std::vector<gtsam::Point2>  imageCorners;   // u,v of last observed corner points
@@ -60,6 +60,7 @@ namespace tagslam {
   typedef Tag::TagConstPtr TagConstPtr;
   typedef Tag::TagVec TagVec;
   typedef std::map<int, TagPtr> TagMap;
+  std::ostream &operator<<(std::ostream &os, const Tag &tag);
 }
 
 #endif

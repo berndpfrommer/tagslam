@@ -9,6 +9,7 @@
 #include "tagslam/camera.h"
 #include "tagslam/rigid_body.h"
 #include "tagslam/pose_estimate.h"
+#include "tagslam/pose_noise.h"
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/inference/Symbol.h>
@@ -49,7 +50,7 @@ namespace tagslam {
                      unsigned int frame) const;
   private:
     bool findInitialTagPose(const Tag &tag, gtsam::Pose3 *pose,
-                            Tag::PoseNoise *noise) const;
+                            PoseNoise *noise) const;
     gtsam::Point3 insertTagType(const TagConstPtr &tag, int corner);
 
     double tryOptimization(gtsam::Values *result,

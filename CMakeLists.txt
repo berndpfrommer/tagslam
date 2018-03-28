@@ -35,8 +35,10 @@ include_directories(
 
 add_library(${PROJECT_NAME} src/tag_slam.cpp src/camera.cpp
 src/tag.cpp src/yaml_utils.cpp src/utils.cpp src/tag.cpp
-src/pose_estimate.cpp
+src/pose_change.cpp
+src/pose_noise.cpp
 src/rigid_body.cpp
+src/pose_estimate.cpp
 src/tag_graph.cpp src/initial_pose_graph.cpp)
 
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${GTSAM_LIBRARIES})

@@ -5,6 +5,7 @@
 #define YAML_UTILS_H
 
 #include "tagslam/utils.h"
+#include "tagslam/pose_noise.h"
 #include <Eigen/Dense>
 #include <ros/ros.h>
 #include <gtsam/geometry/Pose3.h>
@@ -16,8 +17,8 @@ namespace tagslam {
   // obviously this is just a starting guess.
   namespace yaml_utils {
     Eigen::Vector3d get_vec(const std::string &name, XmlRpc::XmlRpcValue v);
-    void get_pose_and_noise(XmlRpc::XmlRpcValue pose_and_noise,
-                            gtsam::Pose3 *pose, utils::PoseNoise *noise);
+    bool get_pose_and_noise(XmlRpc::XmlRpcValue pose_and_noise,
+                            gtsam::Pose3 *pose, PoseNoise *noise);
   }
 }
 

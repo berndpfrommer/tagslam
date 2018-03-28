@@ -21,19 +21,6 @@ namespace utils {
     return (gtsam::Matrix3(m));
   }
     
-  PoseNoise make_pose_noise(const Eigen::Vector3d &a,
-                            const Eigen::Vector3d &p) {
-    gtsam::Vector sn(6);
-    sn << a(0),a(1),a(2),p(0),p(1),p(2);
-    return (gtsam::noiseModel::Diagonal::Sigmas(sn));
-  }
-
-  PoseNoise make_pose_noise(double angle, double position) {
-    gtsam::Vector sn(6);
-    sn << angle,angle,angle,position,position,position;
-    return (gtsam::noiseModel::Diagonal::Sigmas(sn));
-  }
-
   // creates intrinsic matrix from 4 doubles: fx, fy, cx, cy
   static cv::Mat make_intrinsic_matrix(const std::vector<double> &intr) {
     return (cv::Mat_<double>(3,3) <<

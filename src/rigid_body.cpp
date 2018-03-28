@@ -23,12 +23,19 @@ namespace tagslam {
         if (it->first == "is_default_body") {
           body->isDefaultBody = static_cast<bool>(it->second);
         }
+        if (it->first == "is_static") {
+          body->isStatic = static_cast<bool>(it->second);
+        }
         if (it->first == "pose" &&
             it->second.getType() == XmlRpc::XmlRpcValue::TypeStruct) {
-          yaml_utils::get_pose_and_noise(it->second,
-                                         &body->pose, &body->noise);
-          body->isStatic = true;
-          body->hasValidPoseEstimate = true;
+          gtsam::Pose3 pose;
+          PoseNoise noise;
+          if (yaml_utils::get_pose_and_noise(it->second, &pose, &noise)) {
+            PoseEstimate pe(pose, 0.0, 0, noise);
+            body->setPoseEstimate(pe);
+          } else {
+            body->setPoseEstimate(PoseEstimate()); // invalid
+          }
           break;
         }
       }
@@ -50,6 +57,11 @@ namespace tagslam {
     return (body);
   }
 
+  TagPtr RigidBody::findTag(int tagId) const {
+    const auto it = tags.find(tagId);
+    return (it == tags.end() ? NULL: it->second);
+  }
+
   void RigidBody::getAttachedPoints(int cam_idx,
                                     std::vector<gtsam::Point3> *wp,
                                     std::vector<gtsam::Point2> *ip) const {
@@ -58,12 +70,12 @@ namespace tagslam {
       return; // no tags for this camera
     }
     for (const auto &tag: tagmap->second) {
-      if (tag->hasEstimatedPose) {
+      if (tag->poseEstimate.isValid()) {
         std::vector<gtsam::Point2> uv = tag->getImageCorners();
         ip->insert(ip->begin(), uv.begin(), uv.end());
         const auto opts = tag->getObjectCorners();
         for (const auto &op: opts) {
-          wp->push_back(pose * tag->pose * op);
+          wp->push_back(poseEstimate * tag->poseEstimate * op);
         }
       }
     }

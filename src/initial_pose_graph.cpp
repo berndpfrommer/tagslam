@@ -25,7 +25,8 @@ namespace tagslam {
     boost::shared_ptr<gtsam::Cal3DS2> cam = camera->gtsamCameraModel;
     gtsam::Symbol P = gtsam::Symbol('P', 0); // pose symbol
     values.clear();
-    values.insert(P, initialPose.pose);
+    const gtsam::Pose3 initPose = initialPose;
+    values.insert(P, initPose);
     graph = gtsam::NonlinearFactorGraph();
     for (const auto i: boost::irange(0ul, wp.size())) {
       graph.push_back(boost::make_shared<ResectioningFactor>(
@@ -38,9 +39,9 @@ namespace tagslam {
     lmp.setRelativeErrorTol(0);
     gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
     optimizedValues = lmo.optimize();
-    pe.err = lmo.error() / graph.size();
-    pe.numIter = lmo.iterations();
-    pe.pose = optimizedValues.at<gtsam::Pose3>(P);
+    gtsam::Pose3 op = optimizedValues.at<gtsam::Pose3>(P);
+    pe = PoseEstimate(op, (double)lmo.error() / graph.size(),
+                      (int)lmo.iterations());
     return (pe);
   }
 
