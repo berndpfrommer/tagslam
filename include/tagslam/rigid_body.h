@@ -27,8 +27,8 @@ namespace tagslam {
     void   addTag(const TagPtr &tag);
     void   addTags(const TagVec &tags);
     void   attachObservedTag(int cam_idx, const TagPtr &tag);
-    void   attachObservedTags(unsigned int cam_idx,
-                              const TagArrayConstPtr &tags);
+    unsigned int    attachObservedTags(unsigned int cam_idx,
+                                       const TagArrayConstPtr &tags);
     void   detachObservedTags();
     void   getAttachedPoints(int cam_idx,
                              std::vector<gtsam::Point3> *wp,

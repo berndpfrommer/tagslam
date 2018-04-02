@@ -53,6 +53,7 @@ namespace tagslam {
     void process(const std::vector<TagArrayConstPtr> &msgvec);
     bool subscribe();
     void broadcastTransforms(const std::vector<PoseInfo> &poses);
+    void broadcastBodyPoses(const ros::Time &t);
     void broadcastCameraPoses(const ros::Time &t);
     void broadcastTagPoses(const ros::Time &t);
     bool estimateInitialTagPose(int cam_idx, const gtsam::Pose3 &T_w_c,
@@ -61,7 +62,7 @@ namespace tagslam {
     RigidBodyPtr findBodyForTag(int tagId) const;
 
     void discoverTags(const std::vector<TagArrayConstPtr> &msgvec);
-    void attachObservedTagsToBodies(const std::vector<TagArrayConstPtr> &msgvec);
+    unsigned int attachObservedTagsToBodies(const std::vector<TagArrayConstPtr> &msgvec);
     void detachObservedTagsFromBodies();
 
     bool estimateInitialTagPose(int cam_idx, const Tag &tag, gtsam::Pose3 *pose) const;

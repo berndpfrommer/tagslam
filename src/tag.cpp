@@ -86,7 +86,6 @@ namespace tagslam {
 
   TagPtr Tag::makeTag(int tagId, double size, const PoseEstimate &pe,
                       bool hasKnownPose) {
-    std::cout << "making tag " << tagId << " of size: " << size << std::endl;
     TagPtr tagPtr(new Tag(tagId, find_tag_type(size),
                        size, pe, hasKnownPose));
     return (tagPtr);

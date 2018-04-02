@@ -65,21 +65,18 @@ namespace tagslam {
   }
 
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
-    std::cout << "GRAPH: adding tags for body " << rb->name << std::endl;
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
-      std::cout << "GRAPH: adding tag: " << *tag << std::endl;
       gtsam::Pose3   tagPose  = tag->poseEstimate;
       PoseNoise tagNoise = tag->poseEstimate.getNoise();
       // ----- insert transform T_b_o and pin it down with prior factor if known
       gtsam::Symbol T_b_o_sym = sym_T_b_o(tag->id);
       if (values_.find(T_b_o_sym) != values_.end()) {
-        std::cout << "ERROR: duplicate tag id inserted: " << tag->id << std::endl;
+        std::cout << "TagGraph ERROR: duplicate tag id inserted: " << tag->id << std::endl;
         return;
       }
       values_.insert(T_b_o_sym, tagPose);
       if (tag->hasKnownPose) {
-        std::cout << "initial pose known!" << std::endl;
         graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_b_o_sym, tagPose, tagNoise));
       }
       if (!rb->isStatic) {
@@ -143,20 +140,17 @@ namespace tagslam {
   void TagGraph::observedTags(const CameraPtr &cam, const RigidBodyPtr &rb,
                               const TagVec &tags,
                               unsigned int frame_num) {
-    std::cout << "GRAPH: " << cam->name << " observed tags: " << tags.size() << " in frame: " << frame_num << std::endl;
     if (tags.empty()) {
-      std::cout << "WARN: no tags for " << cam->name << " in frame "
+      std::cout << "TagGraph WARN: no tags for " << cam->name << " in frame "
                 << frame_num << std::endl;
       return;
     }
     if (!cam->poseEstimate.isValid()) {
-      std::cout << "WARN: no pose estimate for cam " << cam->name
+      std::cout << "TagGraph WARN: no pose estimate for cam " << cam->name
                 <<  " in frame " << frame_num << std::endl;
       return;
     }
     if (!rb->poseEstimate.isValid()) {
-      std::cout << "WARN: no pose estimate for body " << rb->name
-                <<  " in frame " << frame_num << std::endl;
       return;
     }
     // new camera location
@@ -171,9 +165,8 @@ namespace tagslam {
       values_.insert(sym_T_w_b(rb->index, frame_num), rb->poseEstimate.getPose());
     }
     for (const auto &tag: tags) {
-      std::cout << rb->name <<  " graph observed tag: " << tag->id << std::endl;
       if (!tag->poseEstimate.isValid()) {
-        std::cout << "GRAPH: tag " << tag->id << " has no valid pose!" << std::endl;
+        std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
       }
       if (!rb->isStatic) {
         const gtsam::Pose3 &T_w_b = rb->poseEstimate.getPose();
@@ -192,6 +185,7 @@ namespace tagslam {
       const auto &uv = tag->getImageCorners();
       for (const auto i: irange(0, 4)) {
         gtsam::Symbol X_w_i = sym_X_w_i(tag->id, i, !rb->isStatic ? frame_num : 0);
+        numProjectionFactors_++;
         graph_.push_back(ProjectionFactor(uv[i], pixelNoise,
                                           T_w_c_sym, X_w_i,
                                           cam->gtsamCameraModel));
@@ -204,10 +198,8 @@ namespace tagslam {
     const auto T_w_b_sym = sym_T_w_b(rb->index, frame);
     if (values_.find(T_w_b_sym) != values_.end()) {
       *pose = values_.at<gtsam::Pose3>(T_w_b_sym);
-      std::cout << "GRAPH: found body pose for " << rb->name << ":" << std::endl << *pose << std::endl;
       return (true);
     }
-    std::cout << "GRAPH: no body pose found for " << rb->name << std::endl;
     *pose = gtsam::Pose3();
     return (false);;
   }
@@ -223,7 +215,8 @@ namespace tagslam {
       lmp.setRelativeErrorTol(0);
       gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
       *result = lmo.optimize();
-      optimizerError_ = lmo.error();
+      double ni = numProjectionFactors_ > 0 ? 1.0/numProjectionFactors_ : 1.0;
+      optimizerError_ = lmo.error() * ni;;
       optimizerIterations_ = lmo.iterations();
       return (optimizerError_);
   }
@@ -273,10 +266,8 @@ namespace tagslam {
     //graph_.print();
     //values_.print();
     //double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
-    std::cout << "GRAPH: running optimizer" << std::endl;
     double err = tryOptimization(&optimizedValues_, graph_, values_, "SILENT", 100);
     values_ = optimizedValues_;
-    std::cout << "GRAPH optimizer error: " << err << " iter: " << optimizerIterations_ << std::endl;
     //result.print();
   }
 

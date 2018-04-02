@@ -74,7 +74,6 @@ namespace tagslam {
     }
     for (const auto &tag: tagmap->second) {
       if (tag->poseEstimate.isValid()) {
-        std::cout << "attached tag: " << *tag << std::endl;
         std::vector<gtsam::Point2> uv = tag->getImageCorners();
         ip->insert(ip->end(), uv.begin(), uv.end());
         const auto opts = tag->getObjectCorners();
@@ -89,7 +88,8 @@ namespace tagslam {
     observedTags.clear();
   }
 
-  void RigidBody::attachObservedTag(int cam_idx, const TagPtr &tagPtr) {
+  void
+  RigidBody::attachObservedTag(int cam_idx, const TagPtr &tagPtr) {
     // attach as observed
     if (observedTags.count(cam_idx) == 0) {
       // need to insert a new cam->tagmap entry
@@ -99,16 +99,20 @@ namespace tagslam {
     tvec.push_back(tagPtr);
   }
 
-  void RigidBody::attachObservedTags(unsigned int cam_idx,
-                                     const TagArrayConstPtr &tags) {
+  unsigned int
+  RigidBody::attachObservedTags(unsigned int cam_idx,
+                                const TagArrayConstPtr &tags) {
+    unsigned int nobs(0);
     for (const auto &tag: tags->apriltags) {
       TagPtr tagPtr = findTag(tag.id);
       if (tagPtr) { // tag belongs to me
         // transfer corner points to tag
         tagPtr->setImageCorners(&tag.corners[0]);
         attachObservedTag(cam_idx, tagPtr);
+        nobs++;
       }
     }
+    return (nobs);
   }
 
   int RigidBody::cameraWithMostAttachedPoints() const {
