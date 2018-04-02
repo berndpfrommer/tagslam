@@ -204,8 +204,10 @@ namespace tagslam {
     const auto T_w_b_sym = sym_T_w_b(rb->index, frame);
     if (values_.find(T_w_b_sym) != values_.end()) {
       *pose = values_.at<gtsam::Pose3>(T_w_b_sym);
+      std::cout << "GRAPH: found body pose for " << rb->name << ":" << std::endl << *pose << std::endl;
       return (true);
     }
+    std::cout << "GRAPH: no body pose found for " << rb->name << std::endl;
     *pose = gtsam::Pose3();
     return (false);;
   }

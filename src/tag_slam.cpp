@@ -166,7 +166,7 @@ namespace tagslam {
       if (!rb->isStatic) {
         gtsam::Pose3 p;
         if (tagGraph_.getBodyPose(rb, &p, frame)) {
-          rb->poseEstimate = PoseEstimate(p);
+          rb->poseEstimate = PoseEstimate(p, 0.0, 0);
         } else {
           rb->poseEstimate = PoseEstimate();//invalid
         }
