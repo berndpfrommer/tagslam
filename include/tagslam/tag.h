@@ -21,9 +21,6 @@
 
 namespace tagslam {
   struct Tag {
-    Tag(int ida, int tp, double sz, 
-        const PoseEstimate &pe, bool hasKPose);
-
     gtsam::Point3 getObjectCorner(int i) const;
     const std::vector<gtsam::Point3> &getObjectCorners() const {
       return objectCorners;
@@ -47,12 +44,16 @@ namespace tagslam {
     typedef std::vector<TagPtr>         TagVec;
     // ----------- static methods
     static std::vector<gtsam::Point3> make_object_corners(double size);
-    static TagPtr makeTag(int ida, double sz, const PoseEstimate &pe = PoseEstimate(),
-                          bool hasKPose = false);
-
     static TagVec parseTags(XmlRpc::XmlRpcValue xmltags, double sz);
     friend std::ostream &operator<<(std::ostream &os, const Tag &tag);
+    static TagPtr
+    makeTag(int ida, double sz, const PoseEstimate &pe = PoseEstimate(),
+            bool hasKPose = false);
+
   private:
+    Tag(int ida, int tp, double sz, 
+        const PoseEstimate &pe, bool hasKPose);
+
     std::vector<gtsam::Point3>  objectCorners;  // 3d object coordinates
     std::vector<gtsam::Point2>  imageCorners;   // u,v of last observed corner points
   };

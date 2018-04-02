@@ -46,7 +46,7 @@ namespace tagslam {
     bool                isDefaultBody{false};
     TagMap              tags;
     CamToTagVec         observedTags;
-    double              defaultSize{0};
+    double              defaultTagSize{0};
     // -------- static functions
     static RigidBodyPtr parse_body(const std::string &name,
                                    XmlRpc::XmlRpcValue body);

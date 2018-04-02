@@ -13,9 +13,8 @@ namespace tagslam {
   class PoseEstimate: public gtsam::Pose3 {
   public:
     PoseEstimate(const gtsam::Pose3 &p = gtsam::Pose3(),
-                 double e = 1e10,
-                 int nit = 1000,
-                 const PoseNoise &n = PoseNoise()) :
+                 double e = 1e10, int nit = 1000,
+                 const PoseNoise &n = gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector::Zero(6))) :
       gtsam::Pose3(p), noise(n), err(e), numIter(nit) {}
     friend std::ostream &operator<<(std::ostream &os, const PoseEstimate &pe);
     bool         isValid() const { return (err < 1e10); }

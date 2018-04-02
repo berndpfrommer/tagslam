@@ -17,8 +17,8 @@ namespace tagslam {
       // first read the header that may contain the body pose
       for (XmlRpc::XmlRpcValue::iterator it = rigidBody.begin();
            it != rigidBody.end(); ++it) {
-        if (it->first == "default_size") {
-          body->defaultSize = static_cast<double>(it->second);
+        if (it->first == "default_tag_size") {
+          body->defaultTagSize = static_cast<double>(it->second);
         }
         if (it->first == "is_default_body") {
           body->isDefaultBody = static_cast<bool>(it->second);
@@ -42,11 +42,14 @@ namespace tagslam {
     } catch (const XmlRpc::XmlRpcException &e) {
       throw std::runtime_error("error parsing header of body:" + name);
     }
+    if (body->defaultTagSize == 0) {
+      throw std::runtime_error("body " + name + " must have default_tag_size!");
+    }
     try {
       for (XmlRpc::XmlRpcValue::iterator it = rigidBody.begin();
            it != rigidBody.end(); ++it) {
         if (it->first == "tags") {
-          TagVec tv = Tag::parseTags(it->second, body->defaultSize);
+          TagVec tv = Tag::parseTags(it->second, body->defaultTagSize);
           body->addTags(tv);
           break;
         }
@@ -71,8 +74,9 @@ namespace tagslam {
     }
     for (const auto &tag: tagmap->second) {
       if (tag->poseEstimate.isValid()) {
+        std::cout << "attached tag: " << *tag << std::endl;
         std::vector<gtsam::Point2> uv = tag->getImageCorners();
-        ip->insert(ip->begin(), uv.begin(), uv.end());
+        ip->insert(ip->end(), uv.begin(), uv.end());
         const auto opts = tag->getObjectCorners();
         for (const auto &op: opts) {
           wp->push_back(poseEstimate * tag->poseEstimate * op);
@@ -118,8 +122,9 @@ namespace tagslam {
     return (maxCam);
   }
 
-  TagPtr RigidBody::addDefaultTag(int tagId) {
-    TagPtr tag = Tag::makeTag(tagId, defaultSize);
+  TagPtr
+  RigidBody::addDefaultTag(int tagId) {
+    TagPtr tag = Tag::makeTag(tagId, defaultTagSize);
     addTag(tag);
     return (tag);
   }

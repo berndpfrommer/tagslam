@@ -105,7 +105,6 @@ namespace tagslam {
     unsigned int                                  frameNum_{0};
     tf::TransformBroadcaster                      tfBroadcaster_;
     std::string                                   tagPosesOutFile_;
-    bool                                          discoverTags_{true};
   };
 
 }

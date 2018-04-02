@@ -86,6 +86,7 @@ namespace tagslam {
 
   TagPtr Tag::makeTag(int tagId, double size, const PoseEstimate &pe,
                       bool hasKnownPose) {
+    std::cout << "making tag " << tagId << " of size: " << size << std::endl;
     TagPtr tagPtr(new Tag(tagId, find_tag_type(size),
                        size, pe, hasKnownPose));
     return (tagPtr);
@@ -102,6 +103,8 @@ namespace tagslam {
   }
   std::ostream &operator<<(std::ostream &os, const Tag &tag) {
     os << tag.id << " sz: " << tag.size << " ty: " << tag.type << " " << tag.poseEstimate;
+    os << " corners: " << tag.imageCorners[0] << " " << tag.imageCorners[1] << " "
+       << tag.imageCorners[2] << " " << tag.imageCorners[3] << std::endl;
     return (os);
   }
 }  // namespace

@@ -65,10 +65,10 @@ namespace tagslam {
   }
 
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
-    std::cout << "adding tags for body " << rb->name << std::endl;
+    std::cout << "GRAPH: adding tags for body " << rb->name << std::endl;
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
-      std::cout << "adding tag with id: " << tag->id << std::endl;
+      std::cout << "GRAPH: adding tag: " << *tag << std::endl;
       gtsam::Pose3   tagPose  = tag->poseEstimate;
       PoseNoise tagNoise = tag->poseEstimate.getNoise();
       // ----- insert transform T_b_o and pin it down with prior factor if known
@@ -143,6 +143,7 @@ namespace tagslam {
   void TagGraph::observedTags(const CameraPtr &cam, const RigidBodyPtr &rb,
                               const TagVec &tags,
                               unsigned int frame_num) {
+    std::cout << "GRAPH: " << cam->name << " observed tags: " << tags.size() << " in frame: " << frame_num << std::endl;
     if (tags.empty()) {
       std::cout << "WARN: no tags for " << cam->name << " in frame "
                 << frame_num << std::endl;
@@ -160,16 +161,23 @@ namespace tagslam {
     }
     // new camera location
     gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, frame_num);
-    values_.insert(T_w_c_sym, cam->poseEstimate.inverse());
+    if (!values_.exists(T_w_c_sym)) {
+      values_.insert(T_w_c_sym, cam->poseEstimate.getPose());
+    }
 
     IsotropicNoisePtr pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
+    if (!rb->isStatic) {
+      values_.insert(sym_T_w_b(rb->index, frame_num), rb->poseEstimate.getPose());
+    }
     for (const auto &tag: tags) {
       std::cout << rb->name <<  " graph observed tag: " << tag->id << std::endl;
+      if (!tag->poseEstimate.isValid()) {
+        std::cout << "GRAPH: tag " << tag->id << " has no valid pose!" << std::endl;
+      }
       if (!rb->isStatic) {
-        const gtsam::Pose3 &T_w_b = rb->poseEstimate;
+        const gtsam::Pose3 &T_w_b = rb->poseEstimate.getPose();
         gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, frame_num);
-        values_.insert(T_w_b_sym, T_w_b);
         for (const auto i: irange(0, 4)) {
           gtsam::Symbol X_w_i_sym = sym_X_w_i(tag->id, i, frame_num);
           gtsam::Symbol X_b_i_sym = sym_X_b_i(tag->id, i);
@@ -263,8 +271,10 @@ namespace tagslam {
     //graph_.print();
     //values_.print();
     //double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
+    std::cout << "GRAPH: running optimizer" << std::endl;
     double err = tryOptimization(&optimizedValues_, graph_, values_, "SILENT", 100);
     values_ = optimizedValues_;
+    std::cout << "GRAPH optimizer error: " << err << " iter: " << optimizerIterations_ << std::endl;
     //result.print();
   }
 
