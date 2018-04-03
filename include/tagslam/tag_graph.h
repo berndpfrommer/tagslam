@@ -4,6 +4,7 @@
 #ifndef TAGSLAM_TAG_GRAPH_H
 #define TAGSLAM_TAG_GRAPH_H
 
+#include "tagslam/distance_measurement.h"
 #include "tagslam/utils.h"
 #include "tagslam/tag.h"
 #include "tagslam/camera.h"
@@ -33,12 +34,12 @@ namespace tagslam {
     int    getIterations() { return (optimizerIterations_); }
     
     void addTags(const RigidBodyPtr &rb, const TagVec &tags);
+    void addDistanceMeasurements(const DistanceMeasurementVec &dmv);
     void observedTags(const CameraPtr &cam, const RigidBodyPtr &rb,
                       const TagVec &tags,
                       unsigned int frame_num);
     void optimize();
 
-    bool hasStaticObject(const std::string &name) const;
     PoseEstimate getCameraPose(const CameraPtr &cam,
                                unsigned int frame_num) const;
     bool getTagRelPose(const RigidBodyPtr &rb, int tagId,
@@ -48,6 +49,7 @@ namespace tagslam {
     void getTagWorldPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const;
     bool getBodyPose(const RigidBodyConstPtr &rb, gtsam::Pose3 *pose,
                      unsigned int frame) const;
+    void printDistances() const;
   private:
     bool findInitialTagPose(const Tag &tag, gtsam::Pose3 *pose,
                             PoseNoise *noise) const;

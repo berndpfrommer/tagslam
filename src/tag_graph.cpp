@@ -3,6 +3,7 @@
  */
 
 #include "tagslam/tag_graph.h"
+#include "tagslam/point_distance_factor.h"
 #include <boost/range/irange.hpp>
 #include <gtsam/slam/PriorFactor.h>
 #include <gtsam/slam/BetweenFactor.h>
@@ -64,6 +65,15 @@ namespace tagslam {
     return (gtsam::Symbol('a' + MAX_CAM_ID + bodyIdx, frame_num));
   }
 
+  static unsigned int X_w_i_sym_to_index(gtsam::Key k, int *tagId, int *corner) {
+    gtsam::Symbol sym(k);
+    int idx = sym.index();
+    unsigned int frame_num = idx / (4 * MAX_TAG_ID);
+    *tagId  = (idx - frame_num * 4 * MAX_TAG_ID) / 4;
+    *corner = (idx - frame_num * 4 * MAX_TAG_ID) % 4;
+    return (frame_num);
+  }
+
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
@@ -90,7 +100,7 @@ namespace tagslam {
                            gtsam::Pose3>(X_o_i, T_b_o_sym, X_b_i, smallNoise));
         }
       } else {
-        // ------ now object-to-world transform
+        // ------ object-to-world transform
         // T_w_o  = T_w_b * T_b_o
         gtsam::Symbol T_w_o_sym = sym_T_w_o(tag->id);
         gtsam::Pose3  T_w_o     = rb->poseEstimate * tagPose;
@@ -108,6 +118,17 @@ namespace tagslam {
           graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
                            gtsam::Pose3>(X_o_i, T_w_o_sym, X_w_i, smallNoise));
         }
+      }
+    }
+  }
+
+  void TagGraph::addDistanceMeasurements(const DistanceMeasurementVec &dmv) {
+    for (const auto &dm: dmv) {
+      const gtsam::Symbol k1 = sym_X_w_i(dm->tag1, dm->corner1, 0);
+      const gtsam::Symbol k2 = sym_X_w_i(dm->tag2, dm->corner2, 0);
+      if (values_.exists(k1) && values_.exists(k2)) {
+        IsotropicNoisePtr noise = gtsam::noiseModel::Isotropic::Sigma(1, dm->noise);
+        graph_.push_back(PointDistanceFactor(noise, k1, k2, dm->distance));
       }
     }
   }
@@ -216,7 +237,7 @@ namespace tagslam {
       gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
       *result = lmo.optimize();
       double ni = numProjectionFactors_ > 0 ? 1.0/numProjectionFactors_ : 1.0;
-      optimizerError_ = lmo.error() * ni;;
+      optimizerError_ = lmo.error() * ni;
       optimizerIterations_ = lmo.iterations();
       return (optimizerError_);
   }
@@ -247,6 +268,25 @@ namespace tagslam {
       }
     }
     return (false);
+  }
+
+  void
+  TagGraph::printDistances() const {
+    const auto symMin = sym_X_w_i(0, 0, 0);
+    const auto symMax = sym_X_w_i(MAX_TAG_ID, 3, 0);
+    gtsam::Values::const_iterator it_start = values_.lower_bound(symMin);
+    gtsam::Values::const_iterator it_stop  = values_.upper_bound(symMax);
+    for (gtsam::Values::const_iterator it1 = it_start; it1 != it_stop; ++it1) {
+      gtsam::Point3 p1 = values_.at<gtsam::Point3>(it1->key);
+      int tagid, corn;
+      X_w_i_sym_to_index(it1->key, &tagid, &corn);
+      printf("tag %3d corner %d:", tagid, corn);
+      for (gtsam::Values::const_iterator it2 = it_start; it2 != it_stop; ++it2) {
+        gtsam::Point3 p2 = values_.at<gtsam::Point3>(it2->key);
+        printf(" %7.4f", p1.distance(p2));
+      }
+      printf("\n");
+    }
   }
 
   

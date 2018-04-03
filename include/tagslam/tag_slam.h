@@ -8,6 +8,7 @@
 #include "tagslam/camera.h"
 #include "tagslam/tag_graph.h"
 #include "tagslam/rigid_body.h"
+#include "tagslam/distance_measurement.h"
 #include "tagslam/initial_pose_graph.h"
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
@@ -85,7 +86,8 @@ namespace tagslam {
     void updatePosesFromGraph(unsigned int frame_num);
     void writeTagPoses(const std::string &poseFile) const;
     void playFromBag(const std::string &fname);
-
+    bool readRigidBodies();
+    void readDistanceMeasurements();
     // ----------------------------------------------------------
     typedef message_filters::Subscriber<TagArray> TagSubscriber;
     typedef std::unordered_map<int, TagPtr>       IdToTagMap;
@@ -101,8 +103,7 @@ namespace tagslam {
     RigidBodyVec                                  staticBodies_;
     RigidBodyVec                                  dynamicBodies_;
     RigidBodyVec                                  allBodies_;
- 
-    double                                        defaultTagSize_{0.5};
+    DistanceMeasurementVec                        distanceMeasurements_;
     unsigned int                                  frameNum_{0};
     tf::TransformBroadcaster                      tfBroadcaster_;
     std::string                                   tagPosesOutFile_;

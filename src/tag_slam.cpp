@@ -38,6 +38,35 @@ namespace tagslam {
     if (!subscribe()) {
       return (false);
     }
+    readDistanceMeasurements();
+    if (!readRigidBodies()) {
+      return (false);
+    }
+    // play from bag file if file name is non-empty
+    std::string bagFile;
+    nh_.param<std::string>("bag_file", bagFile, "");
+    if (!bagFile.empty()) {
+      playFromBag(bagFile);
+      tagGraph_.printDistances();
+      ros::shutdown();
+    }
+    return (true);
+  }
+  
+  void TagSlam::readDistanceMeasurements() {
+    // read distance measurements
+    XmlRpc::XmlRpcValue distMeas;
+    nh_.getParam("tag_poses/distance_measurements", distMeas);
+    if (distMeas.getType() == XmlRpc::XmlRpcValue::TypeArray) { 
+      distanceMeasurements_ = DistanceMeasurement::parse(distMeas);
+      ROS_INFO_STREAM("found " << distanceMeasurements_.size()
+                      << " distance measurements!");
+    } else {
+      ROS_INFO("no distance measurements found!");
+    }
+  }
+
+  bool TagSlam::readRigidBodies() {
     XmlRpc::XmlRpcValue bodies;
     nh_.getParam("tag_poses/bodies", bodies);
     nh_.param<std::string>("tag_poses_out_file", tagPosesOutFile_,
@@ -66,15 +95,9 @@ namespace tagslam {
         }
       }
       tagGraph_.addTags(rb, tvec);
+      tagGraph_.addDistanceMeasurements(distanceMeasurements_);
       allBodies_.push_back(rb);
       (rb->isStatic ? staticBodies_ : dynamicBodies_).push_back(rb);
-    }
-    // play from bag file if file name is non-empty
-    std::string bagFile;
-    nh_.param<std::string>("bag_file", bagFile, "");
-    if (!bagFile.empty()) {
-      playFromBag(bagFile);
-      ros::shutdown();
     }
     return (true);
   }
@@ -303,6 +326,7 @@ namespace tagslam {
                 estimateTagPose(tagMap.first, rb->poseEstimate, tag);
                 TagVec tvec = {tag};
                 tagGraph_.addTags(rb, tvec);
+                tagGraph_.addDistanceMeasurements(distanceMeasurements_);
               }
             }
           }
