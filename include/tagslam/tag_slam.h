@@ -53,7 +53,8 @@ namespace tagslam {
     };
     void process(const std::vector<TagArrayConstPtr> &msgvec);
     bool subscribe();
-    void broadcastTransforms(const std::vector<PoseInfo> &poses);
+    void broadcastTransforms(const std::string &parentframe,
+                             const std::vector<PoseInfo> &poses);
     void broadcastBodyPoses(const ros::Time &t);
     void broadcastCameraPoses(const ros::Time &t);
     void broadcastTagPoses(const ros::Time &t);
@@ -71,15 +72,20 @@ namespace tagslam {
     PoseEstimate estimatePosePNP(int cam_idx,
                                  const std::vector<gtsam::Point3>&wpts,
                                  const std::vector<gtsam::Point2>&ipts) const;
+    PoseEstimate estimatePoseHomography(int cam_idx,
+                                        const std::vector<gtsam::Point3>&wpts,
+                                        const std::vector<gtsam::Point2>&ipts) const;
 
     PoseEstimate poseFromPoints(int cam_idx,
                                 const std::vector<gtsam::Point3> &wp,
-                                const std::vector<gtsam::Point2> &ip) const;
-    void estimateTagPose(int cam_idx,
+                                const std::vector<gtsam::Point2> &ip,
+                                bool pointsArePlanar = false) const;
+    bool estimateTagPose(int cam_idx,
                          const gtsam::Pose3 &bodyPose,
                          const TagPtr &tag) const;
     void runOptimizer();
-    PoseEstimate findCameraPose(int cam_idx, RigidBodyVec &rigidBodies) const;
+    PoseEstimate findCameraPose(int cam_idx, RigidBodyVec &rigidBodies,
+                                bool bodiesMustHavePose) const;
     void findInitialCameraPoses();
     void findInitialBodyPoses();
     void findInitialDiscoveredTagPoses();
@@ -88,10 +94,12 @@ namespace tagslam {
     void playFromBag(const std::string &fname);
     bool readRigidBodies();
     void readDistanceMeasurements();
+    bool isBadViewingAngle(const gtsam::Pose3 &p) const;
     // ----------------------------------------------------------
     typedef message_filters::Subscriber<TagArray> TagSubscriber;
     typedef std::unordered_map<int, TagPtr>       IdToTagMap;
     ros::Subscriber                               singleCamSub_;
+    ros::Publisher                                camOdomPub_;
     std::vector<std::shared_ptr<TagSubscriber>>   sub_;
     std::unique_ptr<TimeSync2>                    approxSync2_;
     std::unique_ptr<TimeSync3>                    approxSync3_;
@@ -103,10 +111,13 @@ namespace tagslam {
     RigidBodyVec                                  staticBodies_;
     RigidBodyVec                                  dynamicBodies_;
     RigidBodyVec                                  allBodies_;
+    RigidBodyPtr                                  defaultBody_;
     DistanceMeasurementVec                        distanceMeasurements_;
     unsigned int                                  frameNum_{0};
     tf::TransformBroadcaster                      tfBroadcaster_;
     std::string                                   tagPosesOutFile_;
+    std::string                                   fixedFrame_;
+    double                                        viewingAngleThreshold_;
   };
 
 }

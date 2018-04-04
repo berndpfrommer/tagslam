@@ -70,15 +70,18 @@ namespace tagslam {
                                     std::vector<gtsam::Point2> *ip) const {
     const auto tagmap = observedTags.find(cam_idx);
     if (tagmap == observedTags.end()) {
-      return; // no tags for this camera
+      return;
     }
+    std::cout << name << " get attached points pose estimate: " << poseEstimate << std::endl;
     for (const auto &tag: tagmap->second) {
       if (tag->poseEstimate.isValid()) {
         std::vector<gtsam::Point2> uv = tag->getImageCorners();
         ip->insert(ip->end(), uv.begin(), uv.end());
+        std::cout << "tag pose: " << tag->poseEstimate << std::endl;
         const auto opts = tag->getObjectCorners();
         for (const auto &op: opts) {
           wp->push_back(poseEstimate * tag->poseEstimate * op);
+          std::cout << "tag id: " << tag->id << " wp: " << wp->back() << std::endl;
         }
       }
     }
@@ -160,11 +163,12 @@ namespace tagslam {
         }
         RigidBodyPtr rb = parse_body(it->first, it->second);
         rb->index = i;
+        std::cout << "rb: " << rb->name << " def body: " << rb->isDefaultBody << std::endl;
         if (rb->isDefaultBody && foundDefaultBody) {
           throw std::runtime_error("found second default body: " + rb->name);
         }
         rbv.push_back(rb);
-        foundDefaultBody = true;
+        foundDefaultBody = rb->isDefaultBody;
       }
     }
     return (rbv);

@@ -64,23 +64,13 @@ namespace utils {
   // from world and image points. Distortion is not taken into account
   // but the projection model (i.e fisheye) is.
 
-  gtsam::Pose3 get_init_pose(const std::vector<gtsam::Point3> &world_points,
-                             const std::vector<gtsam::Point2> &image_points,
-                             const std::vector<double> &intrinsics,
-                             const std::string &distModel,
-                             const std::vector<double> &distcoeff) {
-    cv::Mat K = make_intrinsic_matrix(intrinsics);
-
-    cv::Mat dist;
-    if (distcoeff.empty()) {
-      dist = (cv::Mat_<double>(4,1) << 0, 0, 0, 0);
-    } else {
-      dist = cv::Mat_<double>(distcoeff.size(), 1);
-      for (unsigned int i = 0; i < distcoeff.size(); i++) {
-        dist.at<double>(i, 0) = distcoeff[i];
-      }
-    }
-
+  bool get_init_pose(const std::vector<cv::Point3d> &world_points,
+                     const std::vector<cv::Point2d> &image_points,
+                     const cv::Mat &K,
+                     const std::string &distModel,
+                     const cv::Mat &D,
+                     cv::Mat *rvec,
+                     cv::Mat *tvec) {
     std::vector<cv::Point2f> wp, // world points
       ip,  // image points
       ipu; // undistorted image points
@@ -88,38 +78,33 @@ namespace utils {
     // world points
     //std::cout << "   world points: " << std::endl;
     for (const auto &w : world_points) {
-      wp.push_back(cv::Point2f(w.x(), w.y()));
+      wp.push_back(cv::Point2f(w.x, w.y));
       //std::cout << w.x << " " << w.y << std::endl;
     }
     // image points
     //std::cout << "   image points: " << std::endl;
     for (const auto &i : image_points) {
-      ip.push_back(cv::Point2f(i.x(), i.y()));
+      ip.push_back(cv::Point2f(i.x, i.y));
       //std::cout << i.x << " " << i.y << std::endl;
     }
     if (distModel == "equidistant") {
-      cv::fisheye::undistortPoints(ip, ipu, K, dist);
+      cv::fisheye::undistortPoints(ip, ipu, K, D);
     } else if (distModel == "radtan") {
-      cv::undistortPoints(ip, ipu, K, dist);
+      cv::undistortPoints(ip, ipu, K, D);
       //std::cout << "using radtan!" << std::endl;
     } else {
       std::cout << "WARNING: unknown distortion model: " << distModel << std::endl;
       ipu = ip;
     }
-    //std::cout << "   image undist: " << std::endl;
-    //std::cout << ipu << std::endl;
+    std::cout << "   image undist: " << std::endl;
+    std::cout << ipu << std::endl;
     // Use opencv to calculate the homography matrix.
     cv::Mat H = cv::findHomography(wp, ipu);
 
     // now decompose the homography matrix
     cv::Mat RO, TO; // optimal rotation and translation
-    decomposeHomography(H, &RO, &TO);
-    gtsam::Point3 T(TO.at<double>(0),TO.at<double>(1),TO.at<double>(2));
-    gtsam::Rot3 R(RO.at<double>(0,0), RO.at<double>(0,1), RO.at<double>(0,2),
-                  RO.at<double>(1,0), RO.at<double>(1,1), RO.at<double>(1,2),
-                  RO.at<double>(2,0), RO.at<double>(2,1), RO.at<double>(2,2));
-    gtsam::Pose3 pose(R, T);
-    return (pose);
+    decomposeHomography(H, rvec, tvec);
+    return (true);
   }
 
   //

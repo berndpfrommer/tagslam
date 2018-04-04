@@ -12,10 +12,13 @@
   
   <depend>roscpp</depend>
   <depend>tf</depend>
+  <depend>tf_conversions</depend>
+  <depend>eigen_conversions</depend>
   <depend>apriltag_ros</depend>
   <depend>apriltag_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>standard_msgs</depend>
+  <depend>nav_msgs</depend>
   <depend>eigen</depend>
   <depend>rosbag</depend>
   <depend>sensor_msgs</depend>

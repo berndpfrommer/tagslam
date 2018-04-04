@@ -77,6 +77,7 @@ namespace tagslam {
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
+      std::cout << "GRAPH: adding tag: " << tag->id << std::endl;
       gtsam::Pose3   tagPose  = tag->poseEstimate;
       PoseNoise tagNoise = tag->poseEstimate.getNoise();
       // ----- insert transform T_b_o and pin it down with prior factor if known
@@ -104,6 +105,7 @@ namespace tagslam {
         // T_w_o  = T_w_b * T_b_o
         gtsam::Symbol T_w_o_sym = sym_T_w_o(tag->id);
         gtsam::Pose3  T_w_o     = rb->poseEstimate * tagPose;
+        std::cout << "GRAPH: tag id: " << tag->id << " has tf: " << T_w_o << std::endl;
         values_.insert(T_w_o_sym, T_w_o);
         graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(
                            T_b_o_sym, T_w_o_sym, rb->poseEstimate,
@@ -188,6 +190,7 @@ namespace tagslam {
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
         std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+        continue;
       }
       if (!rb->isStatic) {
         const gtsam::Pose3 &T_w_b = rb->poseEstimate.getPose();

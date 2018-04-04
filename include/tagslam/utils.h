@@ -18,11 +18,13 @@ namespace tagslam {
     gtsam::Matrix3 rotmat(const Eigen::Vector3d &rvec);
     // computes a pose (rotation vector, translation) via homography
     // from world and image points.
-    gtsam::Pose3 get_init_pose(const std::vector<gtsam::Point3> &world_points,
-                               const std::vector<gtsam::Point2> &image_points,
-                               const std::vector<double> &intrinsics,
-                               const std::string &distModel,
-                               const std::vector<double> &distcoeff);
+    bool get_init_pose(const std::vector<cv::Point3d> &world_points,
+                       const std::vector<cv::Point2d> &image_points,
+                       const cv::Mat &K,
+                       const std::string &distModel,
+                       const cv::Mat &D,
+                       cv::Mat *rvec,
+                       cv::Mat *tvec);
     //
     // Will return T_c_w, i.e. world-to-camera transform
     //

@@ -9,10 +9,13 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosbag
   std_msgs
+  nav_msgs
   geometry_msgs
   apriltag_msgs
   message_filters
   tf
+  tf_conversions
+  eigen_conversions
 )
 
 find_package(Eigen3 REQUIRED QUIET)
