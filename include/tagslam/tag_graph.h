@@ -45,7 +45,7 @@ namespace tagslam {
     bool getTagRelPose(const RigidBodyPtr &rb, int tagId,
                        gtsam::Pose3 *pose) const;
 
-    gtsam::Pose3 getTagWorldPose(int tagId) const;
+    PoseEstimate getTagWorldPose(int tagId) const;
     void getTagWorldPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const;
     bool getBodyPose(const RigidBodyConstPtr &rb, gtsam::Pose3 *pose,
                      unsigned int frame) const;

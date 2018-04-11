@@ -91,6 +91,7 @@ namespace tagslam {
     void findInitialDiscoveredTagPoses();
     void updatePosesFromGraph(unsigned int frame_num);
     void writeTagPoses(const std::string &poseFile) const;
+    void writeTagWorldPoses(const std::string &poseFile) const;
     void playFromBag(const std::string &fname);
     bool readRigidBodies();
     void readDistanceMeasurements();
@@ -116,6 +117,7 @@ namespace tagslam {
     unsigned int                                  frameNum_{0};
     tf::TransformBroadcaster                      tfBroadcaster_;
     std::string                                   tagPosesOutFile_;
+    std::string                                   tagWorldPosesOutFile_;
     std::string                                   fixedFrame_;
     double                                        viewingAngleThreshold_;
   };

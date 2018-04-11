@@ -81,6 +81,9 @@ namespace tagslam {
     nh_.getParam("tag_poses/bodies", bodies);
     nh_.param<std::string>("tag_poses_out_file", tagPosesOutFile_,
                            "poses_out.yaml");
+    nh_.param<std::string>("tag_world_poses_out_file",
+                           tagWorldPosesOutFile_,
+                           "tag_world_poses_out.yaml");
     if (bodies.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
       ROS_ERROR("cannot find bodies in yaml file!");
       return (false);
@@ -247,6 +250,8 @@ namespace tagslam {
           TagPtr tag = t.second;
           gtsam::Pose3 pose;
           if (tagGraph_.getTagRelPose(rb, tag->id, &pose)) {
+            std::cout << "UPDATE: tag id " << tag->id << " from: " << std::endl <<
+              tag->poseEstimate.getPose()  << std::endl << " to: " << std::endl <<  pose << std::endl;
             tag->poseEstimate = PoseEstimate(pose, 0.0, 0);
           } else {
             tag->poseEstimate = PoseEstimate(); // invalid
@@ -456,6 +461,7 @@ namespace tagslam {
     broadcastBodyPoses(t);
     broadcastTagPoses(t);
     writeTagPoses(tagPosesOutFile_);
+    writeTagWorldPoses(tagWorldPosesOutFile_);
     ROS_INFO_STREAM("frame " << frameNum_ << " total tags: " << allTags_.size()
                     << " obs: " << nobs << " err: " << tagGraph_.getError());
     frameNum_++;
@@ -634,6 +640,20 @@ namespace tagslam {
         if (tag->poseEstimate.isValid()) {
           write_pose(pf, pfix + "  ", tag->poseEstimate,
                      tag->poseEstimate.getNoise());
+        }
+      }
+    }
+  }
+  void TagSlam::writeTagWorldPoses(const std::string &poseFile) const {
+    std::ofstream pf(poseFile);
+    for (const auto &rb : allBodies_) {
+      for (const auto &tm: rb->tags) {
+        const auto &tag = tm.second;
+        const PoseEstimate pe = tagGraph_.getTagWorldPose(tag->id);
+        if (pe.isValid()) {
+          pf << "- id: "   << tag->id << std::endl;
+          pf << "  size: " << tag->size << std::endl;
+          write_pose(pf, "  ", pe.getPose(), pe.getNoise());
         }
       }
     }

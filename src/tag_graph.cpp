@@ -3,6 +3,7 @@
  */
 
 #include "tagslam/tag_graph.h"
+#include "tagslam/inbetween_factor.h"
 #include "tagslam/point_distance_factor.h"
 #include <boost/range/irange.hpp>
 #include <gtsam/slam/PriorFactor.h>
@@ -106,9 +107,11 @@ namespace tagslam {
         gtsam::Symbol T_w_o_sym = sym_T_w_o(tag->id);
         gtsam::Pose3  T_w_o     = rb->poseEstimate * tagPose;
         std::cout << "GRAPH: tag id: " << tag->id << " has tf: " << T_w_o << std::endl;
+        std::cout << "GRAPH: tag id: " << tag->id << " has pose: " << tagPose << std::endl;
+        std::cout << "GRAPH: tag id: " << tag->id << " has body pose: " << rb->poseEstimate.getPose() << std::endl;
         values_.insert(T_w_o_sym, T_w_o);
-        graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(
-                           T_b_o_sym, T_w_o_sym, rb->poseEstimate,
+        graph_.push_back(InBetweenFactor<gtsam::Pose3>(
+                           T_w_o_sym, T_b_o_sym, rb->poseEstimate,
                            rb->poseEstimate.getNoise()));
             
         // ------ insert the corner positions
@@ -246,9 +249,13 @@ namespace tagslam {
   }
 
 
-  gtsam::Pose3
-  TagGraph::getTagWorldPose(int tagId) const {
-    return (values_.at<gtsam::Pose3>(sym_T_w_o(tagId)));
+  PoseEstimate TagGraph::getTagWorldPose(int tagId) const {
+    if (values_.exists(sym_T_w_o(tagId))) {
+      const gtsam::Pose3 p = values_.at<gtsam::Pose3>(sym_T_w_o(tagId));
+      const PoseNoise n = makePoseNoise(0.001, 0.001);
+      return (PoseEstimate(p, 0.0, 0, n));
+    }
+    return (PoseEstimate()); // return invalid pose
   }
   
   bool
@@ -260,7 +267,12 @@ namespace tagslam {
           values_.find(T_w_o_sym) != values_.end()) {
         const gtsam::Pose3 T_w_o = values_.at<gtsam::Pose3>(T_w_o_sym);
         // we need T_b_o = T_b_w * T_w_o
+        std::cout << "GRAPH: tag id: " << tagId << " has T_w_o: " << std::endl << T_w_o << std::endl << " with body pose: " << rb->poseEstimate.getPose() << std::endl;
         *pose = rb->poseEstimate.inverse() * T_w_o;
+        const auto T_b_o_sym = sym_T_b_o(tagId);
+        if (values_.find(T_b_o_sym) != values_.end()) {
+          std::cout << "GRAPH: also have direct T_b_o: " << std::endl << values_.at<gtsam::Pose3>(T_b_o_sym) << std::endl;
+        }
         return (true);
       }
     } else {
