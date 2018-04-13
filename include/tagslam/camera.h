@@ -24,7 +24,7 @@ namespace tagslam {
     CameraExtrinsics  T_cam_body;
     CameraExtrinsics  T_cn_cnm1;
     std::string       tagtopic;
-    PoseEstimate      poseEstimate; // T_c_w
+    PoseEstimate      poseEstimate; // T_w_c
     gtsam::Pose3      optimizedPose;
     int               lastFrameNumber{-1};
     boost::shared_ptr<gtsam::Cal3DS2> gtsamCameraModel;

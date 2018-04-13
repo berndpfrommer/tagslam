@@ -15,7 +15,6 @@
 
 namespace tagslam {
   class InitialPoseGraph {
-    //typedef gtsam::noiseModel::Isotropic::shared_ptr	IsotropicNoisePtr;
   public:
     InitialPoseGraph() {};
     virtual ~InitialPoseGraph() {};

@@ -34,8 +34,9 @@ namespace tagslam {
 
     // ------- variables --------------
     int            id;
-    int            type;  // distinguishes different size tags!
-    double         size;  // tag size in meters
+    int            type;     // distinguishes different size tags!
+    int            bits{6};  // determines tag family
+    double         size;     // tag size in meters
     PoseEstimate   poseEstimate; // tag pose relative body: T_b_o
     bool           hasKnownPose; // tag pose is known from the start
     //
@@ -47,11 +48,11 @@ namespace tagslam {
     static TagVec parseTags(XmlRpc::XmlRpcValue xmltags, double sz);
     friend std::ostream &operator<<(std::ostream &os, const Tag &tag);
     static TagPtr
-    makeTag(int ida, double sz, const PoseEstimate &pe = PoseEstimate(),
+    makeTag(int ida, int bits, double sz, const PoseEstimate &pe = PoseEstimate(),
             bool hasKPose = false);
 
   private:
-    Tag(int ida, int tp, double sz, 
+    Tag(int ida, int tp, int bits, double sz, 
         const PoseEstimate &pe, bool hasKPose);
 
     std::vector<gtsam::Point3>  objectCorners;  // 3d object coordinates

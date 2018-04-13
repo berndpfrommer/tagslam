@@ -23,9 +23,9 @@ namespace tagslam {
     return (tag_size_map.find(size)->second);
   }
 
-  Tag::Tag(int ida, int tp, double s, const PoseEstimate &pe,
+  Tag::Tag(int ida, int tp, int bts, double s, const PoseEstimate &pe,
            bool hasKPose) :
-    id(ida), type(tp), size(s), poseEstimate(pe), hasKnownPose(hasKPose) {
+    id(ida), type(tp), bits(bts), size(s), poseEstimate(pe), hasKnownPose(hasKPose) {
     objectCorners = make_object_corners(size);
     imageCorners.resize(4);
   }
@@ -57,22 +57,23 @@ namespace tagslam {
     std::vector<TagPtr> tags;
     for (uint32_t i = 0; i < xmltags.size(); i++) {
       if (xmltags[i].getType() != XmlRpc::XmlRpcValue::TypeStruct) continue;
-      int id(0);
+      int id(0), bits(6);
       double sz(size), uc(0);
       for (XmlRpc::XmlRpcValue::iterator it = xmltags[i].begin();
            it != xmltags[i].end(); ++it) {
         std::string field = it->first;
-        if (field == "id") {           id = static_cast<int>(it->second);
-        } else  if (field == "size") { sz = static_cast<double>(it->second);
+        if (field == "id") {           id   = static_cast<int>(it->second);
+        } else  if (field == "bits") { bits = static_cast<int>(it->second);
+        } else  if (field == "size") { sz   = static_cast<double>(it->second);
         }
       }
       gtsam::Pose3 pose;
       PoseNoise noise;
       if (yaml_utils::get_pose_and_noise(xmltags[i], &pose, &noise)) {
         PoseEstimate pe(pose, 0.0, 0, noise);
-        tags.push_back(makeTag(id, sz, pe, true));
+        tags.push_back(makeTag(id, bits, sz, pe, true));
       } else {
-        tags.push_back(makeTag(id, sz, PoseEstimate(), false));
+        tags.push_back(makeTag(id, bits, sz, PoseEstimate(), false));
       }
     }
     /*
@@ -84,9 +85,9 @@ namespace tagslam {
     return (tags);
   }
 
-  TagPtr Tag::makeTag(int tagId, double size, const PoseEstimate &pe,
+  TagPtr Tag::makeTag(int tagId, int bits, double size, const PoseEstimate &pe,
                       bool hasKnownPose) {
-    TagPtr tagPtr(new Tag(tagId, find_tag_type(size),
+    TagPtr tagPtr(new Tag(tagId, find_tag_type(size), bits,
                        size, pe, hasKnownPose));
     return (tagPtr);
   }

@@ -18,7 +18,7 @@
 #include <gtsam/base/Testable.h>
 #include <gtsam/base/Lie.h>
 #include <gtsam/nonlinear/NonlinearFactor.h>
-
+#include <boost/optional/optional_io.hpp>
 namespace tagslam {
 
   template<class VALUE>
@@ -77,10 +77,30 @@ namespace tagslam {
 
     gtsam::Vector evaluateError(const T& p1, const T& p2, boost::optional<gtsam::Matrix&> H1 =
                                 boost::none, boost::optional<gtsam::Matrix&> H2 = boost::none) const {
-      // hx = p1^-1 * p2
-      T hx = gtsam::traits<T>::Between(p2.inverse(), p1.inverse(), H1, H2); // h(x)
+      // p1 = measured * p2
+      // hx = p1^-1 * p2 ^-1
+      T hx = gtsam::traits<T>::Between(p1.inverse(), p2.inverse(), H1, H2); // h(x)
+#if 0
+      std::cout << "p1: " << p1 << std::endl;
+      std::cout << "p2: " << p2 << std::endl;
+      std::cout << "hx: " << hx << std::endl;
+      std::cout << "H1: " << H1 << std::endl;
+      std::cout << "H2: " << H2 << std::endl;
+      std::cout << "measured: " << measured_ << std::endl;
+#endif      
+#if 0
+      typename gtsam::traits<T>::ChartJacobian::Jacobian Hlocal;
+      gtsam::Vector rval = gtsam::traits<T>::Local(hx, measured_, boost::none, (H1 || H2) ? &Hlocal : 0);
+      if (H1) *H1 = Hlocal * (*H1);
+      if (H2) *H2 = Hlocal * (*H2);
+      std::cout << "rval: " << rval << std::endl;
+      return rval;
+#else
+      gtsam::Vector rval = gtsam::traits<T>::Local(hx, measured_);
+      //std::cout << "rval: " << rval << std::endl;
       // manifold equivalent of h(x)-z -> log(z,h(x))
-      return gtsam::traits<T>::Local(hx, measured_);
+      return rval;
+#endif      
     }
 
     /** return the measured */

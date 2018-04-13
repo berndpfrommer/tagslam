@@ -28,8 +28,18 @@ namespace tagslam {
   using TagArrayConstPtr = TagArray::ConstPtr;
   typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray> SyncPolicy2;
   typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray> SyncPolicy3;
+  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray> SyncPolicy4;
+  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray, TagArray> SyncPolicy5;
+  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray, TagArray, TagArray> SyncPolicy6;
+  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray, TagArray, TagArray, TagArray> SyncPolicy7;
+  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray, TagArray, TagArray, TagArray, TagArray> SyncPolicy8;
   typedef message_filters::Synchronizer<SyncPolicy2> TimeSync2;
   typedef message_filters::Synchronizer<SyncPolicy3> TimeSync3;
+  typedef message_filters::Synchronizer<SyncPolicy4> TimeSync4;
+  typedef message_filters::Synchronizer<SyncPolicy5> TimeSync5;
+  typedef message_filters::Synchronizer<SyncPolicy6> TimeSync6;
+  typedef message_filters::Synchronizer<SyncPolicy7> TimeSync7;
+  typedef message_filters::Synchronizer<SyncPolicy8> TimeSync8;
   class TagSlam {
   public:
     TagSlam(const ros::NodeHandle &pnh);
@@ -39,10 +49,42 @@ namespace tagslam {
     TagSlam& operator=(const TagSlam&) = delete;
 
     bool initialize();
-
     void callback1(TagArrayConstPtr const &tag0);
-    void callback2(TagArrayConstPtr const &tag0, TagArrayConstPtr const &tag1);
-    void callback3(TagArrayConstPtr const &tag0, TagArrayConstPtr const &tag1, TagArrayConstPtr const &tag2);
+    void callback2(TagArrayConstPtr const &tag0,
+                   TagArrayConstPtr const &tag1);
+    void callback3(TagArrayConstPtr const &tag0,
+                   TagArrayConstPtr const &tag1,
+                   TagArrayConstPtr const &tag2);
+    void callback4(TagArrayConstPtr const &tag0,
+                   TagArrayConstPtr const &tag1,
+                   TagArrayConstPtr const &tag2,
+                   TagArrayConstPtr const &tag3);
+    void callback5(TagArrayConstPtr const &tag0,
+                   TagArrayConstPtr const &tag1,
+                   TagArrayConstPtr const &tag2,
+                   TagArrayConstPtr const &tag3,
+                   TagArrayConstPtr const &tag4);
+    void callback6(TagArrayConstPtr const &tag0,
+                   TagArrayConstPtr const &tag1,
+                   TagArrayConstPtr const &tag2,
+                   TagArrayConstPtr const &tag3,
+                   TagArrayConstPtr const &tag4,
+                   TagArrayConstPtr const &tag5);
+    void callback7(TagArrayConstPtr const &tag0,
+                   TagArrayConstPtr const &tag1,
+                   TagArrayConstPtr const &tag2,
+                   TagArrayConstPtr const &tag3,
+                   TagArrayConstPtr const &tag4,
+                   TagArrayConstPtr const &tag5,
+                   TagArrayConstPtr const &tag6);
+    void callback8(TagArrayConstPtr const &tag0,
+                   TagArrayConstPtr const &tag1,
+                   TagArrayConstPtr const &tag2,
+                   TagArrayConstPtr const &tag3,
+                   TagArrayConstPtr const &tag4,
+                   TagArrayConstPtr const &tag5,
+                   TagArrayConstPtr const &tag6,
+                   TagArrayConstPtr const &tag7);
   private:
     struct PoseInfo {
       PoseInfo(const gtsam::Pose3 &p = gtsam::Pose3(), const ros::Time &t = ros::Time(0),
@@ -61,7 +103,7 @@ namespace tagslam {
     bool estimateInitialTagPose(int cam_idx, const gtsam::Pose3 &T_w_c,
                                 const gtsam::Point2 *corners,
                                 gtsam::Pose3 *pose) const;
-    RigidBodyPtr findBodyForTag(int tagId) const;
+    RigidBodyPtr findBodyForTag(int tagId, int bits) const;
 
     void discoverTags(const std::vector<TagArrayConstPtr> &msgvec);
     unsigned int attachObservedTagsToBodies(const std::vector<TagArrayConstPtr> &msgvec);
@@ -104,6 +146,12 @@ namespace tagslam {
     std::vector<std::shared_ptr<TagSubscriber>>   sub_;
     std::unique_ptr<TimeSync2>                    approxSync2_;
     std::unique_ptr<TimeSync3>                    approxSync3_;
+    std::unique_ptr<TimeSync4>                    approxSync4_;
+    std::unique_ptr<TimeSync5>                    approxSync5_;
+    std::unique_ptr<TimeSync6>                    approxSync6_;
+    std::unique_ptr<TimeSync7>                    approxSync7_;
+    std::unique_ptr<TimeSync8>                    approxSync8_;
+    
     ros::NodeHandle                               nh_;
     CameraVec                                     cameras_;
     TagGraph                                      tagGraph_;

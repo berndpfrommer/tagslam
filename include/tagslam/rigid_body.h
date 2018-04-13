@@ -21,9 +21,10 @@ namespace tagslam {
 
     void   setPoseEstimate(const PoseEstimate &pe) { poseEstimate = pe; }
     void   setIsDefaultBody(bool b) { isDefaultBody = b; }
-    bool   hasTag(int tagId) const { return (findTag(tagId) != NULL); }
-    TagPtr findTag(int tagId) const;
-    TagPtr addDefaultTag(int tagId);
+    bool   hasTag(int tagId, int bits) const {
+      return (findTag(tagId, bits) != NULL); }
+    TagPtr findTag(int tagId, int bits) const;
+    TagPtr addDefaultTag(int tagId, int bits);
     void   addTag(const TagPtr &tag);
     void   addTags(const TagVec &tags);
     void   attachObservedTag(int cam_idx, const TagPtr &tag);

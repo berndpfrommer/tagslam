@@ -58,7 +58,8 @@ namespace tagslam {
   CameraVec
   Camera::parse_cameras(const ros::NodeHandle &nh) {
     CameraVec cdv;
-    std::vector<std::string> camNames = {"cam0", "cam1", "cam2", "cam3", "cam4"};
+    std::vector<std::string> camNames = {"cam0", "cam1", "cam2", "cam3",
+                                         "cam4", "cam5", "cam6", "cam7"};
     for (const auto cam_idx: irange(0ul, camNames.size())) {
       const auto &cam = camNames[cam_idx];
       XmlRpc::XmlRpcValue lines;

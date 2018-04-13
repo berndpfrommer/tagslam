@@ -60,9 +60,9 @@ namespace tagslam {
     return (body);
   }
 
-  TagPtr RigidBody::findTag(int tagId) const {
+  TagPtr RigidBody::findTag(int tagId, int bits) const {
     const auto it = tags.find(tagId);
-    return (it == tags.end() ? NULL: it->second);
+    return ((it == tags.end() || it->second->bits != bits)? NULL: it->second);
   }
 
   void RigidBody::getAttachedPoints(int cam_idx,
@@ -107,11 +107,12 @@ namespace tagslam {
                                 const TagArrayConstPtr &tags) {
     unsigned int nobs(0);
     for (const auto &tag: tags->apriltags) {
-      TagPtr tagPtr = findTag(tag.id);
+      TagPtr tagPtr = findTag(tag.id, tag.bits);
       if (tagPtr) { // tag belongs to me
+        TagPtr newTag(new Tag(*tagPtr));
         // transfer corner points to tag
-        tagPtr->setImageCorners(&tag.corners[0]);
-        attachObservedTag(cam_idx, tagPtr);
+        newTag->setImageCorners(&tag.corners[0]);
+        attachObservedTag(cam_idx, newTag);
         nobs++;
       }
     }
@@ -130,8 +131,8 @@ namespace tagslam {
   }
 
   TagPtr
-  RigidBody::addDefaultTag(int tagId) {
-    TagPtr tag = Tag::makeTag(tagId, defaultTagSize);
+  RigidBody::addDefaultTag(int tagId, int bits) {
+    TagPtr tag = Tag::makeTag(tagId, bits, defaultTagSize);
     addTag(tag);
     return (tag);
   }

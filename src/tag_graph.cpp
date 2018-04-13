@@ -19,9 +19,8 @@ namespace tagslam {
   // when using a large number of frames.
   // TODO: safeguard against overflow!
   static const unsigned int MAX_TAG_ID = 255;
-  static const unsigned int MAX_CAM_ID = 5;
-  // beware that MAX_BODY_IDX + MAX_CAM_ID < 'o'
-  static const unsigned int MAX_BODY_IDX = 5;
+  static const unsigned int MAX_CAM_ID = 8;
+  static const unsigned int MAX_BODY_ID = 'Z' - 'A' - 1;
   
   typedef gtsam::GenericProjectionFactor<gtsam::Pose3,
                                          gtsam::Point3,
@@ -29,7 +28,7 @@ namespace tagslam {
   using boost::irange;
   // tag corners in object coordinates
   static const gtsam::Symbol sym_X_o_i(int tagType, int corner) {
-    return (gtsam::Symbol('o', tagType * 4 + corner));
+    return (gtsam::Symbol('r', tagType * 4 + corner));
   }
   // transform from object (tag) coordinate space to world
   static const gtsam::Symbol sym_T_w_o(int tagId) {
@@ -60,10 +59,10 @@ namespace tagslam {
   }
   // T_w_b(t) dynamic_body-to-world transform for given frame  
   static const gtsam::Symbol sym_T_w_b(int bodyIdx, unsigned int frame_num) {
-    if (bodyIdx >= MAX_BODY_IDX) {
-      throw std::runtime_error("body idx exceeds MAX_BODY_IDX: " + std::to_string(bodyIdx));
+    if (bodyIdx >= MAX_BODY_ID) {
+      throw std::runtime_error("body idx exceeds MAX_BODY_ID: " + std::to_string(bodyIdx));
     }
-    return (gtsam::Symbol('a' + MAX_CAM_ID + bodyIdx, frame_num));
+    return (gtsam::Symbol('A' + bodyIdx, frame_num));
   }
 
   static unsigned int X_w_i_sym_to_index(gtsam::Key k, int *tagId, int *corner) {
@@ -75,6 +74,9 @@ namespace tagslam {
     return (frame_num);
   }
 
+  int TagGraph::getMaxNumBodies() const {
+    return (MAX_BODY_ID);
+  }
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
@@ -110,9 +112,15 @@ namespace tagslam {
         std::cout << "GRAPH: tag id: " << tag->id << " has pose: " << tagPose << std::endl;
         std::cout << "GRAPH: tag id: " << tag->id << " has body pose: " << rb->poseEstimate.getPose() << std::endl;
         values_.insert(T_w_o_sym, T_w_o);
+#if 1
         graph_.push_back(InBetweenFactor<gtsam::Pose3>(
                            T_w_o_sym, T_b_o_sym, rb->poseEstimate,
                            rb->poseEstimate.getNoise()));
+#else
+        graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(
+                           T_w_o_sym, T_b_o_sym, rb->poseEstimate,
+                           rb->poseEstimate.getNoise()));
+#endif      
             
         // ------ insert the corner positions
         for (const auto i: irange(0, 4)) {
@@ -188,7 +196,10 @@ namespace tagslam {
     IsotropicNoisePtr pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     if (!rb->isStatic) {
-      values_.insert(sym_T_w_b(rb->index, frame_num), rb->poseEstimate.getPose());
+      gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, frame_num);
+      if (!values_.exists(T_w_b_sym)) {
+        values_.insert(T_w_b_sym, rb->poseEstimate.getPose());
+      }
     }
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
@@ -323,7 +334,7 @@ namespace tagslam {
     //double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
     double err = tryOptimization(&optimizedValues_, graph_, values_, "SILENT", 100);
     values_ = optimizedValues_;
-    //result.print();
+    //optimizedValues_.print();
   }
 
 }  // namespace

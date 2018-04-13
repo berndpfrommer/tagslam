@@ -90,6 +90,10 @@ namespace tagslam {
     }
     RigidBodyVec rbv = RigidBody::parse_bodies(bodies);
     ROS_INFO_STREAM("configured bodies: " << rbv.size());
+    if (rbv.size() > tagGraph_.getMaxNumBodies()) {
+      ROS_ERROR_STREAM("too many bodies, max is: "
+                       << tagGraph_.getMaxNumBodies());
+    }
     if (rbv.empty()) {
       rbv.emplace_back(new RigidBody("world", true/*isStatic*/));
       PoseEstimate pe(gtsam::Pose3(), 0.0/*err*/, 0);
@@ -136,9 +140,44 @@ namespace tagslam {
         approxSync2_->registerCallback(&TagSlam::callback2, this);
         break;
       case 3:
-        approxSync3_.reset(new TimeSync3(SyncPolicy3(60/*q size*/),
-                                         *(sub_[0]), *(sub_[1]), *(sub_[2])));
+        approxSync3_.reset(
+          new TimeSync3(SyncPolicy3(60/*q size*/),
+                        *(sub_[0]), *(sub_[1]), *(sub_[2])));
         approxSync3_->registerCallback(&TagSlam::callback3, this);
+        break;
+      case 4:
+        approxSync4_.reset(
+          new TimeSync4(SyncPolicy4(60/*q size*/),
+                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3])));
+        approxSync4_->registerCallback(&TagSlam::callback4, this);
+        break;
+      case 5:
+        approxSync5_.reset(
+          new TimeSync5(SyncPolicy5(60/*q size*/),
+                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3]),
+                        *(sub_[4])));
+        approxSync5_->registerCallback(&TagSlam::callback5, this);
+        break;
+      case 6:
+        approxSync6_.reset(
+          new TimeSync6(SyncPolicy6(60/*q size*/),
+                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3]),
+                        *(sub_[4]), *(sub_[5])));
+        approxSync6_->registerCallback(&TagSlam::callback6, this);
+        break;
+      case 7:
+        approxSync7_.reset(
+          new TimeSync7(SyncPolicy7(60/*q size*/),
+                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3]),
+                        *(sub_[4]), *(sub_[5]), *(sub_[6])));
+        approxSync7_->registerCallback(&TagSlam::callback7, this);
+        break;
+      case 8:
+        approxSync8_.reset(
+          new TimeSync8(SyncPolicy8(60/*q size*/),
+                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3]),
+                        *(sub_[4]), *(sub_[5]), *(sub_[6]), *(sub_[7])));
+        approxSync8_->registerCallback(&TagSlam::callback8, this);
         break;
       default:
         ROS_ERROR_STREAM("number of cameras too large: " << cameras_.size());
@@ -146,6 +185,7 @@ namespace tagslam {
         break;
       }
     }
+    ROS_INFO_STREAM("subscribed to " << cameras_.size() << " cameras");
     return (true);
   }
 
@@ -274,9 +314,9 @@ namespace tagslam {
   }
 
   RigidBodyPtr
-  TagSlam::findBodyForTag(int tagId) const {
+  TagSlam::findBodyForTag(int tagId, int bits) const {
     for (auto &body : allBodies_) {
-      if (body->hasTag(tagId)) return (body);
+      if (body->hasTag(tagId, bits)) return (body);
     }
     return (NULL);
   }
@@ -287,12 +327,12 @@ namespace tagslam {
       for (const auto &t: tags->apriltags) {
         if (allTags_.count(t.id) == 0) {
           // found new tag
-          RigidBodyPtr body = findBodyForTag(t.id);
+          RigidBodyPtr body = findBodyForTag(t.id, t.bits);
           if (!body) {
             body = defaultBody_;
           }
           if (body) {
-            TagPtr tag = body->addDefaultTag(t.id);
+            TagPtr tag = body->addDefaultTag(t.id, t.bits);
             ROS_INFO_STREAM("found new tag: " << tag->id
                             << " of size: " << tag->size
                             << " for body: " << body->name);
@@ -417,12 +457,21 @@ namespace tagslam {
           const CameraPtr &cam = cameras_[tagMap.first];
           if (cam->poseEstimate.isValid()) {
             for (const auto &tag: tagMap.second) {
-              if (!tag->poseEstimate.isValid()) {
+              auto gTagIt = allTags_.find(tag->id);
+              if (gTagIt == allTags_.end()) {
+                ROS_ERROR_STREAM("ERROR: invalid tag id: " << tag->id);
+                continue;
+              }
+              TagPtr globalTag = gTagIt->second;
+              if (!globalTag->poseEstimate.isValid()) {
                 if (estimateTagPose(tagMap.first, rb->poseEstimate.getPose(), tag)) {
                   TagVec tvec = {tag};
                   tagGraph_.addTags(rb, tvec);
                   tagGraph_.addDistanceMeasurements(distanceMeasurements_);
+                  globalTag->poseEstimate = tag->poseEstimate;
                 }
+              } else {
+                tag->poseEstimate = globalTag->poseEstimate;
               }
             }
           }
@@ -593,7 +642,7 @@ namespace tagslam {
   static void write_vec(std::ofstream &of,
                         const std::string &prefix,
                         double x, double y, double z) {
-    const int p(5);
+    const int p(8);
     of.precision(p);
     of << prefix << "x: " << std::fixed << x << std::endl;
     of << prefix << "y: " << std::fixed << y << std::endl;
@@ -621,16 +670,19 @@ namespace tagslam {
   void TagSlam::writeTagPoses(const std::string &poseFile) const {
     std::ofstream pf(poseFile);
     pf << "bodies:" << std::endl;
+    PoseNoise smallNoise = makePoseNoise(0.001, 0.001);
     for (const auto &rb : allBodies_) {
       pf << " - " << rb->name << ":" << std::endl;
       std::string pfix = "     ";
       pf << pfix << "is_default_body: " <<
         (rb->isDefaultBody ? "true" : "false") << std::endl;
+      pf << pfix << "is_static: " <<
+        (rb->isStatic ? "true" : "false") << std::endl;
       pf << pfix << "default_tag_size: " << rb->defaultTagSize << std::endl;
       if (rb->isStatic) {
         pf << pfix << "pose:" << std::endl;;
-        write_pose(pf, pfix + "  ", rb->poseEstimate,
-                   rb->poseEstimate.getNoise());
+        write_pose(pf, pfix + "  ", rb->poseEstimate, smallNoise);
+        //rb->poseEstimate.getNoise());
       }
       pf << pfix << "tags: " << std::endl;
       for (const auto &tm: rb->tags) {
@@ -638,8 +690,8 @@ namespace tagslam {
         pf << pfix << "- id: "   << tag->id << std::endl;
         pf << pfix << "  size: " << tag->size << std::endl;
         if (tag->poseEstimate.isValid()) {
-          write_pose(pf, pfix + "  ", tag->poseEstimate,
-                     tag->poseEstimate.getNoise());
+          write_pose(pf, pfix + "  ", tag->poseEstimate, smallNoise);
+          //tag->poseEstimate.getNoise());
         }
       }
     }
@@ -675,6 +727,51 @@ namespace tagslam {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2};
     process(msg_vec);
   }
+  void TagSlam::callback4(TagArrayConstPtr const &tag0,
+                          TagArrayConstPtr const &tag1,
+                          TagArrayConstPtr const &tag2,
+                          TagArrayConstPtr const &tag3) {
+    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3};
+    process(msg_vec);
+  }
+  void TagSlam::callback5(TagArrayConstPtr const &tag0,
+                          TagArrayConstPtr const &tag1,
+                          TagArrayConstPtr const &tag2,
+                          TagArrayConstPtr const &tag3,
+                          TagArrayConstPtr const &tag4) {
+    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4};
+    process(msg_vec);
+  }
+  void TagSlam::callback6(TagArrayConstPtr const &tag0,
+                          TagArrayConstPtr const &tag1,
+                          TagArrayConstPtr const &tag2,
+                          TagArrayConstPtr const &tag3,
+                          TagArrayConstPtr const &tag4,
+                          TagArrayConstPtr const &tag5) {
+    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5};
+    process(msg_vec);
+  }
+  void TagSlam::callback7(TagArrayConstPtr const &tag0,
+                          TagArrayConstPtr const &tag1,
+                          TagArrayConstPtr const &tag2,
+                          TagArrayConstPtr const &tag3,
+                          TagArrayConstPtr const &tag4,
+                          TagArrayConstPtr const &tag5,
+                          TagArrayConstPtr const &tag6) {
+    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5, tag6};
+    process(msg_vec);
+  }
+  void TagSlam::callback8(TagArrayConstPtr const &tag0,
+                          TagArrayConstPtr const &tag1,
+                          TagArrayConstPtr const &tag2,
+                          TagArrayConstPtr const &tag3,
+                          TagArrayConstPtr const &tag4,
+                          TagArrayConstPtr const &tag5,
+                          TagArrayConstPtr const &tag6,
+                          TagArrayConstPtr const &tag7) {
+    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7};
+    process(msg_vec);
+  }
 
 
   void TagSlam::playFromBag(const std::string &fname) {
@@ -684,8 +781,14 @@ namespace tagslam {
     }
     rosbag::Bag bag;
     bag.open(fname, rosbag::bagmode::Read);
-    std::vector<std::string> topics = {cameras_[0]->tagtopic};
-    ROS_INFO_STREAM("playing from file: " << fname << " topic: " << topics[0]);
+    std::vector<std::string> topics;
+    std::map<std::string, int> topic_to_cam;
+    for (const auto cam_idx: irange(0ul, cameras_.size())) {
+      const auto &cam = cameras_[cam_idx];
+      topics.push_back(cam->tagtopic);
+      topic_to_cam.insert(std::map<std::string, int>::value_type(cam->tagtopic, cam_idx));
+    }
+    ROS_INFO_STREAM("playing from file: " << fname);
     double start_time(0);
     nh_.param<double>("start_time", start_time, 0);
     ros::Time t_start(start_time);
@@ -693,9 +796,7 @@ namespace tagslam {
     for (const rosbag::MessageInstance &m: view) {
       boost::shared_ptr<TagArray> tags = m.instantiate<TagArray>();
       if (tags) {
-        if (tags->header.stamp > t_start) {
-          callback1(tags);
-        }
+        callback1(tags);
       }
     }
     bag.close();
