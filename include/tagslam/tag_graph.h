@@ -12,7 +12,7 @@
 #include "tagslam/pose_estimate.h"
 #include "tagslam/pose_noise.h"
 #include <gtsam/nonlinear/Values.h>
-#include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <gtsam/nonlinear/ExpressionFactorGraph.h>
 #include <gtsam/inference/Symbol.h>
 #include <gtsam/geometry/Cal3DS2.h>
 #include <opencv2/core/core.hpp>
@@ -63,7 +63,7 @@ namespace tagslam {
 
     gtsam::Values                 values_;
     gtsam::Values                 optimizedValues_;
-    gtsam::NonlinearFactorGraph   graph_;
+    gtsam::ExpressionFactorGraph  graph_;
     std::map<std::string, int>    staticObjects_;
     double                        optimizerError_{0};
     int                           numProjectionFactors_{0};

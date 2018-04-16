@@ -42,11 +42,19 @@ namespace tagslam {
     if (!subscribe()) {
       return (false);
     }
-    camOdomPub_ = nh_.advertise<nav_msgs::Odometry>("cam_odom", 1);
+    for (const auto &cam_idx: irange(0ul, cameras_.size())) {
+      camOdomPub_.push_back(
+        nh_.advertise<nav_msgs::Odometry>("odom/cam_" +
+                                          std::to_string(cam_idx), 1));
+    }
 
     readDistanceMeasurements();
     if (!readRigidBodies()) {
       return (false);
+    }
+    for (const auto &rb: dynamicBodies_) {
+      bodyOdomPub_.push_back(
+        nh_.advertise<nav_msgs::Odometry>("odom/body_" + rb->name, 1));
     }
     nh_.param<std::string>("fixed_frame_id", fixedFrame_, "map");
     double maxDegree;
@@ -512,7 +520,8 @@ namespace tagslam {
     writeTagPoses(tagPosesOutFile_);
     writeTagWorldPoses(tagWorldPosesOutFile_);
     ROS_INFO_STREAM("frame " << frameNum_ << " total tags: " << allTags_.size()
-                    << " obs: " << nobs << " err: " << tagGraph_.getError());
+                    << " obs: " << nobs << " err: " << tagGraph_.getError()
+                    << " iter: " << tagGraph_.getIterations());
     frameNum_++;
   }
 
@@ -580,26 +589,36 @@ namespace tagslam {
     return (tf);
   }
 
+  static nav_msgs::Odometry
+  make_odom(const ros::Time &t,
+            const std::string &fixed_frame,
+            const std::string &child_frame,
+            const gtsam::Pose3 &pose) {
+    nav_msgs::Odometry odom;
+    odom.header.stamp = t;
+    odom.header.frame_id = fixed_frame;
+    odom.child_frame_id = child_frame;
+    const auto TF = pose.matrix();
+    Eigen::Affine3d TFa(TF);
+    tf::poseEigenToMsg(TFa, odom.pose.pose);
+    return (odom);
+  }
 
   void TagSlam::broadcastCameraPoses(const ros::Time &t) {
     std::vector<PoseInfo> camPoseInfo;
-    for (const auto &cam: cameras_) {
+    for (const auto cam_idx: irange(0ul, cameras_.size())) {
+      const auto &cam = cameras_[cam_idx];
       PoseEstimate pe = tagGraph_.getCameraPose(cam, frameNum_);
       if (pe.isValid()) {
         const std::string frame_id = "cam_" + std::to_string(cam->index);
         camPoseInfo.push_back(PoseInfo(pe, t, frame_id));
-        nav_msgs::Odometry odom;
-        odom.header.stamp = t;
-        odom.header.frame_id  = fixedFrame_;
-        odom.child_frame_id = frame_id;
-        const auto T_w_c_mat = pe.getPose().matrix();
-        Eigen::Affine3d T_w_c(T_w_c_mat);
-        tf::poseEigenToMsg(T_w_c, odom.pose.pose);
-        camOdomPub_.publish(odom);
+        camOdomPub_[cam_idx].publish(make_odom(t, fixedFrame_,
+                                               frame_id, pe.getPose()));
       }
     }
     broadcastTransforms(fixedFrame_, camPoseInfo);
   }
+
   
   void TagSlam::broadcastBodyPoses(const ros::Time &t) {
     std::vector<PoseInfo> bodyPoseInfo;
@@ -611,6 +630,16 @@ namespace tagslam {
       }
     }
     broadcastTransforms(fixedFrame_, bodyPoseInfo);
+    // publish odom for dynamic bodies
+    for (const auto body_idx : irange(0ul, dynamicBodies_.size())) {
+      const auto rb = dynamicBodies_[body_idx];
+      const PoseEstimate &pe = rb->poseEstimate;
+      if (pe.isValid()) {
+        const std::string frame_id = "body_" + rb->name;
+        bodyOdomPub_[body_idx].publish(
+          make_odom(t, fixedFrame_, frame_id, pe.getPose()));
+      }
+    }
   }
 
   void TagSlam::broadcastTagPoses(const ros::Time &t) {

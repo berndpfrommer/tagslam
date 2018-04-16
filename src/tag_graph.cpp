@@ -3,7 +3,6 @@
  */
 
 #include "tagslam/tag_graph.h"
-#include "tagslam/inbetween_factor.h"
 #include "tagslam/point_distance_factor.h"
 #include <boost/range/irange.hpp>
 #include <gtsam/slam/PriorFactor.h>
@@ -21,7 +20,7 @@ namespace tagslam {
   static const unsigned int MAX_TAG_ID = 255;
   static const unsigned int MAX_CAM_ID = 8;
   static const unsigned int MAX_BODY_ID = 'Z' - 'A' - 1;
-  
+
   typedef gtsam::GenericProjectionFactor<gtsam::Pose3,
                                          gtsam::Point3,
                                          gtsam::Cal3DS2> ProjectionFactor;
@@ -112,15 +111,14 @@ namespace tagslam {
         std::cout << "GRAPH: tag id: " << tag->id << " has pose: " << tagPose << std::endl;
         std::cout << "GRAPH: tag id: " << tag->id << " has body pose: " << rb->poseEstimate.getPose() << std::endl;
         values_.insert(T_w_o_sym, T_w_o);
-#if 1
-        graph_.push_back(InBetweenFactor<gtsam::Pose3>(
-                           T_w_o_sym, T_b_o_sym, rb->poseEstimate,
-                           rb->poseEstimate.getNoise()));
-#else
-        graph_.push_back(gtsam::BetweenFactor<gtsam::Pose3>(
-                           T_w_o_sym, T_b_o_sym, rb->poseEstimate,
-                           rb->poseEstimate.getNoise()));
-#endif      
+
+        gtsam::Expression<gtsam::Pose3> eT_w_o(T_w_o_sym);
+        gtsam::Expression<gtsam::Pose3> eT_b_o(T_b_o_sym);
+        gtsam::Expression<gtsam::Pose3> invT_w_o(&gtsam::traits<gtsam::Pose3>::Inverse, eT_w_o);
+        gtsam::Expression<gtsam::Pose3> invT_b_o(&gtsam::traits<gtsam::Pose3>::Inverse, eT_b_o);
+        gtsam::Expression<gtsam::Pose3> inbetween(&gtsam::traits<gtsam::Pose3>::Between, invT_w_o, invT_b_o);
+        gtsam::Pose3 z(rb->poseEstimate.getPose());
+        graph_.addExpressionFactor(inbetween, z, rb->poseEstimate.getNoise());
             
         // ------ insert the corner positions
         for (const auto i: irange(0, 4)) {
@@ -213,7 +211,9 @@ namespace tagslam {
           gtsam::Symbol X_w_i_sym = sym_X_w_i(tag->id, i, frame_num);
           gtsam::Symbol X_b_i_sym = sym_X_b_i(tag->id, i);
           gtsam::Point3 X_b_i = values_.at<gtsam::Point3>(X_b_i_sym);
-          values_.insert(X_w_i_sym, T_w_b * X_b_i);
+          if (!values_.exists(X_w_i_sym)) {
+            values_.insert(X_w_i_sym, T_w_b * X_b_i);
+          }
           graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
                            gtsam::Pose3>(X_b_i_sym, T_w_b_sym, X_w_i_sym,
                                          smallNoise));
@@ -332,7 +332,7 @@ namespace tagslam {
     //graph_.print();
     //values_.print();
     //double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
-    double err = tryOptimization(&optimizedValues_, graph_, values_, "SILENT", 100);
+    double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
     values_ = optimizedValues_;
     //optimizedValues_.print();
   }
