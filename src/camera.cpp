@@ -79,6 +79,7 @@ namespace tagslam {
       if (!nh.getParam(cam + "/intrinsics",  ci.intrinsics)) { bombout("intrinsics", cam); }
       if (!nh.getParam(cam + "/resolution",  ci.resolution)) { bombout("resolution", cam); }
       if (!nh.getParam(cam + "/tagtopic",  camera->tagtopic)) { bombout("tagtopic", cam); }
+      nh.getParam(cam + "/is_static", camera->isStatic);
       // TODO: don't use CameraExtrinsics, rather use gtsam::Pose3
       camera->T_cam_body = get_transform(nh, cam + "/T_cam_body", CameraExtrinsics::Zero());
       camera->T_cn_cnm1  = get_transform(nh, cam + "/T_cn_cnm1", CameraExtrinsics::Identity());

@@ -33,14 +33,17 @@ namespace tagslam {
     void   detachObservedTags();
     void   getAttachedPoints(int cam_idx,
                              std::vector<gtsam::Point3> *wp,
-                             std::vector<gtsam::Point2> *ip) const;
-    int    cameraWithMostAttachedPoints() const;
+                             std::vector<gtsam::Point2> *ip,
+                             std::vector<int> *tagids = NULL) const;
+    int    bestCamera() const;
     // -------------------------
     typedef std::map<int, TagVec> CamToTagVec;
     typedef std::shared_ptr<RigidBody> RigidBodyPtr;
     typedef std::shared_ptr<const RigidBody> RigidBodyConstPtr;
     typedef std::vector<RigidBodyPtr> RigidBodyVec;
+    typedef std::vector<RigidBodyConstPtr> RigidBodyConstVec;
     std::string         name;
+    std::string         type;
     int                 index{-1};
     PoseEstimate        poseEstimate;
     bool                isStatic{true};
@@ -56,6 +59,7 @@ namespace tagslam {
   using RigidBodyPtr = RigidBody::RigidBodyPtr;
   using RigidBodyConstPtr = RigidBody::RigidBodyConstPtr;
   using RigidBodyVec = RigidBody::RigidBodyVec;
+  using RigidBodyConstVec = RigidBody::RigidBodyConstVec;
 }
 
 #endif

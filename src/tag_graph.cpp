@@ -162,7 +162,7 @@ namespace tagslam {
   TagGraph::getCameraPose(const CameraPtr &cam,
                           unsigned int frame_num) const {
     PoseEstimate pe;
-    gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, frame_num);
+    gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, cam->isStatic ? 0 : frame_num);
     if (values_.find(T_w_c_sym) != values_.end()) {
       pe = PoseEstimate(values_.at<gtsam::Pose3>(T_w_c_sym), 0.0, 0);
     }
@@ -172,6 +172,7 @@ namespace tagslam {
   void TagGraph::observedTags(const CameraPtr &cam, const RigidBodyPtr &rb,
                               const TagVec &tags,
                               unsigned int frame_num) {
+    //std::cout << "---------- points for cam " << cam->name << " body: " << rb->name << std::endl;
     if (tags.empty()) {
       std::cout << "TagGraph WARN: no tags for " << cam->name << " in frame "
                 << frame_num << std::endl;
@@ -186,7 +187,7 @@ namespace tagslam {
       return;
     }
     // new camera location
-    gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, frame_num);
+    gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, cam->isStatic ? 0 : frame_num);
     if (!values_.exists(T_w_c_sym)) {
       values_.insert(T_w_c_sym, cam->poseEstimate.getPose());
     }
@@ -227,6 +228,9 @@ namespace tagslam {
         graph_.push_back(ProjectionFactor(uv[i], pixelNoise,
                                           T_w_c_sym, X_w_i,
                                           cam->gtsamCameraModel));
+        //gtsam::Point3 wp = values_.at<gtsam::Point3>(X_w_i);
+        //std::cout << tag->id << " " << wp.x() << " " << wp.y() << " " << wp.z()
+        //<< " " << uv[i].x() << " " << uv[i].y() << std::endl;
       }
     }
   }
@@ -249,7 +253,7 @@ namespace tagslam {
       gtsam::LevenbergMarquardtParams lmp;
       lmp.setVerbosity(verbosity);
       lmp.setMaxIterations(maxIter);
-      lmp.setAbsoluteErrorTol(1e-7);
+      lmp.setAbsoluteErrorTol(1e-10);
       lmp.setRelativeErrorTol(0);
       gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
       *result = lmo.optimize();
@@ -278,11 +282,11 @@ namespace tagslam {
           values_.find(T_w_o_sym) != values_.end()) {
         const gtsam::Pose3 T_w_o = values_.at<gtsam::Pose3>(T_w_o_sym);
         // we need T_b_o = T_b_w * T_w_o
-        std::cout << "GRAPH: tag id: " << tagId << " has T_w_o: " << std::endl << T_w_o << std::endl << " with body pose: " << rb->poseEstimate.getPose() << std::endl;
+        //std::cout << "GRAPH: tag id: " << tagId << " has T_w_o: " << std::endl << T_w_o << std::endl << " with body pose: " << rb->poseEstimate.getPose() << std::endl;
         *pose = rb->poseEstimate.inverse() * T_w_o;
         const auto T_b_o_sym = sym_T_b_o(tagId);
         if (values_.find(T_b_o_sym) != values_.end()) {
-          std::cout << "GRAPH: also have direct T_b_o: " << std::endl << values_.at<gtsam::Pose3>(T_b_o_sym) << std::endl;
+          //std::cout << "GRAPH: also have direct T_b_o: " << std::endl << values_.at<gtsam::Pose3>(T_b_o_sym) << std::endl;
         }
         return (true);
       }

@@ -118,8 +118,8 @@ namespace utils {
                          const cv::Mat &D,
                          cv::Mat *rvec,
                          cv::Mat *tvec) {
-    std::cout << "init pose pnp: K: " << K <<std::endl;
-    std::cout << "D: " << D << std::endl;
+    //std::cout << "init pose pnp: K: " << K <<std::endl;
+    //std::cout << "D: " << D << std::endl;
     if (distModel == "plumb_bob" || distModel == "radtan") {
     } else {
       throw std::runtime_error("camera model equidistant not implemented!");
@@ -140,17 +140,21 @@ namespace utils {
                       const std::string &distModel,
                       const cv::Mat &D, 
                       std::vector<cv::Point2d> *ip) {
-      if (distModel == "equidistant") {
-        cv::Affine3d::Vec3 arvec = rvec;
-        cv::Affine3d::Vec3 atvec = tvec;
-        cv::fisheye::projectPoints(wp, *ip, arvec, atvec, K, D);
-      } else if (distModel == "radtan" || distModel == "plumb_bob") {
-        cv::projectPoints(wp, rvec, tvec, K, D, *ip);
-      } else {
-        std::cout << "WARNING: unknown distortion model: " << distModel << " using radtan!" << std::endl;
-        cv::projectPoints(wp, rvec, tvec, K, D, *ip);
-      }
+    if (wp.empty()) {
+      *ip = std::vector<cv::Point2d>();
+      return;
     }
+    if (distModel == "equidistant") {
+      cv::Affine3d::Vec3 arvec = rvec;
+      cv::Affine3d::Vec3 atvec = tvec;
+      cv::fisheye::projectPoints(wp, *ip, arvec, atvec, K, D);
+    } else if (distModel == "radtan" || distModel == "plumb_bob") {
+      cv::projectPoints(wp, rvec, tvec, K, D, *ip);
+    } else {
+      std::cout << "WARNING: unknown distortion model: " << distModel << " using radtan!" << std::endl;
+      cv::projectPoints(wp, rvec, tvec, K, D, *ip);
+    }
+  }
 
   double reprojection_error(const std::vector<cv::Point3d> &wp,
                             const std::vector<cv::Point2d> &ip,

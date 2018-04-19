@@ -125,8 +125,10 @@ namespace tagslam {
     bool estimateTagPose(int cam_idx,
                          const gtsam::Pose3 &bodyPose,
                          const TagPtr &tag) const;
+    PoseEstimate estimateBodyPose(const RigidBodyConstPtr &rb) const;
+    void computeProjectionError();
     void runOptimizer();
-    PoseEstimate findCameraPose(int cam_idx, RigidBodyVec &rigidBodies,
+    PoseEstimate findCameraPose(int cam_idx, const RigidBodyConstVec &rigidBodies,
                                 bool bodiesMustHavePose) const;
     void findInitialCameraPoses();
     void findInitialBodyPoses();
