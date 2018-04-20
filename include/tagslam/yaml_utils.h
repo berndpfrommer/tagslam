@@ -18,7 +18,8 @@ namespace tagslam {
   namespace yaml_utils {
     Eigen::Vector3d get_vec(const std::string &name, XmlRpc::XmlRpcValue v);
     bool get_pose_and_noise(XmlRpc::XmlRpcValue pose_and_noise,
-                            gtsam::Pose3 *pose, PoseNoise *noise);
+                            gtsam::Pose3 *pose, PoseNoise *noise,
+                            double defPosNoise = 0, double defRotNoise = 0);
   }
 }
 

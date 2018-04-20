@@ -61,7 +61,21 @@ namespace tagslam {
 
   RigidBodyPtr
   RigidBody::parse_body(const std::string &name,
+                        XmlRpc::XmlRpcValue bodyDefaults,
                         XmlRpc::XmlRpcValue rigidBody) {
+    double def_pos_noise(-1), def_rot_noise(-1);
+    std::cout << "parsing body: " << name << std::endl;
+    if (bodyDefaults.getType() == XmlRpc::XmlRpcValue::TypeStruct) {
+      for (XmlRpc::XmlRpcValue::iterator it = bodyDefaults.begin();
+           it != bodyDefaults.end(); ++it) {
+        const auto &key = it->first;
+        auto &val = it->second;
+        std::cout << "gotkey: " << key << std::endl;
+        if (key == "position_noise") def_pos_noise = static_cast<double>(val);
+        if (key == "rotation_noise") def_rot_noise = static_cast<double>(val);
+      }
+    }
+
     RigidBodyPtr body(new RigidBody(name));
     try {
       // first read the header that may contain the body pose
@@ -83,7 +97,8 @@ namespace tagslam {
             it->second.getType() == XmlRpc::XmlRpcValue::TypeStruct) {
           gtsam::Pose3 pose;
           PoseNoise noise;
-          if (yaml_utils::get_pose_and_noise(it->second, &pose, &noise)) {
+          if (yaml_utils::get_pose_and_noise(it->second, &pose, &noise,
+                                             def_pos_noise, def_rot_noise)) {
             PoseEstimate pe(pose, 0.0, 0, noise);
             body->setPoseEstimate(pe);
           } else {
@@ -226,7 +241,8 @@ namespace tagslam {
   }
   
   RigidBodyVec
-  RigidBody::parse_bodies(XmlRpc::XmlRpcValue bodies) {
+  RigidBody::parse_bodies(XmlRpc::XmlRpcValue body_defaults,
+                          XmlRpc::XmlRpcValue bodies) {
     RigidBodyVec rbv;
     bool foundDefaultBody{false};
     if (bodies.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
@@ -240,7 +256,7 @@ namespace tagslam {
         if (it->second.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
           continue;
         }
-        RigidBodyPtr rb = parse_body(it->first, it->second);
+        RigidBodyPtr rb = parse_body(body_defaults, it->first, it->second);
         rb->index = i;
         if (rb->isDefaultBody && foundDefaultBody) {
           throw std::runtime_error("found second default body: " + rb->name);

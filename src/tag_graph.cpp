@@ -35,10 +35,6 @@ namespace tagslam {
   static const gtsam::Symbol sym_T_b_o(int tagId) {
     return (gtsam::Symbol('t', tagId));
   }
-  // tag corners in body coordinates
-  static const gtsam::Symbol sym_X_b_i(int tagId, int corner) {
-    return (gtsam::Symbol('x', tagId * 4 + corner));
-  }
   // tag corners in world coordinates
   static const gtsam::Symbol sym_X_w_i(int tagId, int corner,
                                        unsigned int frame) {
@@ -89,21 +85,9 @@ namespace tagslam {
       if (tag->hasKnownPose) {
         graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_b_o_sym, tagPose, tagNoise));
       }
-      if (!rb->isStatic) {
-        // ------ insert the corner positions
-        for (const auto i: irange(0, 4)) {
-          gtsam::Symbol X_o_i      = sym_X_o_i(tag->type, i);
-          gtsam::Point3 X_obj_corn = insertTagType(tag, i);
-          gtsam::Symbol X_b_i      = sym_X_b_i(tag->id, i);
-          values_.insert(X_b_i, tagPose * X_obj_corn);
-          graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
-                           gtsam::Pose3>(X_o_i, T_b_o_sym, X_b_i, smallNoise));
-        }
-      } else {
-        // just make sure the corners are there!
-        for (const auto i: irange(0, 4)) {
-          insertTagType(tag, i);
-        }
+      // just make sure the corners are there!
+      for (const auto i: irange(0, 4)) {
+        insertTagType(tag, i);
       }
     }
   }
@@ -181,43 +165,17 @@ namespace tagslam {
         std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
         continue;
       }
-      if (!rb->isStatic) {
-        const gtsam::Pose3 &T_w_b = rb->poseEstimate.getPose();
-        gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, frame_num);
-        for (const auto i: irange(0, 4)) {
-          gtsam::Symbol X_w_i_sym = sym_X_w_i(tag->id, i, frame_num);
-          gtsam::Symbol X_b_i_sym = sym_X_b_i(tag->id, i);
-          gtsam::Point3 X_b_i = values_.at<gtsam::Point3>(X_b_i_sym);
-          if (!values_.exists(X_w_i_sym)) {
-            values_.insert(X_w_i_sym, T_w_b * X_b_i);
-          }
-          graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
-                           gtsam::Pose3>(X_b_i_sym, T_w_b_sym, X_w_i_sym,
-                                         smallNoise));
-        }
-        // add projection factor
-        const auto &uv = tag->getImageCorners();
-        for (const auto i: irange(0, 4)) {
-          gtsam::Symbol X_w_i = sym_X_w_i(tag->id, i, !rb->isStatic ? frame_num : 0);
-          numProjectionFactors_++;
-          graph_.push_back(ProjectionFactor(uv[i], pixelNoise,
-                                            T_w_c_sym, X_w_i,
-                                            cam->gtsamCameraModel));
-        }
-      } else {
-        // ------ projection error for static bodies
-        const auto &measured = tag->getImageCorners();
-        for (const auto i: irange(0, 4)) {
-          gtsam::Expression<gtsam::Point3> X_o(sym_X_o_i(tag->type, i));
-          gtsam::Expression<gtsam::Pose3>  T_b_o(sym_T_b_o(tag->id));
-          gtsam::Expression<gtsam::Pose3>  T_w_b(sym_T_w_b(rb->index, 0));
-          gtsam::Expression<gtsam::Pose3>  T_w_c(T_w_c_sym);
-          // transform_from does X_A = T_AB * X_B
-          gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
-          gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_w_c, X_w));
-          gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
-          graph_.addExpressionFactor(predict, measured[i], pixelNoise);
-        }
+      const auto &measured = tag->getImageCorners();
+      gtsam::Expression<gtsam::Pose3>  T_b_o(sym_T_b_o(tag->id));
+      gtsam::Expression<gtsam::Pose3>  T_w_b(T_w_b_sym);
+      gtsam::Expression<gtsam::Pose3>  T_w_c(T_w_c_sym);
+      for (const auto i: irange(0, 4)) {
+        gtsam::Expression<gtsam::Point3> X_o(sym_X_o_i(tag->type, i));
+        // transform_from does X_A = T_AB * X_B
+        gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
+        gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_w_c, X_w));
+        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
+        graph_.addExpressionFactor(predict, measured[i], pixelNoise);
       }
     }
   }

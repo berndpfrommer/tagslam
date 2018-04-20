@@ -53,8 +53,10 @@ namespace tagslam {
     double              defaultTagSize{0};
     // -------- static functions
     static RigidBodyPtr parse_body(const std::string &name,
+                                   XmlRpc::XmlRpcValue body_defaults,
                                    XmlRpc::XmlRpcValue body);
-    static RigidBodyVec parse_bodies(XmlRpc::XmlRpcValue bodies);
+    static RigidBodyVec parse_bodies(XmlRpc::XmlRpcValue body_defaults,
+                                     XmlRpc::XmlRpcValue bodies);
   };
   using RigidBodyPtr = RigidBody::RigidBodyPtr;
   using RigidBodyConstPtr = RigidBody::RigidBodyConstPtr;

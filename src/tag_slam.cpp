@@ -85,8 +85,9 @@ namespace tagslam {
   }
 
   bool TagSlam::readRigidBodies() {
-    XmlRpc::XmlRpcValue bodies;
+    XmlRpc::XmlRpcValue bodies, body_defaults;
     nh_.getParam("tag_poses/bodies", bodies);
+    nh_.getParam("tag_poses/body_defaults", body_defaults);
     nh_.param<std::string>("tag_poses_out_file", tagPosesOutFile_,
                            "poses_out.yaml");
     nh_.param<std::string>("tag_world_poses_out_file",
@@ -96,7 +97,7 @@ namespace tagslam {
       ROS_ERROR("cannot find bodies in yaml file!");
       return (false);
     }
-    RigidBodyVec rbv = RigidBody::parse_bodies(bodies);
+    RigidBodyVec rbv = RigidBody::parse_bodies(body_defaults, bodies);
     ROS_INFO_STREAM("configured bodies: " << rbv.size());
     if (rbv.size() > tagGraph_.getMaxNumBodies()) {
       ROS_ERROR_STREAM("too many bodies, max is: "
@@ -538,6 +539,7 @@ namespace tagslam {
                     << " obs: " << nobs << " err: " << tagGraph_.getError()
                     << " iter: " << tagGraph_.getIterations());
     frameNum_++;
+    std::cout << std::flush;
   }
 
   struct Stat {
