@@ -242,7 +242,6 @@ namespace tagslam {
         }
         RigidBodyPtr rb = parse_body(it->first, it->second);
         rb->index = i;
-        std::cout << "rb: " << rb->name << " def body: " << rb->isDefaultBody << std::endl;
         if (rb->isDefaultBody && foundDefaultBody) {
           throw std::runtime_error("found second default body: " + rb->name);
         }

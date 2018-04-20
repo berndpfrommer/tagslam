@@ -5,6 +5,7 @@
 #include "tagslam/initial_pose_graph.h"
 #include "tagslam/utils.h"
 #include "tagslam/resectioning_factor.h"
+#include "tagslam/cal3ds2u.h"
 #include <boost/range/irange.hpp>
 #include <gtsam/slam/expressions.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
@@ -12,29 +13,7 @@
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/variate_generator.hpp>
 #include <boost/random/mersenne_twister.hpp>
-#include <gtsam/geometry/Cal3DS2.h>
 
-  class Cal3DS2U : public gtsam::Cal3DS2 {
-  public:
-    Cal3DS2U(double fx, double fy, double s, double u0, double v0,
-            double k1, double k2, double p1 = 0.0, double p2 = 0.0) :
-      gtsam::Cal3DS2(fx, fy, s, u0, v0, k1, k2, p1, p2) {}
-    Cal3DS2U(const gtsam::Cal3DS2 &cal) : Cal3DS2(cal) {
-    }
-
-    gtsam::Point2 uncalibrate(const gtsam::Point2& p,
-                              gtsam::OptionalJacobian<2,9> Dcal = boost::none,
-                              gtsam::OptionalJacobian<2,2> Dp = boost::none) const {
-      return (gtsam::Cal3DS2_Base::uncalibrate(p, Dcal, Dp));
-    }
-  };
-
-namespace gtsam {
-template<>
-struct traits<Cal3DS2U> : public internal::Manifold<Cal3DS2> {};
-template<>
-struct traits<const Cal3DS2U> : public internal::Manifold<Cal3DS2> {};
-}
 
 namespace tagslam {
   using namespace boost::random;

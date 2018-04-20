@@ -4,7 +4,9 @@
 
 #include "tagslam/tag_graph.h"
 #include "tagslam/point_distance_factor.h"
+#include "tagslam/cal3ds2u.h"
 #include <boost/range/irange.hpp>
+#include <gtsam/slam/expressions.h>
 #include <gtsam/slam/PriorFactor.h>
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/ProjectionFactor.h>
@@ -28,10 +30,6 @@ namespace tagslam {
   // tag corners in object coordinates
   static const gtsam::Symbol sym_X_o_i(int tagType, int corner) {
     return (gtsam::Symbol('r', tagType * 4 + corner));
-  }
-  // transform from object (tag) coordinate space to world
-  static const gtsam::Symbol sym_T_w_o(int tagId) {
-    return (gtsam::Symbol('s', tagId));
   }
   // transform from object (tag) coordinate space to static object
   static const gtsam::Symbol sym_T_b_o(int tagId) {
@@ -79,7 +77,6 @@ namespace tagslam {
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
-      std::cout << "GRAPH: adding tag: " << tag->id << std::endl;
       gtsam::Pose3   tagPose  = tag->poseEstimate;
       PoseNoise tagNoise = tag->poseEstimate.getNoise();
       // ----- insert transform T_b_o and pin it down with prior factor if known
@@ -103,31 +100,9 @@ namespace tagslam {
                            gtsam::Pose3>(X_o_i, T_b_o_sym, X_b_i, smallNoise));
         }
       } else {
-        // ------ object-to-world transform
-        // T_w_o  = T_w_b * T_b_o
-        gtsam::Symbol T_w_o_sym = sym_T_w_o(tag->id);
-        gtsam::Pose3  T_w_o     = rb->poseEstimate * tagPose;
-        std::cout << "GRAPH: tag id: " << tag->id << " has tf: " << T_w_o << std::endl;
-        std::cout << "GRAPH: tag id: " << tag->id << " has pose: " << tagPose << std::endl;
-        std::cout << "GRAPH: tag id: " << tag->id << " has body pose: " << rb->poseEstimate.getPose() << std::endl;
-        values_.insert(T_w_o_sym, T_w_o);
-
-        gtsam::Expression<gtsam::Pose3> eT_w_o(T_w_o_sym);
-        gtsam::Expression<gtsam::Pose3> eT_b_o(T_b_o_sym);
-        gtsam::Expression<gtsam::Pose3> invT_w_o(&gtsam::traits<gtsam::Pose3>::Inverse, eT_w_o);
-        gtsam::Expression<gtsam::Pose3> invT_b_o(&gtsam::traits<gtsam::Pose3>::Inverse, eT_b_o);
-        gtsam::Expression<gtsam::Pose3> inbetween(&gtsam::traits<gtsam::Pose3>::Between, invT_w_o, invT_b_o);
-        gtsam::Pose3 z(rb->poseEstimate.getPose());
-        graph_.addExpressionFactor(inbetween, z, rb->poseEstimate.getNoise());
-            
-        // ------ insert the corner positions
+        // just make sure the corners are there!
         for (const auto i: irange(0, 4)) {
-          gtsam::Symbol X_o_i      = sym_X_o_i(tag->type, i);
-          gtsam::Point3 X_obj_corn = insertTagType(tag, i);
-          gtsam::Symbol X_w_i      = sym_X_w_i(tag->id, i, 0 /*frame*/);
-          values_.insert(X_w_i, T_w_o * X_obj_corn);
-          graph_.push_back(gtsam::ReferenceFrameFactor<gtsam::Point3,
-                           gtsam::Pose3>(X_o_i, T_w_o_sym, X_w_i, smallNoise));
+          insertTagType(tag, i);
         }
       }
     }
@@ -194,11 +169,12 @@ namespace tagslam {
 
     IsotropicNoisePtr pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
-    if (!rb->isStatic) {
-      gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, frame_num);
-      if (!values_.exists(T_w_b_sym)) {
-        values_.insert(T_w_b_sym, rb->poseEstimate.getPose());
-      }
+
+    gtsam::Expression<Cal3DS2U> cK(*cam->gtsamCameraModel);
+
+    gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
+    if (!values_.exists(T_w_b_sym)) {
+      values_.insert(T_w_b_sym, rb->poseEstimate.getPose());
     }
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
@@ -219,18 +195,29 @@ namespace tagslam {
                            gtsam::Pose3>(X_b_i_sym, T_w_b_sym, X_w_i_sym,
                                          smallNoise));
         }
-      }
-      // add projection factor
-      const auto &uv = tag->getImageCorners();
-      for (const auto i: irange(0, 4)) {
-        gtsam::Symbol X_w_i = sym_X_w_i(tag->id, i, !rb->isStatic ? frame_num : 0);
-        numProjectionFactors_++;
-        graph_.push_back(ProjectionFactor(uv[i], pixelNoise,
-                                          T_w_c_sym, X_w_i,
-                                          cam->gtsamCameraModel));
-        //gtsam::Point3 wp = values_.at<gtsam::Point3>(X_w_i);
-        //std::cout << tag->id << " " << wp.x() << " " << wp.y() << " " << wp.z()
-        //<< " " << uv[i].x() << " " << uv[i].y() << std::endl;
+        // add projection factor
+        const auto &uv = tag->getImageCorners();
+        for (const auto i: irange(0, 4)) {
+          gtsam::Symbol X_w_i = sym_X_w_i(tag->id, i, !rb->isStatic ? frame_num : 0);
+          numProjectionFactors_++;
+          graph_.push_back(ProjectionFactor(uv[i], pixelNoise,
+                                            T_w_c_sym, X_w_i,
+                                            cam->gtsamCameraModel));
+        }
+      } else {
+        // ------ projection error for static bodies
+        const auto &measured = tag->getImageCorners();
+        for (const auto i: irange(0, 4)) {
+          gtsam::Expression<gtsam::Point3> X_o(sym_X_o_i(tag->type, i));
+          gtsam::Expression<gtsam::Pose3>  T_b_o(sym_T_b_o(tag->id));
+          gtsam::Expression<gtsam::Pose3>  T_w_b(sym_T_w_b(rb->index, 0));
+          gtsam::Expression<gtsam::Pose3>  T_w_c(T_w_c_sym);
+          // transform_from does X_A = T_AB * X_B
+          gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
+          gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_w_c, X_w));
+          gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
+          graph_.addExpressionFactor(predict, measured[i], pixelNoise);
+        }
       }
     }
   }
@@ -264,38 +251,28 @@ namespace tagslam {
   }
 
 
-  PoseEstimate TagGraph::getTagWorldPose(int tagId) const {
-    if (values_.exists(sym_T_w_o(tagId))) {
-      const gtsam::Pose3 p = values_.at<gtsam::Pose3>(sym_T_w_o(tagId));
-      const PoseNoise n = makePoseNoise(0.001, 0.001);
-      return (PoseEstimate(p, 0.0, 0, n));
+  PoseEstimate TagGraph::getTagWorldPose(const RigidBodyConstPtr &rb,
+                                         int tagId, unsigned int frame_num) const {
+    PoseEstimate pe;   // defaults to invalid
+    const auto T_b_o_sym = sym_T_b_o(tagId);
+    if (values_.find(T_b_o_sym) != values_.end()) {
+      const auto T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0:frame_num);
+      if (values_.find(T_w_b_sym) != values_.end()) {
+        gtsam::Pose3 T_w_o = values_.at<gtsam::Pose3>(T_w_b_sym) *
+          values_.at<gtsam::Pose3>(T_b_o_sym);
+        pe = PoseEstimate(T_w_o, 0.0, 0);
+      }
     }
-    return (PoseEstimate()); // return invalid pose
+    return (pe);
   }
   
   bool
   TagGraph::getTagRelPose(const RigidBodyPtr &rb, int tagId,
                           gtsam::Pose3 *pose) const {
-    if (rb->isStatic) {
-      gtsam::Symbol T_w_o_sym = sym_T_w_o(tagId);
-      if (rb->poseEstimate.isValid() &&
-          values_.find(T_w_o_sym) != values_.end()) {
-        const gtsam::Pose3 T_w_o = values_.at<gtsam::Pose3>(T_w_o_sym);
-        // we need T_b_o = T_b_w * T_w_o
-        //std::cout << "GRAPH: tag id: " << tagId << " has T_w_o: " << std::endl << T_w_o << std::endl << " with body pose: " << rb->poseEstimate.getPose() << std::endl;
-        *pose = rb->poseEstimate.inverse() * T_w_o;
-        const auto T_b_o_sym = sym_T_b_o(tagId);
-        if (values_.find(T_b_o_sym) != values_.end()) {
-          //std::cout << "GRAPH: also have direct T_b_o: " << std::endl << values_.at<gtsam::Pose3>(T_b_o_sym) << std::endl;
-        }
-        return (true);
-      }
-    } else {
-      const auto T_b_o_sym = sym_T_b_o(tagId);
-      if (values_.find(T_b_o_sym) != values_.end()) {
-        *pose = values_.at<gtsam::Pose3>(T_b_o_sym);
-        return (true);
-      }
+    const auto T_b_o_sym = sym_T_b_o(tagId);
+    if (values_.find(T_b_o_sym) != values_.end()) {
+      *pose = values_.at<gtsam::Pose3>(T_b_o_sym);
+      return (true);
     }
     return (false);
   }
@@ -319,7 +296,7 @@ namespace tagslam {
     }
   }
 
-  
+/*  
   void
   TagGraph::getTagWorldPoses(std::vector<std::pair<int, gtsam::Pose3>> *poses) const {
     gtsam::Values::const_iterator it_start = values_.lower_bound(gtsam::Symbol('s', 0));
@@ -330,7 +307,7 @@ namespace tagslam {
                                                     values_.at<gtsam::Pose3>(it->key)));
     }
   }
-
+*/
 
   void TagGraph::optimize() {
     //graph_.print();

@@ -326,10 +326,6 @@ namespace tagslam {
     unsigned int ntags(0);
     for (const auto cam_idx: irange(0ul, msgvec.size())) {
       const auto &tags = msgvec[cam_idx];
-      std::cout << "observed tags for cam id: " << cam_idx << std::endl;
-      for (const auto &t: tags->apriltags) {
-        std::cout << t.id << " " << t.corners[0].x << " " << t.corners[0].y << std::endl;
-      }
       for (auto &body : allBodies_) {
         ntags += body->attachObservedTags(cam_idx, tags);
       }
@@ -899,7 +895,7 @@ namespace tagslam {
     for (const auto &rb : allBodies_) {
       for (const auto &tm: rb->tags) {
         const auto &tag = tm.second;
-        const PoseEstimate pe = tagGraph_.getTagWorldPose(tag->id);
+        const PoseEstimate pe = tagGraph_.getTagWorldPose(rb, tag->id, frameNum_);
         if (pe.isValid()) {
           pf << "- id: "   << tag->id << std::endl;
           pf << "  size: " << tag->size << std::endl;
@@ -999,7 +995,7 @@ namespace tagslam {
               msg_vec.push_back(m.second);
             }
             process(msg_vec);
-            break; // XXX
+            //break; // XXX
           }
           msg_map.clear();
           currentTime = tags->header.stamp;
