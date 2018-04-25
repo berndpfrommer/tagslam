@@ -20,6 +20,8 @@ namespace tagslam {
     bool         isValid() const { return (err < 1e10); }
     void         setValid(bool b) { err = b ? 0.0 : 1e10; }
     void         setError(double e) { err = e; }
+    void         setPose(const gtsam::Pose3 &p) {
+      *this = PoseEstimate(p, err, numIter, noise); }
     double       getError() const { return (err); }
     PoseNoise    getNoise() const { return (noise); }
     gtsam::Pose3 getPose() const { return (*this); }

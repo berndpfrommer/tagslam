@@ -64,13 +64,11 @@ namespace tagslam {
                         XmlRpc::XmlRpcValue bodyDefaults,
                         XmlRpc::XmlRpcValue rigidBody) {
     double def_pos_noise(-1), def_rot_noise(-1);
-    std::cout << "parsing body: " << name << std::endl;
     if (bodyDefaults.getType() == XmlRpc::XmlRpcValue::TypeStruct) {
       for (XmlRpc::XmlRpcValue::iterator it = bodyDefaults.begin();
            it != bodyDefaults.end(); ++it) {
         const auto &key = it->first;
         auto &val = it->second;
-        std::cout << "gotkey: " << key << std::endl;
         if (key == "position_noise") def_pos_noise = static_cast<double>(val);
         if (key == "rotation_noise") def_rot_noise = static_cast<double>(val);
       }
@@ -256,7 +254,7 @@ namespace tagslam {
         if (it->second.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
           continue;
         }
-        RigidBodyPtr rb = parse_body(body_defaults, it->first, it->second);
+        RigidBodyPtr rb = parse_body(it->first, body_defaults, it->second);
         rb->index = i;
         if (rb->isDefaultBody && foundDefaultBody) {
           throw std::runtime_error("found second default body: " + rb->name);

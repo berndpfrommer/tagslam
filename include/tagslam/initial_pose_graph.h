@@ -10,11 +10,13 @@
 #include "tagslam/camera.h"
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <opencv2/core.hpp>
 #include <vector>
 #include <memory>
 #include <string>
 
 namespace tagslam {
+  typedef std::vector<cv::Mat> ImageVec;
   class InitialPoseGraph {
   public:
     InitialPoseGraph() {};
@@ -29,6 +31,8 @@ namespace tagslam {
                        const PoseEstimate &initialPose) const;
     PoseEstimate
     estimateBodyPose(const CameraVec &cams,
+                     const ImageVec &imgs,
+                     unsigned int frameNum,
                      const RigidBodyConstPtr &rb,
                      const gtsam::Pose3 &initialPose) const;
 

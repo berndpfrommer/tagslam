@@ -78,6 +78,7 @@ namespace tagslam {
                        ci.distortion_coeffs)) { bombout("distortion_coeffs", cam); }
       if (!nh.getParam(cam + "/intrinsics",  ci.intrinsics)) { bombout("intrinsics", cam); }
       if (!nh.getParam(cam + "/resolution",  ci.resolution)) { bombout("resolution", cam); }
+      if (!nh.getParam(cam + "/rostopic",  camera->rostopic)) { bombout("rostopic", cam); }
       if (!nh.getParam(cam + "/tagtopic",  camera->tagtopic)) { bombout("tagtopic", cam); }
       nh.getParam(cam + "/is_static", camera->isStatic);
       // TODO: don't use CameraExtrinsics, rather use gtsam::Pose3

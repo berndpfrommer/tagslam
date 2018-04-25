@@ -14,6 +14,7 @@
   <depend>tf</depend>
   <depend>tf_conversions</depend>
   <depend>eigen_conversions</depend>
+  <depend>cv_bridge</depend>
   <depend>apriltag_ros</depend>
   <depend>apriltag_msgs</depend>
   <depend>geometry_msgs</depend>

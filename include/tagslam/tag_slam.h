@@ -12,6 +12,7 @@
 #include "tagslam/initial_pose_graph.h"
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
+#include <sensor_msgs/Image.h>
 #include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/subscriber.h>
@@ -26,6 +27,8 @@
 namespace tagslam {
   using TagArray = apriltag_msgs::ApriltagArrayStamped;
   using TagArrayConstPtr = TagArray::ConstPtr;
+  using Image = sensor_msgs::Image;
+  using ImageConstPtr = sensor_msgs::ImageConstPtr;
   typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray> SyncPolicy2;
   typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray> SyncPolicy3;
   typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray> SyncPolicy4;
@@ -93,7 +96,8 @@ namespace tagslam {
       ros::Time    time;
       std::string  frame_id;
     };
-    void process(const std::vector<TagArrayConstPtr> &msgvec);
+    void processTags(const std::vector<TagArrayConstPtr> &msgvec);
+    void processImages(const std::vector<ImageConstPtr> &msgvec);
     bool subscribe();
     void broadcastTransforms(const std::string &parentframe,
                              const std::vector<PoseInfo> &poses);
@@ -157,6 +161,7 @@ namespace tagslam {
     
     ros::NodeHandle                               nh_;
     CameraVec                                     cameras_;
+    std::vector<cv::Mat>                          images_;
     TagGraph                                      tagGraph_;
     InitialPoseGraph                              initialPoseGraph_;
     IdToTagMap                                    allTags_;
@@ -171,6 +176,7 @@ namespace tagslam {
     std::string                                   tagWorldPosesOutFile_;
     std::string                                   fixedFrame_;
     double                                        viewingAngleThreshold_;
+    double                                        initBodyPoseMaxError_;
   };
 
 }

@@ -10,6 +10,7 @@
 #include <XmlRpcException.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
+#include <cv_bridge/cv_bridge.h>
 #include <nav_msgs/Odometry.h>
 #include <tf_conversions/tf_eigen.h>
 #include <eigen_conversions/eigen_msg.h>
@@ -17,6 +18,7 @@
 #include <math.h>
 #include <fstream>
 #include <iomanip>
+#include <functional>
 
 namespace tagslam {
   using boost::irange;
@@ -56,6 +58,7 @@ namespace tagslam {
       bodyOdomPub_.push_back(
         nh_.advertise<nav_msgs::Odometry>("odom/body_" + rb->name, 1));
     }
+    nh_.param<double>("init_body_pose_max_error", initBodyPoseMaxError_, 1e10);
     nh_.param<std::string>("fixed_frame_id", fixedFrame_, "map");
     double maxDegree;
     nh_.param<double>("viewing_angle_threshold", maxDegree, 45.0);
@@ -299,8 +302,9 @@ namespace tagslam {
       gtsam::Pose3 p;
       if (tagGraph_.getBodyPose(rb, &p, frame)) {
         std::cout << "UPDATE: body " << rb->name << " from " << std::endl;
-        std::cout << rb->poseEstimate.getPose() << std::endl << " to: " << std::endl << p << std::endl;
-        rb->poseEstimate = PoseEstimate(p, 0.0, 0);
+        std::cout << rb->poseEstimate.getPose() << std::endl << " to: " << std::endl;
+        rb->poseEstimate.setPose(p);
+        std::cout << rb->poseEstimate << std::endl;
       } else {
         if (!rb->isStatic) {
           rb->poseEstimate = PoseEstimate();//invalid
@@ -506,7 +510,7 @@ namespace tagslam {
     // estimate the tag pose relative to body.
   }
         
-  void TagSlam::process(const std::vector<TagArrayConstPtr> &msgvec) {
+  void TagSlam::processTags(const std::vector<TagArrayConstPtr> &msgvec) {
     // check if any of the tags are new, and associate them
     // with a rigid body
     discoverTags(msgvec);
@@ -694,25 +698,13 @@ namespace tagslam {
     std::cout << "body pose from single camera " << best_cam_idx << std::endl;
     std::cout << bPose << std::endl;
 
-    bodyPose = initialPoseGraph_.estimateBodyPose(cameras_, rb, bPose);
+    bodyPose = initialPoseGraph_.estimateBodyPose(cameras_, images_, frameNum_, rb, bPose);
     std::cout << "body pose from body graph: " << std::endl << bodyPose << std::endl;
-#if 0    
-    int cam_idx = rb->bestCamera();
-    if (cam_idx >= 0) {
-      std::cout << "USING cam " << cam_idx << " to find best pose of body: " << rb->name << std::endl;
-      RigidBodyConstVec rbv = {rb};
-      PoseEstimate pe  = findCameraPose(cam_idx, rbv, false);
-      if (pe.isValid()) {
-        // pose estimate has T_b_c
-        // T_w_b = T_w_c * T_c_b
-        const auto &T_w_c = cameras_[cam_idx]->poseEstimate;
-        bodyPose = PoseEstimate(T_w_c * pe.inverse(), 0.0, 0);
-        std::cout << "T_w_c: " << T_w_c << std::endl;
-        std::cout << "T_c_b: " << pe.inverse() << std::endl;
-        std::cout << "body pose: " << pe.inverse() << std::endl;
-      }
+
+    if (bodyPose.getError() > initBodyPoseMaxError_) {
+      ROS_WARN_STREAM("no body pose for " << rb->name << " due to high error: " << bodyPose.getError());
+      bodyPose.setError(1e10);
     }
-#endif    
     return (bodyPose);
   }
 
@@ -909,26 +901,26 @@ namespace tagslam {
 
   void TagSlam::callback1(TagArrayConstPtr const &tag0) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0};
-    process(msg_vec);
+    processTags(msg_vec);
   }
 
   void TagSlam::callback2(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1};
-    process(msg_vec);
+    processTags(msg_vec);
   }
   void TagSlam::callback3(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
                           TagArrayConstPtr const &tag2) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2};
-    process(msg_vec);
+    processTags(msg_vec);
   }
   void TagSlam::callback4(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
                           TagArrayConstPtr const &tag2,
                           TagArrayConstPtr const &tag3) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3};
-    process(msg_vec);
+    processTags(msg_vec);
   }
   void TagSlam::callback5(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
@@ -936,7 +928,7 @@ namespace tagslam {
                           TagArrayConstPtr const &tag3,
                           TagArrayConstPtr const &tag4) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4};
-    process(msg_vec);
+    processTags(msg_vec);
   }
   void TagSlam::callback6(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
@@ -945,7 +937,7 @@ namespace tagslam {
                           TagArrayConstPtr const &tag4,
                           TagArrayConstPtr const &tag5) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5};
-    process(msg_vec);
+    processTags(msg_vec);
   }
   void TagSlam::callback7(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
@@ -955,7 +947,7 @@ namespace tagslam {
                           TagArrayConstPtr const &tag5,
                           TagArrayConstPtr const &tag6) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5, tag6};
-    process(msg_vec);
+    processTags(msg_vec);
   }
   void TagSlam::callback8(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
@@ -966,43 +958,96 @@ namespace tagslam {
                           TagArrayConstPtr const &tag6,
                           TagArrayConstPtr const &tag7) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7};
-    process(msg_vec);
+    processTags(msg_vec);
   }
 
+  void TagSlam::processImages(const std::vector<ImageConstPtr> &msgvec) {
+    images_.clear();
+    for (const auto i: irange(0ul, msgvec.size())) {
+      const auto &img = msgvec[i];
+      cv::Mat im = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8)->image;
+      images_.push_back(im);
+    }
+  }
+
+  template <class T>
+  class BagSync {
+      typedef boost::shared_ptr<T const> ConstPtr;
+  public:
+    BagSync(const std::vector<std::string> &topics,
+            const std::function<void(const std::vector<ConstPtr> &)> &callback)
+      : topics_(topics),
+        callback_(callback)
+      {
+    }
+    bool process(const rosbag::MessageInstance &m) {
+      boost::shared_ptr<T> msg = m.instantiate<T>();
+      if (msg) {
+        if (msg->header.stamp > currentTime_) {
+          if (msgMap_.size() == topics_.size()) {
+            std::vector<ConstPtr> msgVec;
+            for (const auto &m: msgMap_) {
+              msgVec.push_back(m.second);
+            }
+            callback_(msgVec);
+          }
+          msgMap_.clear();
+          currentTime_ = msg->header.stamp;
+        }
+        msgMap_[m.getTopic()] = msg;
+      }
+    }
+    const ros::Time &getCurrentTime() { return (currentTime_); }
+  private:
+    ros::Time currentTime_{0.0};
+    std::map<std::string, ConstPtr> msgMap_;
+    std::vector<std::string> topics_;
+    std::function<void(const std::vector<ConstPtr> &)> callback_;
+  };
 
   void TagSlam::playFromBag(const std::string &fname) {
     rosbag::Bag bag;
     bag.open(fname, rosbag::bagmode::Read);
-    std::vector<std::string> topics;
-    std::map<std::string, int> topic_to_cam;
+    std::vector<std::string> tagTopics, imageTopics, topics;
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
       const auto &cam = cameras_[cam_idx];
-      topics.push_back(cam->tagtopic);
-      topic_to_cam.insert(std::map<std::string, int>::value_type(cam->tagtopic, cam_idx));
+      tagTopics.push_back(cam->tagtopic);
+      imageTopics.push_back(cam->rostopic);
+      topics.push_back(imageTopics.back());
+      topics.push_back(tagTopics.back());
     }
     ROS_INFO_STREAM("playing from file: " << fname);
     double start_time(0);
     nh_.param<double>("start_time", start_time, 0);
     ros::Time t_start(start_time);
     rosbag::View view(bag, rosbag::TopicQuery(topics));
-    std::map<std::string, boost::shared_ptr<TagArray>> msg_map;
-    ros::Time currentTime(0.0);
+    rosbag::View t0View(bag);
+    ros::Time t0(0.0);
+    for (const rosbag::MessageInstance &m: t0View) {
+      t0 = m.getTime();
+      break;
+    }
+    ROS_INFO_STREAM("start bag time: " << t0);
+    BagSync<TagArray> tagSync(tagTopics, std::bind(&TagSlam::processTags, this, std::placeholders::_1));
+    BagSync<Image> imageSync(imageTopics, std::bind(&TagSlam::processImages, this, std::placeholders::_1));
+
+    std::ofstream wand_poses("wand_poses.txt");
+    ros::Time lastTime(0.0);
     for (const rosbag::MessageInstance &m: view) {
-      boost::shared_ptr<TagArray> tags = m.instantiate<TagArray>();
-      if (tags) {
-        if (tags->header.stamp > currentTime) {
-          if (msg_map.size() == topics.size()) {
-            std::vector<TagArrayConstPtr> msg_vec;
-            for (const auto &m: msg_map) {
-              msg_vec.push_back(m.second);
-            }
-            process(msg_vec);
-            //break; // XXX
-          }
-          msg_map.clear();
-          currentTime = tags->header.stamp;
-        }
-        msg_map[m.getTopic()] = tags;
+      imageSync.process(m);
+      tagSync.process(m);
+      const auto t = tagSync.getCurrentTime();
+      if (!dynamicBodies_.empty() && dynamicBodies_[0]->poseEstimate.isValid()
+          && t != lastTime) {
+        lastTime = tagSync.getCurrentTime();
+        const PoseEstimate &pe = dynamicBodies_[0]->poseEstimate;
+        const gtsam::Point3 tip = (pe * allTags_[4]->poseEstimate).translation();
+        const gtsam::Vector rv = gtsam::Rot3::Logmap(pe.rotation());
+        const gtsam::Point3 T = pe.translation();
+        wand_poses << t-t0 << " " << t << " " << rv(0) << " " << rv(1) << " " << rv(2) << " "
+                   << T.x()   << " " << T.y()   << " " << T.z() << " "
+                   << tip.x() << " " << tip.y() << " " << tip.z() << std::endl;
+        wand_poses << std::flush;
       }
     }
     bag.close();

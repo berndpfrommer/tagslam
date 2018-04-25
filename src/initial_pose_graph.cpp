@@ -13,6 +13,8 @@
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/variate_generator.hpp>
 #include <boost/random/mersenne_twister.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 
 namespace tagslam {
@@ -83,8 +85,14 @@ namespace tagslam {
   }
 
   static void analyze_pose(const CameraVec &cams,
+                           const ImageVec &imgs,
+                           bool debug,
+                           unsigned int frameNum,
                            const RigidBodyConstPtr &rb,
                            const gtsam::Pose3 &bodyPose) {
+    const cv::Scalar origColor(0,255,0), projColor(255,0,255);
+    const cv::Size rsz(4,4);
+
     for (const auto &tagMap: rb->observedTags) {
       int cam_idx = tagMap.first;
       std::cout << "points + projected for cam " << cam_idx << std::endl;
@@ -96,9 +104,6 @@ namespace tagslam {
         continue;
       }
       gtsam::PinholeCamera<gtsam::Cal3DS2> phc(cam->poseEstimate.getPose(), *cam->gtsamCameraModel);
-      cv::Mat rvec, tvec;
-      //from_gtsam(&rvec, &tvec, cam->poseEstimate.getPose().inverse());
-      from_gtsam(&rvec, &tvec, cam->poseEstimate.getPose().inverse());
       std::vector<gtsam::Point3> bpts;
       std::vector<gtsam::Point3> wpts;
       std::vector<gtsam::Point2> ipts;
@@ -106,28 +111,37 @@ namespace tagslam {
       for (const auto i: irange(0ul, bpts.size())) {
         wpts.push_back(bodyPose.transform_from(bpts[i]));
       }
-      std::vector<cv::Point3d> wp;
-      std::vector<cv::Point2d> ipp;
-      to_opencv(&wp, wpts);
-      const auto &ci = cam->intrinsics;
-      utils::project_points(wp, rvec, tvec, ci.K,
-                            ci.distortion_model, ci.D, &ipp);
       std::cout << "ppts=[ ";
-      for (const auto i: irange(0ul, wp.size())) {
+      cv::Mat img;
+      if (cam_idx < imgs.size()) img = imgs[cam_idx];
+      for (const auto i: irange(0ul, wpts.size())) {
         gtsam::Point3 wp  = wpts[i];
         gtsam::Point2 icp = phc.project(wp);
-        std::cout << wpts[i].x() << "," << wpts[i].y() << "," << wpts[i].z() << ", " << ipts[i].x() << ", " << ipts[i].y() << ", " << icp.x() << ", " <<icp.y() << ";" <<  std::endl;
+        gtsam::Point2 d = icp - ipts[i];
+
+        std::cout << wpts[i].x() << "," << wpts[i].y() << "," << wpts[i].z() << ", " << ipts[i].x() << ", " << ipts[i].y() << ", " << icp.x() << ", " << icp.y() << ", " << d.x() << ", " << d.y() << ";" <<  std::endl;
+        if (debug && img.rows > 0) {
+          cv::rectangle(img, cv::Rect(cv::Point2d(ipts[i].x(), ipts[i].y()), rsz), origColor, 2, 8, 0);
+          cv::rectangle(img, cv::Rect(cv::Point2d(icp.x(), icp.y()), rsz), projColor, 2, 8, 0);
+        }
       }
       std::cout << "];" << std::endl;
+      if (debug && img.rows > 0) {
+        std::string fbase = "image_" + std::to_string(frameNum) + "_";
+        cv::imwrite(fbase + std::to_string(cam_idx) + ".jpg", img);
+      }
     }
+    
   }
 
   PoseEstimate
   InitialPoseGraph::estimateBodyPose(const CameraVec &cams,
+                                     const ImageVec &imgs,
+                                     unsigned int frameNum,
                                      const RigidBodyConstPtr &rb,
                                      const gtsam::Pose3 &initialPose) const {
     std::cout << "----------------- analysis of initial pose -----" << std::endl;
-    analyze_pose(cams, rb, initialPose);
+    analyze_pose(cams, imgs, false, frameNum, rb, initialPose);
     PoseEstimate pe; // defaults to invalid
     gtsam::ExpressionFactorGraph  graph;
     std::cout << "estimating body pose from cameras: " << rb->observedTags.size() << std::endl;
@@ -168,8 +182,9 @@ namespace tagslam {
     pe = optimizeGraph(initialPose, initialValues, &graph);
     std::cout << "optimized graph pose T_w_b: " << std::endl;
     print_pose(pe.getPose());
+    std::cout << "pose graph error: " << pe.getError() << std::endl;
     std::cout << "----------------- analysis of final pose -----" << std::endl;
-    analyze_pose(cams, rb, pe.getPose());
+    analyze_pose(cams, imgs, false, frameNum, rb, pe.getPose());
     return (pe);
   }
 

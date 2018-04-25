@@ -158,7 +158,12 @@ namespace tagslam {
 
     gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
     if (!values_.exists(T_w_b_sym)) {
-      values_.insert(T_w_b_sym, rb->poseEstimate.getPose());
+      const auto &pe = rb->poseEstimate;
+      values_.insert(T_w_b_sym, pe.getPose());
+      if (rb->isStatic) {
+        graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_b_sym,
+                                                          pe.getPose(), pe.getNoise()));
+      }
     }
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
@@ -182,7 +187,7 @@ namespace tagslam {
 
   bool TagGraph::getBodyPose(const RigidBodyConstPtr &rb, gtsam::Pose3 *pose,
                              unsigned int frame) const {
-    const auto T_w_b_sym = sym_T_w_b(rb->index, frame);
+    const auto T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic? 0 : frame);
     if (values_.find(T_w_b_sym) != values_.end()) {
       *pose = values_.at<gtsam::Pose3>(T_w_b_sym);
       return (true);

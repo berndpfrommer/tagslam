@@ -23,6 +23,7 @@ namespace tagslam {
     CameraIntrinsics  intrinsics;
     CameraExtrinsics  T_cam_body;
     CameraExtrinsics  T_cn_cnm1;
+    std::string       rostopic;
     std::string       tagtopic;
     bool              isStatic{false};
     PoseEstimate      poseEstimate; // T_w_c
