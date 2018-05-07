@@ -143,6 +143,7 @@ namespace tagslam {
     void playFromBag(const std::string &fname);
     bool readRigidBodies();
     void readDistanceMeasurements();
+    void addDistanceMeasurements();
     bool isBadViewingAngle(const gtsam::Pose3 &p) const;
     // ----------------------------------------------------------
     typedef message_filters::Subscriber<TagArray> TagSubscriber;

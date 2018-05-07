@@ -34,7 +34,9 @@ namespace tagslam {
     int    getIterations() { return (optimizerIterations_); }
     
     void addTags(const RigidBodyPtr &rb, const TagVec &tags);
-    void addDistanceMeasurements(const DistanceMeasurementVec &dmv);
+    void addDistanceMeasurement(const RigidBodyPtr &rb1,
+                                const RigidBodyPtr &rb2,
+                                const DistanceMeasurement &dm);
     void observedTags(const CameraPtr &cam, const RigidBodyPtr &rb,
                       const TagVec &tags,
                       unsigned int frame_num);

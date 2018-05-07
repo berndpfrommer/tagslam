@@ -126,7 +126,6 @@ namespace tagslam {
         }
       }
       tagGraph_.addTags(rb, tvec);
-      tagGraph_.addDistanceMeasurements(distanceMeasurements_);
       allBodies_.push_back(rb);
       if (rb->isDefaultBody) {
         defaultBody_ = rb;
@@ -493,7 +492,6 @@ namespace tagslam {
                 if (estimateTagPose(tagMap.first, rb->poseEstimate.getPose(), tag)) {
                   TagVec tvec = {tag};
                   tagGraph_.addTags(rb, tvec);
-                  tagGraph_.addDistanceMeasurements(distanceMeasurements_);
                   globalTag->poseEstimate = tag->poseEstimate;
                 }
               } else {
@@ -732,8 +730,26 @@ namespace tagslam {
             }
           }
           tagGraph_.addTags(rb, tvec);
-          tagGraph_.addDistanceMeasurements(distanceMeasurements_);
+          // Add new distance measurements if possible
+          addDistanceMeasurements();
         }
+      }
+    }
+  }
+
+
+  void TagSlam::addDistanceMeasurements() {
+    for (const auto &dm: distanceMeasurements_) {
+      if (allTags_.count(dm->tag1) == 0 ||
+          allTags_.count(dm->tag2) == 0) {
+        continue;
+      }
+      const auto tag1 = allTags_[dm->tag1];
+      const auto tag2 = allTags_[dm->tag2];
+      const auto rb1 = findBodyForTag(dm->tag1, tag1->bits);
+      const auto rb2 = findBodyForTag(dm->tag2, tag2->bits);
+      if (rb1 && rb2 && tag1->poseEstimate.isValid() && tag2->poseEstimate.isValid()) {
+        tagGraph_.addDistanceMeasurement(rb1, rb2, *dm);
       }
     }
   }

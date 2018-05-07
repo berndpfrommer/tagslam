@@ -92,15 +92,34 @@ namespace tagslam {
     }
   }
 
-  void TagGraph::addDistanceMeasurements(const DistanceMeasurementVec &dmv) {
-    for (const auto &dm: dmv) {
-      const gtsam::Symbol k1 = sym_X_w_i(dm->tag1, dm->corner1, 0);
-      const gtsam::Symbol k2 = sym_X_w_i(dm->tag2, dm->corner2, 0);
-      if (values_.exists(k1) && values_.exists(k2)) {
-        IsotropicNoisePtr noise = gtsam::noiseModel::Isotropic::Sigma(1, dm->noise);
-        graph_.push_back(PointDistanceFactor(noise, k1, k2, dm->distance));
-      }
+  double distance(const gtsam::Point3 &p1, const gtsam::Point3 p2, gtsam::OptionalJacobian<1, 3> H1 = boost::none,
+                  gtsam::OptionalJacobian<1, 3> H2 = boost::none) {
+    const gtsam::Point3 d = p1-p2;
+    double r = sqrt(d.x() * d.x() + d.y() * d.y() + d.z() * d.z());
+    if (H1) *H1 << d.x() / r, d.y() / r, d.z() / r;
+    if (H2) *H2 << -d.x() / r, -d.y() / r, -d.z() / r;
+    return r;
+  }
+  void
+  TagGraph::addDistanceMeasurement(const RigidBodyPtr &rb1,
+                                   const RigidBodyPtr &rb2,
+                                   const DistanceMeasurement &dm) {
+    if (!rb1->isStatic || !rb2->isStatic) {
+      std::cout << "TagGraph ERROR: non-rigid body has tag measurement!" << std::endl;
+      return;
     }
+    gtsam::Expression<gtsam::Pose3>  T_w_b_1(sym_T_w_b(rb1->index, 0));
+    gtsam::Expression<gtsam::Pose3>  T_b_o_1(sym_T_b_o(dm.tag1));
+    gtsam::Expression<gtsam::Point3> X_o_1(sym_X_o_i(dm.tag1, dm.corner1));
+    gtsam::Expression<gtsam::Point3> X_w_1 = gtsam::transform_from(T_w_b_1, gtsam::transform_from(T_b_o_1, X_o_1));
+    
+    gtsam::Expression<gtsam::Pose3>  T_w_b_2(sym_T_w_b(rb2->index, 0));
+    gtsam::Expression<gtsam::Pose3>  T_b_o_2(sym_T_b_o(dm.tag2));
+    gtsam::Expression<gtsam::Point3> X_o_2(sym_X_o_i(dm.tag2, dm.corner2));
+    gtsam::Expression<gtsam::Point3> X_w_2 = gtsam::transform_from(T_w_b_2, gtsam::transform_from(T_b_o_2, X_o_2));
+
+    gtsam::Expression<double> dist = gtsam::Expression<double>(&distance, X_w_1, X_w_2);
+    graph_.addExpressionFactor(dist, dm.distance, gtsam::noiseModel::Isotropic::Sigma(1, dm.noise));
   }
 
   gtsam::Point3 TagGraph::insertTagType(const TagConstPtr &tag, int corner) {
