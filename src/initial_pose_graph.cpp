@@ -112,6 +112,7 @@ namespace tagslam {
         wpts.push_back(bodyPose.transform_from(bpts[i]));
       }
       std::cout << "ppts=[ ";
+#if 0      
       cv::Mat img;
       if (cam_idx < imgs.size()) img = imgs[cam_idx];
       for (const auto i: irange(0ul, wpts.size())) {
@@ -130,6 +131,7 @@ namespace tagslam {
         std::string fbase = "image_" + std::to_string(frameNum) + "_";
         cv::imwrite(fbase + std::to_string(cam_idx) + ".jpg", img);
       }
+#endif      
     }
     
   }
@@ -140,8 +142,8 @@ namespace tagslam {
                                      unsigned int frameNum,
                                      const RigidBodyConstPtr &rb,
                                      const gtsam::Pose3 &initialPose) const {
-    std::cout << "----------------- analysis of initial pose -----" << std::endl;
-    analyze_pose(cams, imgs, false, frameNum, rb, initialPose);
+    //std::cout << "----------------- analysis of initial pose -----" << std::endl;
+    //analyze_pose(cams, imgs, false, frameNum, rb, initialPose);
     PoseEstimate pe; // defaults to invalid
     gtsam::ExpressionFactorGraph  graph;
     std::cout << "estimating body pose from cameras: " << rb->observedTags.size() << std::endl;
@@ -183,8 +185,8 @@ namespace tagslam {
     std::cout << "optimized graph pose T_w_b: " << std::endl;
     print_pose(pe.getPose());
     std::cout << "pose graph error: " << pe.getError() << std::endl;
-    std::cout << "----------------- analysis of final pose -----" << std::endl;
-    analyze_pose(cams, imgs, false, frameNum, rb, pe.getPose());
+    //std::cout << "----------------- analysis of final pose -----" << std::endl;
+    //analyze_pose(cams, imgs, false, frameNum, rb, pe.getPose());
     return (pe);
   }
 
@@ -224,8 +226,9 @@ namespace tagslam {
     RandGen  rgr(randomEngine, distRot);	   // random angle generator
     gtsam::Pose3 pose = startPose;
     PoseEstimate bestPose(startPose);
-    for (const auto i: irange(0, 50)) {
+    for (const auto i: irange(0, 200)) {
       PoseEstimate pe = try_optimization(pose, startValues, graph);
+      //std::cout << i << " init pose graph error: " << pe.getError() << std::endl;
       if (pe.getError() < bestPose.getError()) {
         bestPose = pe;
       }

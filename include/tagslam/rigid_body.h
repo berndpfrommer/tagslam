@@ -10,6 +10,7 @@
 #include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <map>
 #include <memory>
+#include <iostream>
 
 namespace tagslam {
   using TagArray = apriltag_msgs::ApriltagArrayStamped;
@@ -18,7 +19,20 @@ namespace tagslam {
     RigidBody(const std::string &n  = std::string(""),
               bool iS = false) :
       name(n), isStatic(iS) {};
-
+    virtual ~RigidBody() {};
+    
+    typedef std::shared_ptr<RigidBody>       RigidBodyPtr;
+    typedef std::shared_ptr<const RigidBody> RigidBodyConstPtr;
+    typedef std::vector<RigidBodyPtr>        RigidBodyVec;
+    typedef std::vector<RigidBodyConstPtr>   RigidBodyConstVec;
+  
+    virtual bool write(std::ostream &os, const std::string &prefix) const = 0;
+    virtual bool parse(XmlRpc::XmlRpcValue body_defaults,
+                       XmlRpc::XmlRpcValue body) = 0;
+    bool parseCommon(XmlRpc::XmlRpcValue bodyDefaults,
+                     XmlRpc::XmlRpcValue body);
+    bool writeCommon(std::ostream &os, const std::string &prefix) const;
+    
     void   setPoseEstimate(const PoseEstimate &pe) { poseEstimate = pe; }
     void   setIsDefaultBody(bool b) { isDefaultBody = b; }
     bool   hasTag(int tagId, int bits) const {
@@ -38,10 +52,6 @@ namespace tagslam {
     int    bestCamera() const;
     // -------------------------
     typedef std::map<int, TagVec> CamToTagVec;
-    typedef std::shared_ptr<RigidBody> RigidBodyPtr;
-    typedef std::shared_ptr<const RigidBody> RigidBodyConstPtr;
-    typedef std::vector<RigidBodyPtr> RigidBodyVec;
-    typedef std::vector<RigidBodyConstPtr> RigidBodyConstVec;
     std::string         name;
     std::string         type;
     int                 index{-1};
@@ -51,10 +61,12 @@ namespace tagslam {
     TagMap              tags;
     CamToTagVec         observedTags;
     double              defaultTagSize{0};
+    bool                hasPosePrior{false};
     // -------- static functions
     static RigidBodyPtr parse_body(const std::string &name,
-                                   XmlRpc::XmlRpcValue body_defaults,
+                                   XmlRpc::XmlRpcValue bodyDefaults,
                                    XmlRpc::XmlRpcValue body);
+
     static RigidBodyVec parse_bodies(XmlRpc::XmlRpcValue body_defaults,
                                      XmlRpc::XmlRpcValue bodies);
   };

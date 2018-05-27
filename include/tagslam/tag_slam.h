@@ -9,6 +9,7 @@
 #include "tagslam/tag_graph.h"
 #include "tagslam/rigid_body.h"
 #include "tagslam/distance_measurement.h"
+#include "tagslam/position_measurement.h"
 #include "tagslam/initial_pose_graph.h"
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
@@ -89,6 +90,7 @@ namespace tagslam {
                    TagArrayConstPtr const &tag6,
                    TagArrayConstPtr const &tag7);
   private:
+    typedef std::vector<std::pair<gtsam::Point3, bool> > PointVector;
     struct PoseInfo {
       PoseInfo(const gtsam::Pose3 &p = gtsam::Pose3(), const ros::Time &t = ros::Time(0),
                const std::string &frid = "") : pose(p), time(t), frame_id(frid) {}
@@ -98,6 +100,9 @@ namespace tagslam {
     };
     void processTags(const std::vector<TagArrayConstPtr> &msgvec);
     void processImages(const std::vector<ImageConstPtr> &msgvec);
+    void processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
+                              const std::vector<ImageConstPtr> &msgvec2);
+
     bool subscribe();
     void broadcastTransforms(const std::string &parentframe,
                              const std::vector<PoseInfo> &poses);
@@ -138,13 +143,22 @@ namespace tagslam {
     void findInitialBodyPoses();
     void findInitialDiscoveredTagPoses();
     void updatePosesFromGraph(unsigned int frame_num);
-    void writeTagPoses(const std::string &poseFile) const;
+    void writeBodyPoses(const std::string &poseFile) const;
     void writeTagWorldPoses(const std::string &poseFile) const;
     void playFromBag(const std::string &fname);
     bool readRigidBodies();
-    void readDistanceMeasurements();
-    void addDistanceMeasurements();
+    void readMeasurements(const std::string &type);
+    void applyDistanceMeasurements();
+    void applyPositionMeasurements();
     bool isBadViewingAngle(const gtsam::Pose3 &p) const;
+    void writeMeasurements(const std::string &fname,
+                           const PointVector &dist, const PointVector &pos) const;
+    void writeDistanceMeasurements(std::ostream &f, const PointVector &dist) const;
+    void writePositionMeasurements(std::ostream &f, const PointVector &pos) const;
+    void printDistanceErrors(const PointVector &dist) const;
+    void printPositionErrors(const PointVector &pos) const;
+    PointVector getPositions() const;
+    PointVector getDistances() const;
     // ----------------------------------------------------------
     typedef message_filters::Subscriber<TagArray> TagSubscriber;
     typedef std::unordered_map<int, TagPtr>       IdToTagMap;
@@ -171,10 +185,16 @@ namespace tagslam {
     RigidBodyVec                                  allBodies_;
     RigidBodyPtr                                  defaultBody_;
     DistanceMeasurementVec                        distanceMeasurements_;
+    DistanceMeasurementVec                        unappliedDistanceMeasurements_;
+    PositionMeasurementVec                        positionMeasurements_;
+    PositionMeasurementVec                        unappliedPositionMeasurements_;
     unsigned int                                  frameNum_{0};
+    int                                           maxFrameNum_{1000000};
+    double                                        maxInitialReprojError_{1e3};
     tf::TransformBroadcaster                      tfBroadcaster_;
     std::string                                   tagPosesOutFile_;
     std::string                                   tagWorldPosesOutFile_;
+    std::string                                   measurementsOutFile_;
     std::string                                   fixedFrame_;
     double                                        viewingAngleThreshold_;
     double                                        initBodyPoseMaxError_;

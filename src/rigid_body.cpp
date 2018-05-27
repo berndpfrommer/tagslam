@@ -3,129 +3,66 @@
  */
 
 #include "tagslam/rigid_body.h"
+#include "tagslam/simple_body.h"
+#include "tagslam/board.h"
 #include "tagslam/yaml_utils.h"
 #include <boost/range/irange.hpp>
 #include <XmlRpcException.h>
 
 namespace tagslam {
   using boost::irange;
-  static void parse_type(const RigidBodyPtr &rb,
-                         const std::string &type,
-                         XmlRpc::XmlRpcValue xml) {
-    if (type != "board") {
-      throw std::runtime_error("only board type supported!");
+
+  static RigidBodyPtr make_type(const std::string &name,
+                                const std::string &type) {
+    RigidBodyPtr p;
+    if (type == "board") {
+      BoardPtr board(new Board(name));
+      p = board;
+    } else {
+      SimpleBodyPtr sb(new SimpleBody(name));
+      p = sb;
     }
-    int tag_start_id = -1;
-    double tag_size = -1.0;
-    int tag_bits = 6;
-    double tag_spacing = 0.25;
-    int tag_rows = -1;
-    int tag_columns = -1;
-    double tag_rot_noise = 0.001;
-    double tag_pos_noise = 0.001;
+    return (p);
+  }
+
+  bool RigidBody::parseCommon(XmlRpc::XmlRpcValue bodyDefaults,
+                              XmlRpc::XmlRpcValue body) {
     try {
-      for (XmlRpc::XmlRpcValue::iterator it = xml.begin();
-           it != xml.end(); ++it) {
-        const auto &key = it->first;
-        auto &val = it->second;
-        if (key == "tag_start_id") tag_start_id = static_cast<int>(val);
-        if (key == "tag_size")     tag_size = static_cast<double>(val);
-        if (key == "tag_bits")     tag_bits = static_cast<int>(val);
-        if (key == "tag_spacing")  tag_spacing = static_cast<double>(val);
-        if (key == "tag_rows")     tag_rows = static_cast<int>(val);
-        if (key == "tag_columns")  tag_columns = static_cast<int>(val);
-        if (key == "tag_rotation_noise")  tag_rot_noise = static_cast<double>(val);
-        if (key == "tag_position_noise")  tag_pos_noise = static_cast<double>(val);
+      double def_pos_noise = static_cast<double>(bodyDefaults["position_noise"]);
+      double def_rot_noise = static_cast<double>(bodyDefaults["rotation_noise"]);
+      defaultTagSize = static_cast<double>(body["default_tag_size"]);
+      isDefaultBody  = static_cast<bool>(body["is_default_body"]);
+      isStatic       = static_cast<bool>(body["is_static"]);
+      if (body.hasMember("pose") > 0 && body["pose"].getType() ==
+          XmlRpc::XmlRpcValue::TypeStruct) {
+          gtsam::Pose3 pose;
+          PoseNoise noise;
+          if (yaml_utils::get_pose_and_noise(body["pose"], &pose, &noise,
+                                             def_pos_noise, def_rot_noise)) {
+            PoseEstimate pe(pose, 0.0, 0, noise);
+            setPoseEstimate(pe);
+            hasPosePrior = true;
+          } else {
+            setPoseEstimate(PoseEstimate()); // invalid
+          }
       }
     } catch (const XmlRpc::XmlRpcException &e) {
-      throw std::runtime_error("error parsing type:" + type + " of body: " + rb->name);
+      throw std::runtime_error("error parsing body:" + name);
     }
-    if (tag_rows < 0 || tag_columns < 0) {
-      throw std::runtime_error("must specify tag rows and cols for " + type + " of body: " + rb->name);
+    if (defaultTagSize == 0) {
+      throw std::runtime_error("body " + name + " must have default_tag_size!");
     }
-    if (tag_start_id < 0 || tag_size < 0) {
-      throw std::runtime_error("must specify tag start id and size for " + type + " of body: " + rb->name);
-    }
-    int tagid = tag_start_id;
-    for (int row = 0; row < tag_rows; row++) {
-      for (int col = 0; col < tag_columns; col++) {
-        gtsam::Pose3 pose(gtsam::Rot3(),
-                          gtsam::Point3(col * tag_size * (1.0 + tag_spacing),
-                                        row * tag_size * (1.0 + tag_spacing), 0.0));
-        PoseNoise noise = makePoseNoise(tag_rot_noise, tag_pos_noise);
-        PoseEstimate pe(pose, 0.0, 0, noise);
-        rb->addTag(Tag::makeTag(tagid++, tag_bits, tag_size, pe, true));
-      }
-    }
+    return (true);
   }
 
   RigidBodyPtr
   RigidBody::parse_body(const std::string &name,
                         XmlRpc::XmlRpcValue bodyDefaults,
-                        XmlRpc::XmlRpcValue rigidBody) {
-    double def_pos_noise(-1), def_rot_noise(-1);
-    if (bodyDefaults.getType() == XmlRpc::XmlRpcValue::TypeStruct) {
-      for (XmlRpc::XmlRpcValue::iterator it = bodyDefaults.begin();
-           it != bodyDefaults.end(); ++it) {
-        const auto &key = it->first;
-        auto &val = it->second;
-        if (key == "position_noise") def_pos_noise = static_cast<double>(val);
-        if (key == "rotation_noise") def_rot_noise = static_cast<double>(val);
-      }
-    }
-
-    RigidBodyPtr body(new RigidBody(name));
-    try {
-      // first read the header that may contain the body pose
-      for (XmlRpc::XmlRpcValue::iterator it = rigidBody.begin();
-           it != rigidBody.end(); ++it) {
-        if (it->first == "default_tag_size") {
-          body->defaultTagSize = static_cast<double>(it->second);
-        }
-        if (it->first == "is_default_body") {
-          body->isDefaultBody = static_cast<bool>(it->second);
-        }
-        if (it->first == "is_static") {
-          body->isStatic = static_cast<bool>(it->second);
-        }
-        if (it->first == "type") {
-          body->type = static_cast<std::string>(it->second);
-        }
-        if (it->first == "pose" &&
-            it->second.getType() == XmlRpc::XmlRpcValue::TypeStruct) {
-          gtsam::Pose3 pose;
-          PoseNoise noise;
-          if (yaml_utils::get_pose_and_noise(it->second, &pose, &noise,
-                                             def_pos_noise, def_rot_noise)) {
-            PoseEstimate pe(pose, 0.0, 0, noise);
-            body->setPoseEstimate(pe);
-          } else {
-            body->setPoseEstimate(PoseEstimate()); // invalid
-          }
-        }
-      }
-    } catch (const XmlRpc::XmlRpcException &e) {
-      throw std::runtime_error("error parsing header of body:" + name);
-    }
-    if (body->defaultTagSize == 0) {
-      throw std::runtime_error("body " + name + " must have default_tag_size!");
-    }
-    try {
-      for (XmlRpc::XmlRpcValue::iterator it = rigidBody.begin();
-           it != rigidBody.end(); ++it) {
-        if (it->first == "tags") {
-          TagVec tv = Tag::parseTags(it->second, body->defaultTagSize);
-          body->addTags(tv);
-          break;
-        }
-        if (it->first == body->type) {
-          parse_type(body, body->type, it->second);
-        }
-      }
-    } catch (const XmlRpc::XmlRpcException &e) {
-      throw std::runtime_error("error parsing tags of body: " + name);
-    }
-    return (body);
+                        XmlRpc::XmlRpcValue body) {
+    std::string type = static_cast<std::string>(body["type"]);
+    RigidBodyPtr rb = make_type(name, type);
+    rb->parse(bodyDefaults, body);
+    return (rb);
   }
 
   TagPtr RigidBody::findTag(int tagId, int bits) const {
@@ -210,7 +147,7 @@ namespace tagslam {
                              (sum.y()/cnt) * (sum.y()/cnt));
         gtsam::Point2 var = sumsq/cnt - meansq;
         double v = var.x() + var.y();
-        std::cout << "cam: " << cmap.first << " has sigma: " << std::sqrt(v) << std::endl;
+        //std::cout << "cam: " << cmap.first << " has sigma: " << std::sqrt(v) << std::endl;
         if (v > maxVariance) {
           maxVariance = v;
           maxCam = cmap.first;
@@ -264,6 +201,25 @@ namespace tagslam {
       }
     }
     return (rbv);
+  }
+
+  bool RigidBody::writeCommon(std::ostream &os, const std::string &prefix) const {
+    os << prefix << "- " << name << ":" << std::endl;
+    std::string pfix = prefix + "    ";
+    os << pfix << "type: " << type << std::endl;
+    os << pfix << "is_default_body: " <<
+      (isDefaultBody ? "true" : "false") << std::endl;
+    os << pfix << "is_static: " <<
+      (isStatic ? "true" : "false") << std::endl;
+    os << pfix << "default_tag_size: " << defaultTagSize << std::endl;
+    if (isStatic) {
+      os << pfix << "pose:" << std::endl;;
+      PoseNoise smallNoise = makePoseNoise(0.001, 0.001);
+      yaml_utils::write_pose(os, pfix + "  ", poseEstimate, smallNoise,
+                             hasPosePrior);
+      // TODO: poseEstimate.getNoise());
+    }
+    return (true);
   }
 
 }  // namespace

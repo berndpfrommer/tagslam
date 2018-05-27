@@ -10,6 +10,8 @@
 #include <ros/ros.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Point3.h>
+#include <iostream>
+#include <string>
 
 namespace tagslam {
   // computes a pose (rotation vector, translation) via homography
@@ -20,6 +22,16 @@ namespace tagslam {
     bool get_pose_and_noise(XmlRpc::XmlRpcValue pose_and_noise,
                             gtsam::Pose3 *pose, PoseNoise *noise,
                             double defPosNoise = 0, double defRotNoise = 0);
+    void write_pose(std::ostream &of, const std::string &prefix,
+                    const gtsam::Pose3 &pose,
+                    const PoseNoise &n, bool writeNoise);
+    template <typename T>
+    T parse(XmlRpc::XmlRpcValue xml, const std::string key, const T &def) {
+      if (xml.hasMember(key)) {
+        return (static_cast<T>(xml[key]));
+      }
+      return (def);
+    }
   }
 }
 

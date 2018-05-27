@@ -34,6 +34,17 @@ namespace tagslam {
       }
     }
 
+    static void write_vec(std::ostream &of,
+                          const std::string &prefix,
+                          double x, double y, double z) {
+      const int p(8);
+      of.precision(p);
+      of << prefix << "x: " << std::fixed << x << std::endl;
+      of << prefix << "y: " << std::fixed << y << std::endl;
+      of << prefix << "z: " << std::fixed << z << std::endl;
+    }
+
+
     bool get_pose_and_noise(XmlRpc::XmlRpcValue pose_and_noise,
                             gtsam::Pose3 *pose, PoseNoise *noise,
                             double defPosNoise, double defRotNoise) {
@@ -69,6 +80,25 @@ namespace tagslam {
       }
       *noise = makePoseNoise(rotnoise, posnoise);
       return (nfound == 2);
+    }
+ 
+    void write_pose(std::ostream &of, const std::string &prefix,
+                    const gtsam::Pose3 &pose,
+                    const PoseNoise &n, bool writeNoise) {
+      gtsam::Vector r = gtsam::Rot3::Logmap(pose.rotation());
+      gtsam::Vector t(pose.translation());
+      const std::string pps = prefix + "  ";
+      of << prefix << "center:" << std::endl;
+      write_vec(of, pps, t(0), t(1), t(2));
+      of << prefix << "rotvec:" << std::endl;
+      write_vec(of, pps, r(0), r(1), r(2));
+      if (writeNoise) {
+        gtsam::Vector nvec = n->sigmas();
+        of << prefix << "position_noise:" << std::endl;
+        write_vec(of, pps, nvec(3),nvec(4),nvec(5));
+        of << prefix << "rotation_noise:" << std::endl;
+        write_vec(of, pps, nvec(0),nvec(1),nvec(2));
+      }
     }
 
   }

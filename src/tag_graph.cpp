@@ -27,10 +27,7 @@ namespace tagslam {
                                          gtsam::Point3,
                                          gtsam::Cal3DS2> ProjectionFactor;
   using boost::irange;
-  // tag corners in object coordinates
-  static const gtsam::Symbol sym_X_o_i(int tagType, int corner) {
-    return (gtsam::Symbol('r', tagType * 4 + corner));
-  }
+
   // transform from object (tag) coordinate space to static object
   static const gtsam::Symbol sym_T_b_o(int tagId) {
     return (gtsam::Symbol('t', tagId));
@@ -67,12 +64,21 @@ namespace tagslam {
     return (frame_num);
   }
 
+  TagGraph::TagGraph() {
+    pixelNoise_= gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
+  }
+
+  void TagGraph::setPixelNoise(double numPix) {
+    pixelNoise_ = gtsam::noiseModel::Isotropic::Sigma(2, numPix);
+  }
+
   int TagGraph::getMaxNumBodies() const {
     return (MAX_BODY_ID);
   }
+
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
-    IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
     for (const auto &tag: tags) {
+      //std::cout << "TagGraph: adding tag: " << tag->id << std::endl;
       gtsam::Pose3   tagPose  = tag->poseEstimate;
       PoseNoise tagNoise = tag->poseEstimate.getNoise();
       // ----- insert transform T_b_o and pin it down with prior factor if known
@@ -85,14 +91,10 @@ namespace tagslam {
       if (tag->hasKnownPose) {
         graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_b_o_sym, tagPose, tagNoise));
       }
-      // just make sure the corners are there!
-      for (const auto i: irange(0, 4)) {
-        insertTagType(tag, i);
-      }
     }
   }
 
-  double distance(const gtsam::Point3 &p1, const gtsam::Point3 p2, gtsam::OptionalJacobian<1, 3> H1 = boost::none,
+  double distance(const gtsam::Point3 &p1, const gtsam::Point3 &p2, gtsam::OptionalJacobian<1, 3> H1 = boost::none,
                   gtsam::OptionalJacobian<1, 3> H2 = boost::none) {
     const gtsam::Point3 d = p1-p2;
     double r = sqrt(d.x() * d.x() + d.y() * d.y() + d.z() * d.z());
@@ -100,40 +102,109 @@ namespace tagslam {
     if (H2) *H2 << -d.x() / r, -d.y() / r, -d.z() / r;
     return r;
   }
-  void
+
+  bool
   TagGraph::addDistanceMeasurement(const RigidBodyPtr &rb1,
                                    const RigidBodyPtr &rb2,
+                                   const TagConstPtr &tag1,
+                                   const TagConstPtr &tag2,
                                    const DistanceMeasurement &dm) {
     if (!rb1->isStatic || !rb2->isStatic) {
       std::cout << "TagGraph ERROR: non-rigid body has tag measurement!" << std::endl;
-      return;
+      return (false);
     }
-    gtsam::Expression<gtsam::Pose3>  T_w_b_1(sym_T_w_b(rb1->index, 0));
-    gtsam::Expression<gtsam::Pose3>  T_b_o_1(sym_T_b_o(dm.tag1));
-    gtsam::Expression<gtsam::Point3> X_o_1(sym_X_o_i(dm.tag1, dm.corner1));
+    const auto T_w_b1_sym = sym_T_w_b(rb1->index, 0);
+    const auto T_w_b2_sym = sym_T_w_b(rb2->index, 0);
+    const auto T_b1_o_sym = sym_T_b_o(tag1->id);
+    const auto T_b2_o_sym = sym_T_b_o(tag2->id);
+
+    if (!values_.exists(T_w_b1_sym) || !values_.exists(T_w_b2_sym) ||
+        !values_.exists(T_b1_o_sym) || !values_.exists(T_b2_o_sym)) {
+      //std::cout << "TagGraph: NOT adding rb measurement: " << dm.tag1 << " to " << dm.tag2 << std::endl;
+      return (false);
+    } else {
+      std::cout << "TagGraph adding rb measurement: " << dm.tag1 << " to " << dm.tag2 << std::endl;
+    }
+    gtsam::Expression<gtsam::Pose3>  T_w_b_1(T_w_b1_sym);
+    gtsam::Expression<gtsam::Pose3>  T_b_o_1(T_b1_o_sym);
+    gtsam::Expression<gtsam::Point3> X_o_1(tag1->getObjectCorner(dm.corner1));
     gtsam::Expression<gtsam::Point3> X_w_1 = gtsam::transform_from(T_w_b_1, gtsam::transform_from(T_b_o_1, X_o_1));
     
-    gtsam::Expression<gtsam::Pose3>  T_w_b_2(sym_T_w_b(rb2->index, 0));
-    gtsam::Expression<gtsam::Pose3>  T_b_o_2(sym_T_b_o(dm.tag2));
-    gtsam::Expression<gtsam::Point3> X_o_2(sym_X_o_i(dm.tag2, dm.corner2));
+    gtsam::Expression<gtsam::Pose3>  T_w_b_2(T_w_b2_sym);
+    gtsam::Expression<gtsam::Pose3>  T_b_o_2(T_b2_o_sym);
+    gtsam::Expression<gtsam::Point3> X_o_2(tag2->getObjectCorner(dm.corner2));
     gtsam::Expression<gtsam::Point3> X_w_2 = gtsam::transform_from(T_w_b_2, gtsam::transform_from(T_b_o_2, X_o_2));
 
     gtsam::Expression<double> dist = gtsam::Expression<double>(&distance, X_w_1, X_w_2);
     graph_.addExpressionFactor(dist, dm.distance, gtsam::noiseModel::Isotropic::Sigma(1, dm.noise));
+    return (true);
   }
 
-  gtsam::Point3 TagGraph::insertTagType(const TagConstPtr &tag, int corner) {
-    gtsam::Symbol       X_o_i = sym_X_o_i(tag->type, corner);
-    const gtsam::Point3 X = tag->getObjectCorner(corner);
-    if (values_.find(X_o_i) == values_.end()) {
-      // This is the tag corner position in object coordinates.
-      // If all tags are the same size(type), there are only 4 corners
-      // in the whole graph!
-      IsotropicNoisePtr objNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
-      graph_.push_back(gtsam::PriorFactor<gtsam::Point3>(X_o_i, X, objNoise));
-      values_.insert(X_o_i, X);
+  double proj(const gtsam::Point3 &p, const gtsam::Point3 &n, gtsam::OptionalJacobian<1, 3> Hp = boost::none,
+              gtsam::OptionalJacobian<1,3> Hn = boost::none) {
+    double r = p.x() * n.x() + p.y() * n.y() + p.z() * n.z();
+    if (Hp) *Hp << n.x(), n.y(), n.z();
+    if (Hn) *Hn << p.x(), p.y(), p.z();
+    return r;
+  }
+
+  std::pair<gtsam::Point3, bool>
+  TagGraph::getDifference(const RigidBodyPtr &rb1, const RigidBodyPtr &rb2,
+                          const TagConstPtr &tag1, int corner1,
+                          const TagConstPtr &tag2, int corner2) const {
+    const auto T_w_b1_sym = sym_T_w_b(rb1->index, 0);
+    const auto T_w_b2_sym = sym_T_w_b(rb2->index, 0);
+    const auto T_b1_o_sym = sym_T_b_o(tag1->id);
+    const auto T_b2_o_sym = sym_T_b_o(tag2->id);
+
+    if (!values_.exists(T_w_b1_sym) || !values_.exists(T_w_b2_sym) ||
+        !values_.exists(T_b1_o_sym) || !values_.exists(T_b2_o_sym)) {
+      return (std::pair<gtsam::Point3,bool>(gtsam::Point3(), false));
     }
-    return (X);
+    const gtsam::Point3 X_w_1 = values_.at<gtsam::Pose3>(T_w_b1_sym) *
+      values_.at<gtsam::Pose3>(T_b1_o_sym) * tag1->getObjectCorner(corner1);
+    const gtsam::Point3 X_w_2 = values_.at<gtsam::Pose3>(T_w_b2_sym) *
+      values_.at<gtsam::Pose3>(T_b2_o_sym) * tag2->getObjectCorner(corner2);
+    return (std::pair<gtsam::Point3,bool>(X_w_1 - X_w_2, true));
+  }
+
+
+  bool
+  TagGraph::addPositionMeasurement(const RigidBodyPtr &rb,
+                                   const TagConstPtr &tag,
+                                   const PositionMeasurement &m) {
+    if (!rb->isStatic) {
+      std::cout << "TagGraph ERROR: non-rigid body has position measurement!" << std::endl;
+      return (false);
+    }
+    const auto T_w_b_sym = sym_T_w_b(rb->index, 0);
+    const auto T_b_o_sym = sym_T_b_o(tag->id);
+    if (!values_.exists(T_w_b_sym) || !values_.exists(T_b_o_sym)) {
+      return (false);
+    }
+    std::cout << "TagGraph adding position measurement: " << m.tag << std::endl;
+    gtsam::Expression<gtsam::Pose3>  T_w_b(T_w_b_sym);
+    gtsam::Expression<gtsam::Pose3>  T_b_o(T_b_o_sym);
+    gtsam::Expression<gtsam::Point3> X_o(tag->getObjectCorner(m.corner));
+    gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
+    gtsam::Expression<gtsam::Point3> n(m.dir);
+    gtsam::Expression<double> len = gtsam::Expression<double>(&proj, X_w, n);
+    graph_.addExpressionFactor(len, m.length, gtsam::noiseModel::Isotropic::Sigma(1, m.noise));
+    return (true);
+  }
+
+  std::pair<gtsam::Point3, bool>
+  TagGraph::getPosition(const RigidBodyPtr &rb, const TagConstPtr &tag,
+                        int corner) const {
+    const auto T_w_b_sym = sym_T_w_b(rb->index, 0);
+    const auto T_b_o_sym = sym_T_b_o(tag->id);
+
+    if (!values_.exists(T_w_b_sym) || !values_.exists(T_b_o_sym)) {
+      return (std::pair<gtsam::Point3,bool>(gtsam::Point3(), false));
+    }
+    const gtsam::Point3 X_w = values_.at<gtsam::Pose3>(T_w_b_sym) *
+      values_.at<gtsam::Pose3>(T_b_o_sym) * tag->getObjectCorner(corner);
+    return (std::pair<gtsam::Point3,bool>(X_w, true));
   }
 
   PoseEstimate
@@ -170,16 +241,14 @@ namespace tagslam {
       values_.insert(T_w_c_sym, cam->poseEstimate.getPose());
     }
 
-    IsotropicNoisePtr pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
-    IsotropicNoisePtr smallNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1e-4);
-
     gtsam::Expression<Cal3DS2U> cK(*cam->gtsamCameraModel);
 
     gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
     if (!values_.exists(T_w_b_sym)) {
       const auto &pe = rb->poseEstimate;
       values_.insert(T_w_b_sym, pe.getPose());
-      if (rb->isStatic) {
+      if (rb->isStatic && rb->hasPosePrior) {
+        std::cout << "TagGraph: adding prior for body: " << rb->name << std::endl;
         graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_b_sym,
                                                           pe.getPose(), pe.getNoise()));
       }
@@ -194,12 +263,12 @@ namespace tagslam {
       gtsam::Expression<gtsam::Pose3>  T_w_b(T_w_b_sym);
       gtsam::Expression<gtsam::Pose3>  T_w_c(T_w_c_sym);
       for (const auto i: irange(0, 4)) {
-        gtsam::Expression<gtsam::Point3> X_o(sym_X_o_i(tag->type, i));
+        gtsam::Expression<gtsam::Point3> X_o(tag->getObjectCorner(i));
         // transform_from does X_A = T_AB * X_B
         gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
         gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_w_c, X_w));
         gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
-        graph_.addExpressionFactor(predict, measured[i], pixelNoise);
+        graph_.addExpressionFactor(predict, measured[i], pixelNoise_);
       }
     }
   }
@@ -220,10 +289,12 @@ namespace tagslam {
                                    const gtsam::Values &values,
                                    const std::string &verbosity, int maxIter) {
       gtsam::LevenbergMarquardtParams lmp;
-      lmp.setVerbosity(verbosity);
+      //lmp.setVerbosity(verbosity);
+      lmp.setVerbosity("TERMINATION");
       lmp.setMaxIterations(maxIter);
       lmp.setAbsoluteErrorTol(1e-10);
       lmp.setRelativeErrorTol(0);
+      //lmp.setlambdaUpperBound(1e20);
       gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
       *result = lmo.optimize();
       double ni = numProjectionFactors_ > 0 ? 1.0/numProjectionFactors_ : 1.0;
