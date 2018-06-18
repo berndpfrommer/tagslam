@@ -13,6 +13,7 @@
 #include "tagslam/pose_estimate.h"
 #include "tagslam/pose_noise.h"
 #include <gtsam/nonlinear/Values.h>
+#include <gtsam/nonlinear/Marginals.h>
 #include <gtsam/nonlinear/ExpressionFactorGraph.h>
 #include <gtsam/inference/Symbol.h>
 #include <gtsam/geometry/Cal3DS2.h>
@@ -49,6 +50,7 @@ namespace tagslam {
                       const TagVec &tags,
                       unsigned int frame_num);
     void optimize();
+    void computeMarginals();
 
     PoseEstimate getCameraPose(const CameraPtr &cam,
                                unsigned int frame_num) const;
@@ -58,7 +60,7 @@ namespace tagslam {
     
     PoseEstimate getTagWorldPose(const RigidBodyConstPtr &rb,
                                  int tagId, unsigned int frame_num) const;
-    bool getBodyPose(const RigidBodyConstPtr &rb, gtsam::Pose3 *pose,
+    bool getBodyPose(const RigidBodyConstPtr &rb, PoseEstimate *pe,
                      unsigned int frame) const;
     void printDistances() const;
 
@@ -85,6 +87,7 @@ namespace tagslam {
     double                        optimizerError_{0};
     int                           numProjectionFactors_{0};
     int                           optimizerIterations_{0};
+    std::unique_ptr<gtsam::Marginals> marginals_;
   };
 }
 

@@ -7,6 +7,7 @@
 #include "tagslam/tag.h"
 #include "tagslam/yaml_utils.h"
 #include "tagslam/rigid_body.h"
+#include "tagslam/bag_sync.h"
 #include <XmlRpcException.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -41,6 +42,7 @@ namespace tagslam {
     double pixNoise;
     nh_.param<double>("corner_measurement_error", pixNoise, 2.0);
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
+    nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<double>("max_initial_reprojection_error", maxInitialReprojError_, 100.0);
     ROS_INFO_STREAM("setting pixel noise to: " << pixNoise);
     tagGraph_.setPixelNoise(pixNoise);
@@ -321,14 +323,18 @@ namespace tagslam {
       cam->poseEstimate = tagGraph_.getCameraPose(cam, frame);
     }
     for (const auto &rb: allBodies_) {
-      gtsam::Pose3 p;
-      if (tagGraph_.getBodyPose(rb, &p, frame)) {
+      PoseEstimate pe;
+      if (tagGraph_.getBodyPose(rb, &pe, frame)) {
         //std::cout << "UPDATE: body " << rb->name << " from " << std::endl;
         //std::cout << rb->poseEstimate.getPose() << std::endl << " to: " << std::endl;
-        rb->poseEstimate.setPose(p);
+        
+        //rb->poseEstimate.setPose(p);
+        rb->poseEstimate = pe;
         //std::cout << rb->poseEstimate << std::endl;
       } else {
         if (!rb->isStatic) {
+          // mark pose estimate of dynamic bodies as invalid
+          // because it will change from frame to frame
           rb->poseEstimate = PoseEstimate();//invalid
         }
       }
@@ -552,7 +558,7 @@ namespace tagslam {
     broadcastBodyPoses(t);
     broadcastTagPoses(t);
     writeBodyPoses(tagPosesOutFile_);
-    writeTagWorldPoses(tagWorldPosesOutFile_);
+    writeTagWorldPoses(tagWorldPosesOutFile_, frameNum_);
     writeMeasurements(measurementsOutFile_, distances, positions);
     ROS_INFO_STREAM("frame " << frameNum_ << " total tags: " << allTags_.size()
                     << " obs: " << nobs << " err: " << tagGraph_.getError()
@@ -888,12 +894,12 @@ namespace tagslam {
     }
   }
 
-  void TagSlam::writeTagWorldPoses(const std::string &poseFile) const {
+  void TagSlam::writeTagWorldPoses(const std::string &poseFile, unsigned int frameNum) const {
     std::ofstream pf(poseFile);
     for (const auto &rb : allBodies_) {
       for (const auto &tm: rb->tags) {
         const auto &tag = tm.second;
-        const PoseEstimate pe = tagGraph_.getTagWorldPose(rb, tag->id, frameNum_);
+        const PoseEstimate pe = tagGraph_.getTagWorldPose(rb, tag->id, frameNum);
         if (pe.isValid()) {
           pf << "- id: "   << tag->id << std::endl;
           pf << "  size: " << tag->size << std::endl;
@@ -1126,128 +1132,14 @@ namespace tagslam {
     processTags(msgvec1);
   }
 
-  template <class T>
-  class BagSync {
-      typedef boost::shared_ptr<T const> ConstPtr;
-  public:
-    BagSync(const std::vector<std::string> &topics,
-            const std::function<void(const std::vector<ConstPtr> &)> &callback)
-      : topics_(topics),
-        callback_(callback)
-      {
-    }
-    bool process(const rosbag::MessageInstance &m) {
-      boost::shared_ptr<T> msg = m.instantiate<T>();
-      if (msg) {
-        if (msg->header.stamp > currentTime_) {
-          if (msgMap_.size() == topics_.size()) {
-            std::vector<ConstPtr> msgVec;
-            for (const auto &m: msgMap_) {
-              msgVec.push_back(m.second);
-            }
-            callback_(msgVec);
-          }
-          msgMap_.clear();
-          currentTime_ = msg->header.stamp;
-        }
-        msgMap_[m.getTopic()] = msg;
-      }
-    }
-    const ros::Time &getCurrentTime() { return (currentTime_); }
-  private:
-    ros::Time currentTime_{0.0};
-    std::map<std::string, ConstPtr> msgMap_;
-    std::vector<std::string> topics_;
-    std::function<void(const std::vector<ConstPtr> &)> callback_;
-  };
-
-  template <typename T1, typename T2>
-  class BagSync2 {
-    typedef boost::shared_ptr<T1 const> ConstPtr1;
-    typedef boost::shared_ptr<T2 const> ConstPtr2;
-    typedef  std::map<std::string, std::map<ros::Time,ConstPtr1>> MsgMap1;
-    typedef  std::map<std::string, std::map<ros::Time,ConstPtr2>> MsgMap2;
-  public:
-    BagSync2(const std::vector<std::string> &topics1,
-             const std::vector<std::string> &topics2,
-             const std::function<void(const std::vector<ConstPtr1> &, const std::vector<ConstPtr2>&)> &callback)
-      : topics1_(topics1), topics2_(topics2), callback_(callback)
-      {
-        for (const auto &topic: topics1_) {
-          msgMap1_[topic] = std::map<ros::Time, ConstPtr1>();
-        }
-        for (const auto &topic: topics2_) {
-          msgMap2_[topic] = std::map<ros::Time, ConstPtr2>();
-        }
-      }
-    
-    template<typename T>
-    static std::vector<boost::shared_ptr<T const>>  makeVec(const ros::Time &t,
-      std::map<std::string, std::map<ros::Time, boost::shared_ptr<T const> >> *topicToQueue) {
-
-      std::vector<boost::shared_ptr<T const>> mvec;
-      for (auto &queue: *topicToQueue) { // iterate over all topics
-        auto &t2m = queue.second; // time to message
-        while (t2m.begin()->first < t) {
-          t2m.erase(t2m.begin());
-        }
-        mvec.push_back(t2m.begin()->second);
-        t2m.erase(t2m.begin());
-      }
-      return (mvec);
-    }
-
-    void publishMessages(const ros::Time &t) {
-      std::vector<boost::shared_ptr<T1 const>> mvec1 = makeVec(t, &msgMap1_);
-      std::vector<boost::shared_ptr<T2 const>> mvec2 = makeVec(t, &msgMap2_);
-      callback_(mvec1, mvec2);
-    }
-    // have per-topic queue
-    // have time-to-count map
-    // if new message comes in, put it at head of its queue,
-    // and bump the time-to-count-map entry.
-    // if time-to-count-map entry is equal to number of topics:
-    //  - erase all time-to-count-map entries that are older
-    //  - erase all per-topic-queue entries that are older
-    //  - deliver callback
-    bool process(const rosbag::MessageInstance &m) {
-      boost::shared_ptr<T1> msg1 = m.instantiate<T1>();
-      boost::shared_ptr<T2> msg2 = m.instantiate<T2>();
-      if (!msg1 && !msg2) {
-        return (false);
-      }
-
-      const ros::Time t = msg1 ? msg1->header.stamp : msg2->header.stamp;
-      if (msg1) {
-        msgMap1_[m.getTopic()][t] = msg1;
-      } else {
-        msgMap2_[m.getTopic()][t] = msg2;
-      }
-      auto it = msgCount_.find(t);
-      if (it == msgCount_.end()) {
-        msgCount_.insert(CountMap::value_type(t, 1));
-        it = msgCount_.find(t);
-      } else {
-        it->second++;
-      }
-      if (it->second == topics1_.size() + topics2_.size()) {
-        currentTime_ = t;
-        publishMessages(t);  // also cleans out queues
-        it++;
-        msgCount_.erase(msgCount_.begin(), it);
-      }
-    }
-    const ros::Time &getCurrentTime() { return (currentTime_); }
-  private:
-    typedef std::map<ros::Time, int> CountMap;
-    ros::Time currentTime_{0.0};
-    CountMap msgCount_;
-    MsgMap1  msgMap1_;
-    MsgMap2  msgMap2_;
-    std::vector<std::string> topics1_, topics2_;
-    std::function<void(const std::vector<ConstPtr1> &,
-                       const std::vector<ConstPtr2> &)> callback_;
-  };
+  void TagSlam::finalize() {
+    unsigned int frameNum = (unsigned int)std::max(0, (int)frameNum_ - 1);
+    tagGraph_.computeMarginals();
+    updatePosesFromGraph(frameNum);
+    writeBodyPoses(tagPosesOutFile_);
+    writeTagWorldPoses(tagWorldPosesOutFile_, frameNum);
+    writeMeasurements(measurementsOutFile_, getDistances(), getPositions());
+  }
 
 
   void TagSlam::playFromBag(const std::string &fname) {
@@ -1304,6 +1196,7 @@ namespace tagslam {
       }
     }
     bag.close();
+    finalize();
   }
   
 }  // namespace

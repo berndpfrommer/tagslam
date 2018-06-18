@@ -273,15 +273,25 @@ namespace tagslam {
     }
   }
 
-  bool TagGraph::getBodyPose(const RigidBodyConstPtr &rb, gtsam::Pose3 *pose,
+  bool TagGraph::getBodyPose(const RigidBodyConstPtr &rb, PoseEstimate *pe,
                              unsigned int frame) const {
     const auto T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic? 0 : frame);
     if (values_.find(T_w_b_sym) != values_.end()) {
-      *pose = values_.at<gtsam::Pose3>(T_w_b_sym);
+      gtsam::Pose3 pose = values_.at<gtsam::Pose3>(T_w_b_sym);
+      if (marginals_) {
+        const auto &noiseMat = marginals_->marginalCovariance(T_w_b_sym);
+        *pe = PoseEstimate(pose, 0.0, 0, gtsam::noiseModel::Gaussian::Covariance(noiseMat));
+      } else {
+        *pe = PoseEstimate(pose, 0.0, 0);
+      }
       return (true);
     }
-    *pose = gtsam::Pose3();
+    *pe = PoseEstimate();
     return (false);;
+  }
+
+  void TagGraph::computeMarginals() {
+    marginals_.reset(new gtsam::Marginals(graph_, optimizedValues_));
   }
 
   double TagGraph::tryOptimization(gtsam::Values *result,
@@ -311,6 +321,9 @@ namespace tagslam {
     if (values_.find(T_b_o_sym) != values_.end()) {
       const auto T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0:frame_num);
       if (values_.find(T_w_b_sym) != values_.end()) {
+        // T_w_o = T_w_b * T_b_o
+        // cov(T_w_o, T_w_o) = sum (R_w_b*x) (R_w_b*x)T
+        // = R_w_b * cov(T_b_o) * R_w_b^T
         gtsam::Pose3 T_w_o = values_.at<gtsam::Pose3>(T_w_b_sym) *
           values_.at<gtsam::Pose3>(T_b_o_sym);
         pe = PoseEstimate(T_w_o, 0.0, 0);
