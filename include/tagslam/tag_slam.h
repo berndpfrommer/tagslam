@@ -146,6 +146,7 @@ namespace tagslam {
     void updatePosesFromGraph(unsigned int frame_num);
     void writeBodyPoses(const std::string &poseFile) const;
     void writeTagWorldPoses(const std::string &poseFile, unsigned int frameNum) const;
+    void writeStaticCameraPoses(const std::string &fname) const;
     void playFromBag(const std::string &fname);
     bool readRigidBodies();
     void readMeasurements(const std::string &type);
@@ -194,8 +195,9 @@ namespace tagslam {
     bool                                          writeDebugImages_{false};
     double                                        maxInitialReprojError_{1e3};
     tf::TransformBroadcaster                      tfBroadcaster_;
-    std::string                                   tagPosesOutFile_;
+    std::string                                   bodyPosesOutFile_;
     std::string                                   tagWorldPosesOutFile_;
+    std::string                                   staticCameraPosesOutFile_;
     std::string                                   measurementsOutFile_;
     std::string                                   fixedFrame_;
     double                                        viewingAngleThreshold_;

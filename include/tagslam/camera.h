@@ -26,6 +26,7 @@ namespace tagslam {
     std::string       rostopic;
     std::string       tagtopic;
     bool              isStatic{false};
+    bool              worldPoseKnown{false};
     PoseEstimate      poseEstimate; // T_w_c
     gtsam::Pose3      optimizedPose;
     int               lastFrameNumber{-1};

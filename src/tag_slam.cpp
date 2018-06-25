@@ -44,6 +44,17 @@ namespace tagslam {
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<double>("max_initial_reprojection_error", maxInitialReprojError_, 100.0);
+    nh_.param<std::string>("body_poses_out_file", bodyPosesOutFile_,
+                           "body_poses_out.yaml");
+    nh_.param<std::string>("tag_world_poses_out_file",
+                           tagWorldPosesOutFile_,
+                           "tag_world_poses_out.yaml");
+    nh_.param<std::string>("measurements_out_file",
+                           measurementsOutFile_,
+                           "measurements.yaml");
+    nh_.param<std::string>("static_camera_poses_out_file",
+                           staticCameraPosesOutFile_,
+                           "static_camera_poses.yaml");
     ROS_INFO_STREAM("setting pixel noise to: " << pixNoise);
     tagGraph_.setPixelNoise(pixNoise);
     cameras_ = Camera::parse_cameras(nh_);
@@ -114,14 +125,6 @@ namespace tagslam {
     XmlRpc::XmlRpcValue bodies, body_defaults;
     nh_.getParam("tag_poses/bodies", bodies);
     nh_.getParam("tag_poses/body_defaults", body_defaults);
-    nh_.param<std::string>("tag_poses_out_file", tagPosesOutFile_,
-                           "poses_out.yaml");
-    nh_.param<std::string>("tag_world_poses_out_file",
-                           tagWorldPosesOutFile_,
-                           "tag_world_poses_out.yaml");
-    nh_.param<std::string>("measurements_out_file",
-                           measurementsOutFile_,
-                           "measurements.yaml");
     if (bodies.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
       ROS_ERROR("cannot find bodies in yaml file!");
       return (false);
@@ -557,7 +560,7 @@ namespace tagslam {
     broadcastCameraPoses(t);
     broadcastBodyPoses(t);
     broadcastTagPoses(t);
-    writeBodyPoses(tagPosesOutFile_);
+    writeBodyPoses(bodyPosesOutFile_);
     writeTagWorldPoses(tagWorldPosesOutFile_, frameNum_);
     writeMeasurements(measurementsOutFile_, distances, positions);
     ROS_INFO_STREAM("frame " << frameNum_ << " total tags: " << allTags_.size()
@@ -1056,6 +1059,20 @@ namespace tagslam {
     }
   }
 
+  void TagSlam::writeStaticCameraPoses(const std::string &fname) const {
+    std::ofstream f(fname);
+    for (const auto &cam : cameras_) {
+      if (cam->isStatic) {
+        f << cam->name << ":" << std::endl;
+        PoseEstimate pe = tagGraph_.getCameraPose(cam, 0 /*frame num */);
+        if (pe.isValid()) {
+          yaml_utils::write_pose_with_covariance(f, "  ", pe.getPose(), pe.getNoise());
+        }
+      }
+    }
+  }
+    
+
   void TagSlam::callback1(TagArrayConstPtr const &tag0) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0};
     processTags(msg_vec);
@@ -1136,9 +1153,10 @@ namespace tagslam {
     unsigned int frameNum = (unsigned int)std::max(0, (int)frameNum_ - 1);
     tagGraph_.computeMarginals();
     updatePosesFromGraph(frameNum);
-    writeBodyPoses(tagPosesOutFile_);
+    writeBodyPoses(bodyPosesOutFile_);
     writeTagWorldPoses(tagWorldPosesOutFile_, frameNum);
     writeMeasurements(measurementsOutFile_, getDistances(), getPositions());
+    writeStaticCameraPoses(staticCameraPosesOutFile_);
   }
 
 
@@ -1191,7 +1209,7 @@ namespace tagslam {
                    << tip.x() << " " << tip.y() << " " << tip.z() << std::endl;
         wand_poses << std::flush;
       }
-      if (frameNum_ > (unsigned int)maxFrameNum_) {
+      if (frameNum_ > (unsigned int)maxFrameNum_ || !ros::ok()) {
         break;
       }
     }

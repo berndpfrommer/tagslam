@@ -9,7 +9,7 @@
 
 namespace tagslam {
   //using PoseNoise = gtsam::noiseModel::Diagonal::shared_ptr;
-  using PoseNoise = gtsam::noiseModel::Base::shared_ptr;
+  using PoseNoise = gtsam::noiseModel::Gaussian::shared_ptr;
   PoseNoise makePoseNoise(const Eigen::Vector3d &a,
                                  const Eigen::Vector3d &p);
   PoseNoise makePoseNoise(double angle, double position);

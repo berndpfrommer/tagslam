@@ -210,10 +210,19 @@ namespace tagslam {
   PoseEstimate
   TagGraph::getCameraPose(const CameraPtr &cam,
                           unsigned int frame_num) const {
+    if (cam->worldPoseKnown) {
+      return (cam->poseEstimate);
+    }
     PoseEstimate pe;
     gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, cam->isStatic ? 0 : frame_num);
     if (values_.find(T_w_c_sym) != values_.end()) {
-      pe = PoseEstimate(values_.at<gtsam::Pose3>(T_w_c_sym), 0.0, 0);
+      gtsam::Pose3 pose = values_.at<gtsam::Pose3>(T_w_c_sym);
+      if (marginals_) {
+        const auto &noiseMat = marginals_->marginalCovariance(T_w_c_sym);
+        pe = PoseEstimate(pose, 0.0, 0, gtsam::noiseModel::Gaussian::Covariance(noiseMat));
+      } else {
+        pe = PoseEstimate(pose, 0.0, 0);
+      }
     }
     return (pe);
   }
@@ -235,10 +244,20 @@ namespace tagslam {
     if (!rb->poseEstimate.isValid()) {
       return;
     }
+    if (rb->hasPosePrior && cam->worldPoseKnown) {
+      // if both camera and body positions are fixed and known,
+      // there is no point adding measurements!
+      return;
+    }
+
     // new camera location
     gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, cam->isStatic ? 0 : frame_num);
     if (!values_.exists(T_w_c_sym)) {
       values_.insert(T_w_c_sym, cam->poseEstimate.getPose());
+      if (cam->worldPoseKnown) {
+        graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_c_sym, cam->poseEstimate.getPose(),
+                                                          cam->poseEstimate.getNoise()));
+      }
     }
 
     gtsam::Expression<Cal3DS2U> cK(*cam->gtsamCameraModel);
@@ -266,6 +285,7 @@ namespace tagslam {
         gtsam::Expression<gtsam::Point3> X_o(tag->getObjectCorner(i));
         // transform_from does X_A = T_AB * X_B
         gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
+        T_w_c = gtsam::Expression<gtsam::Pose3>(T_w_c_sym);
         gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_w_c, X_w));
         gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
         graph_.addExpressionFactor(predict, measured[i], pixelNoise_);
