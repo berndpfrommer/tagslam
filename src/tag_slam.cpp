@@ -643,7 +643,7 @@ namespace tagslam {
           ROS_INFO_STREAM("cam " << cam->name << " body: " << rb->name << " err: " << bodyCamStats[body_idx].avg());
         }
       }
-      if (img.rows > 0) {
+      if (img.rows > 0 && writeDebugImages_) {
         std::string fbase = "image_" + std::to_string(frameNum_) + "_";
         cv::imwrite(fbase + std::to_string(cam_idx) + ".jpg", img);
       }

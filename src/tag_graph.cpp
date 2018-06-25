@@ -326,7 +326,7 @@ namespace tagslam {
         // = R_w_b * cov(T_b_o) * R_w_b^T
         gtsam::Pose3 T_w_o = values_.at<gtsam::Pose3>(T_w_b_sym) *
           values_.at<gtsam::Pose3>(T_b_o_sym);
-        pe = PoseEstimate(T_w_o, 0.0, 0);
+        pe = PoseEstimate(T_w_o, 0.0, 0, makePoseNoise(0.005, 0.010));
       }
     }
     return (pe);
