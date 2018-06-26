@@ -414,14 +414,14 @@ namespace tagslam {
     std::cout << "------" << std::endl;
 #endif
     PoseEstimate pe = estimatePosePNP(cam_idx, wp, ip);
-    std::cout << "pnp pose estimate has error: " << pe.getError() << std::endl;
+    //std::cout << "pnp pose estimate has error: " << pe.getError() << std::endl;
     if (!pe.isValid()) {
       // PNP failed, try with a local graph
       const PoseEstimate &prevPose = cameras_[cam_idx]->poseEstimate;
       //std::cout << "running mini graph for cam " << cam_idx << " prev pose: " << std::endl << prevPose << std::endl;
       pe = initialPoseGraph_.estimateCameraPose(cameras_[cam_idx], wp, ip,
                                                 prevPose);
-      std::cout << "mini graph estimate err: " << pe.getError() << std::endl;
+      //std::cout << "mini graph estimate err: " << pe.getError() << std::endl;
       if (pe.getError() > maxInitialReprojError_) {
         ROS_WARN_STREAM("cannot find pose of camera " <<
                         cam_idx << " err: " << pe.getError());
@@ -530,32 +530,44 @@ namespace tagslam {
   }
         
   void TagSlam::processTags(const std::vector<TagArrayConstPtr> &msgvec) {
+    profiler_.reset();
+
     // check if any of the tags are new, and associate them
     // with a rigid body
     discoverTags(msgvec);
+    profiler_.record("discoverTags");
     // Sort the tags according to which bodies they
     // belong to. The observed tags are then hanging
     // off of the bodies, to be used subsequently
     const auto nobs = attachObservedTagsToBodies(msgvec);
+    profiler_.record("attachObservedTagsToBodies");
     // Go over all bodies and use tags with
     // established positions to determine camera poses
     findInitialCameraPoses();
+    profiler_.record("findInitialCameraPoses");
     // For dynamic and pose-free static bodies, find their
     // initial poses if any of their tags are observed
     findInitialBodyPoses();
+    profiler_.record("findInitialBodyPoses");
     // Any newly discovered tags can now be given
     // an initial pose, too.
     findInitialDiscoveredTagPoses();
+    profiler_.record("findInitialDiscoveredTagPoses");
     
     runOptimizer();
+    profiler_.record("runOptimizer");
     updatePosesFromGraph(frameNum_);
+    profiler_.record("updatePosesFromGraph");
     const auto distances = getDistances();
-    const auto positions = getPositions();
     printDistanceErrors(distances);
+    profiler_.record("printDistanceErrors");
+    const auto positions = getPositions();
     printPositionErrors(positions);
+    profiler_.record("printPositionErrors");
     computeProjectionError();
+    profiler_.record("computeProjectionError");
     detachObservedTagsFromBodies();
-
+    profiler_.record("detachObservedTagsFromBodies");
     ros::Time t = get_latest_time(msgvec);
     broadcastCameraPoses(t);
     broadcastBodyPoses(t);
@@ -567,6 +579,7 @@ namespace tagslam {
                     << " obs: " << nobs << " err: " << tagGraph_.getError()
                     << " iter: " << tagGraph_.getIterations());
     frameNum_++;
+    profiler_.record("writing");
     std::cout << std::flush;
   }
 
@@ -729,10 +742,10 @@ namespace tagslam {
       if (pe.isValid()) {
         rb->poseEstimate = pe;
         if (!rb->isStatic) {
-          std::cout << "updated dynamic body pose for " << rb->name << " to " << rb->poseEstimate << std::endl;
+          //std::cout << "updated dynamic body pose for " << rb->name << " to " << rb->poseEstimate << std::endl;
         }
         if (rb->isStatic) {
-          std::cout << "static body pose discovered for: " << rb->name << std::endl;
+          ROS_INFO_STREAM("static body pose discovered for: " << rb->name);
           // We encountered tags on a static body for the first time.
           // Any of these tags that have a known pose estimate can
           // be added to the graph and the global set of known tags.
@@ -1145,7 +1158,7 @@ namespace tagslam {
   }
   void TagSlam::processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
                                      const std::vector<ImageConstPtr> &msgvec2) {
-    processImages(msgvec2);
+    //processImages(msgvec2);
     processTags(msgvec1);
   }
 
@@ -1159,6 +1172,8 @@ namespace tagslam {
     writeStaticCameraPoses(staticCameraPosesOutFile_);
   }
 
+//#define TAGS_ONLY
+#define IMAGES_AND_TAGS
 
   void TagSlam::playFromBag(const std::string &fname) {
     rosbag::Bag bag;
@@ -1184,10 +1199,14 @@ namespace tagslam {
     }
     ROS_INFO_STREAM("start bag time: " << t0);
 
-    BagSync2<TagArray, Image> tagImageSync(tagTopics, imageTopics,
-                                           std::bind(&TagSlam::processTagsAndImages, this,
-                                                     std::placeholders::_1, std::placeholders::_2));
-    //BagSync<TagArray> tagSync(tagTopics, std::bind(&TagSlam::processTags, this, std::placeholders::_1));
+#ifdef IMAGES_AND_TAGS
+    BagSync2<TagArray, Image> sync(tagTopics, imageTopics,
+                                   std::bind(&TagSlam::processTagsAndImages, this,
+                                             std::placeholders::_1, std::placeholders::_2));
+#endif
+#ifdef TAGS_ONLY
+    BagSync<TagArray> sync(tagTopics, std::bind(&TagSlam::processTags, this, std::placeholders::_1));
+#endif    
 
     //BagSync<TagArray> tagSync(tagTopics,  std::bind(&SyncMerge::processSync1, &syncMerge, std::placeholders::_1));
     //BagSync<Image> imageSync(imageTopics, std::bind(&SyncMerge::processSync2, &syncMerge, std::placeholders::_1));
@@ -1195,8 +1214,8 @@ namespace tagslam {
     std::ofstream wand_poses("wand_poses.txt");
     ros::Time lastTime(0.0);
     for (const rosbag::MessageInstance &m: view) {
-      tagImageSync.process(m);
-      const auto t = tagImageSync.getCurrentTime();
+      sync.process(m);
+      const auto t = sync.getCurrentTime();
       if (!dynamicBodies_.empty() && dynamicBodies_[0]->poseEstimate.isValid()
           && t != lastTime) {
         lastTime = t;
@@ -1215,6 +1234,7 @@ namespace tagslam {
     }
     bag.close();
     finalize();
+    std::cout << profiler_ << std::endl;
   }
   
 }  // namespace

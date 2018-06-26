@@ -327,7 +327,10 @@ namespace tagslam {
       //lmp.setlambdaUpperBound(1e20);
       gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
       *result = lmo.optimize();
-      double ni = numProjectionFactors_ > 0 ? 1.0/numProjectionFactors_ : 1.0;
+      //double ni = numProjectionFactors_ > 0 ? 1.0/numProjectionFactors_ : 1.0;
+      //double ni = graph.nrFactors() > 0 ? 1.0/graph.nrFactors() : 1.0;
+      std::cout << "nr factors: " << graph.nrFactors() << std::endl;
+      double ni = 1.0;
       optimizerError_ = lmo.error() * ni;
       optimizerIterations_ = lmo.iterations();
       return (optimizerError_);

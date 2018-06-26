@@ -136,6 +136,7 @@ namespace tagslam {
     
   }
 
+//#define DEBUG_BODY_POSE
   PoseEstimate
   InitialPoseGraph::estimateBodyPose(const CameraVec &cams,
                                      const ImageVec &imgs,
@@ -146,8 +147,10 @@ namespace tagslam {
     //analyze_pose(cams, imgs, false, frameNum, rb, initialPose);
     PoseEstimate pe; // defaults to invalid
     gtsam::ExpressionFactorGraph  graph;
+#ifdef DEBUG_BODY_POSE
     std::cout << "estimating body pose from cameras: " << rb->observedTags.size() << std::endl;
     std::cout << "initial guess pose: " << std::endl;
+#endif    
     print_pose(initialPose);
     // loop through all tags on body
     auto pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
@@ -159,18 +162,24 @@ namespace tagslam {
         continue;
       }
       gtsam::Pose3_ T_w_c  = cam->poseEstimate.getPose();
+#ifdef DEBUG_BODY_POSE
       std::cout << "camera " << cam_idx << " pose: " << std::endl;
       print_pose(cam->poseEstimate.getPose());
+#endif      
       std::vector<gtsam::Point3> bp;
       std::vector<gtsam::Point2> ip;
       rb->getAttachedPoints(cam_idx, &bp, &ip);
       // now add points to graph
       gtsam::Expression<Cal3DS2U> cK(*cam->gtsamCameraModel);
+#ifdef DEBUG_BODY_POSE
       std::cout << "cam points: " << std::endl;
       std::cout << "pts=[" << std::endl;
+#endif      
       for (const auto i: irange(0ul, bp.size())) {
         gtsam::Point3_ p(bp[i]);
+#ifdef DEBUG_BODY_POSE
         std::cout << bp[i].x() << "," << bp[i].y() << "," << bp[i].z() << "," << ip[i].x() << ", " << ip[i].y() << ";" << std::endl;
+#endif        
         //std::cout << "transform to camera: T_c_w= " << std::endl << cam->poseEstimate.getPose().inverse() << std::endl;
         //std::cout << "transformed point: p: " << std::endl << cam->poseEstimate.getPose().inverse().transform_to(bp[i]) << std::endl;
         // P_A = transform_from(T_AB, P_B)
@@ -178,13 +187,17 @@ namespace tagslam {
         gtsam::Point2_ predict(cK, &Cal3DS2U::uncalibrate, xp);
         graph.addExpressionFactor(predict, ip[i], pixelNoise);
       }
+#ifdef DEBUG_BODY_POSE
       std::cout << "];" << std::endl;
+#endif      
     }
     gtsam::Values initialValues;
     pe = optimizeGraph(initialPose, initialValues, &graph);
+#ifdef DEBUG_BODY_POSE    
     std::cout << "optimized graph pose T_w_b: " << std::endl;
     print_pose(pe.getPose());
     std::cout << "pose graph error: " << pe.getError() << std::endl;
+#endif    
     //std::cout << "----------------- analysis of final pose -----" << std::endl;
     //analyze_pose(cams, imgs, false, frameNum, rb, pe.getPose());
     return (pe);

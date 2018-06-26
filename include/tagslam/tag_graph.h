@@ -85,7 +85,6 @@ namespace tagslam {
     gtsam::ExpressionFactorGraph  graph_;
     std::map<std::string, int>    staticObjects_;
     double                        optimizerError_{0};
-    int                           numProjectionFactors_{0};
     int                           optimizerIterations_{0};
     std::unique_ptr<gtsam::Marginals> marginals_;
   };

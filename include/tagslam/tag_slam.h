@@ -11,6 +11,7 @@
 #include "tagslam/distance_measurement.h"
 #include "tagslam/position_measurement.h"
 #include "tagslam/initial_pose_graph.h"
+#include "tagslam/profiler.h"
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/Image.h>
@@ -202,6 +203,7 @@ namespace tagslam {
     std::string                                   fixedFrame_;
     double                                        viewingAngleThreshold_;
     double                                        initBodyPoseMaxError_;
+    Profiler                                      profiler_;
   };
 
 }
