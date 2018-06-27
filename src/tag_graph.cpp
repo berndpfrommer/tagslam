@@ -11,6 +11,7 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/ProjectionFactor.h>
 #include <gtsam/slam/ReferenceFrameFactor.h>
+#include <gtsam/nonlinear/ExpressionFactorGraph.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
 
@@ -77,6 +78,9 @@ namespace tagslam {
   }
 
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
+    gtsam::ExpressionFactorGraph graph;
+    gtsam::Values newValues;
+
     for (const auto &tag: tags) {
       //std::cout << "TagGraph: adding tag: " << tag->id << std::endl;
       gtsam::Pose3   tagPose  = tag->poseEstimate;
@@ -87,11 +91,13 @@ namespace tagslam {
         std::cout << "TagGraph ERROR: duplicate tag id inserted: " << tag->id << std::endl;
         return;
       }
-      values_.insert(T_b_o_sym, tagPose);
+      newValues.insert(T_b_o_sym, tagPose);
       if (tag->hasKnownPose) {
-        graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_b_o_sym, tagPose, tagNoise));
+        graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_b_o_sym, tagPose, tagNoise));
       }
     }
+    values_.insert(newValues);
+    graph_.update(graph, newValues);
   }
 
   double distance(const gtsam::Point3 &p1, const gtsam::Point3 &p2, gtsam::OptionalJacobian<1, 3> H1 = boost::none,
@@ -136,7 +142,10 @@ namespace tagslam {
     gtsam::Expression<gtsam::Point3> X_w_2 = gtsam::transform_from(T_w_b_2, gtsam::transform_from(T_b_o_2, X_o_2));
 
     gtsam::Expression<double> dist = gtsam::Expression<double>(&distance, X_w_1, X_w_2);
-    graph_.addExpressionFactor(dist, dm.distance, gtsam::noiseModel::Isotropic::Sigma(1, dm.noise));
+    gtsam::ExpressionFactorGraph graph;
+    graph.addExpressionFactor(dist, dm.distance, gtsam::noiseModel::Isotropic::Sigma(1, dm.noise));
+    
+    graph_.update(graph);
     return (true);
   }
 
@@ -189,7 +198,9 @@ namespace tagslam {
     gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
     gtsam::Expression<gtsam::Point3> n(m.dir);
     gtsam::Expression<double> len = gtsam::Expression<double>(&proj, X_w, n);
-    graph_.addExpressionFactor(len, m.length, gtsam::noiseModel::Isotropic::Sigma(1, m.noise));
+    gtsam::ExpressionFactorGraph graph;
+    graph.addExpressionFactor(len, m.length, gtsam::noiseModel::Isotropic::Sigma(1, m.noise));
+    graph_.update(graph);
     return (true);
   }
 
@@ -217,12 +228,7 @@ namespace tagslam {
     gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, cam->isStatic ? 0 : frame_num);
     if (values_.find(T_w_c_sym) != values_.end()) {
       gtsam::Pose3 pose = values_.at<gtsam::Pose3>(T_w_c_sym);
-      if (marginals_) {
-        const auto &noiseMat = marginals_->marginalCovariance(T_w_c_sym);
-        pe = PoseEstimate(pose, 0.0, 0, gtsam::noiseModel::Gaussian::Covariance(noiseMat));
-      } else {
-        pe = PoseEstimate(pose, 0.0, 0);
-      }
+      pe = getPoseEstimate(T_w_c_sym, pose);
     }
     return (pe);
   }
@@ -249,14 +255,15 @@ namespace tagslam {
       // there is no point adding measurements!
       return;
     }
-
+    gtsam::ExpressionFactorGraph graph;
+    gtsam::Values newValues;
     // new camera location
     gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, cam->isStatic ? 0 : frame_num);
     if (!values_.exists(T_w_c_sym)) {
-      values_.insert(T_w_c_sym, cam->poseEstimate.getPose());
+      newValues.insert(T_w_c_sym, cam->poseEstimate.getPose());
       if (cam->worldPoseKnown) {
-        graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_c_sym, cam->poseEstimate.getPose(),
-                                                          cam->poseEstimate.getNoise()));
+        graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_c_sym, cam->poseEstimate.getPose(),
+                                                         cam->poseEstimate.getNoise()));
       }
     }
 
@@ -265,10 +272,10 @@ namespace tagslam {
     gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
     if (!values_.exists(T_w_b_sym)) {
       const auto &pe = rb->poseEstimate;
-      values_.insert(T_w_b_sym, pe.getPose());
+      newValues.insert(T_w_b_sym, pe.getPose());
       if (rb->isStatic && rb->hasPosePrior) {
         std::cout << "TagGraph: adding prior for body: " << rb->name << std::endl;
-        graph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_b_sym,
+        graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_b_sym,
                                                           pe.getPose(), pe.getNoise()));
       }
     }
@@ -288,9 +295,20 @@ namespace tagslam {
         T_w_c = gtsam::Expression<gtsam::Pose3>(T_w_c_sym);
         gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_w_c, X_w));
         gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
-        graph_.addExpressionFactor(predict, measured[i], pixelNoise_);
+        graph.addExpressionFactor(predict, measured[i], pixelNoise_);
       }
     }
+    values_.insert(newValues);
+    graph_.update(graph, newValues);
+  }
+
+  PoseEstimate TagGraph::getPoseEstimate(const gtsam::Symbol &sym,
+                                         const gtsam::Pose3 &pose) const {
+    const auto cov = covariances_.find(sym);
+    if (cov != covariances_.end()) {
+      return (PoseEstimate(pose, 0.0, 0, gtsam::noiseModel::Gaussian::Covariance(cov->second)));
+    }
+    return (PoseEstimate(pose, 0.0, 0));
   }
 
   bool TagGraph::getBodyPose(const RigidBodyConstPtr &rb, PoseEstimate *pe,
@@ -298,12 +316,7 @@ namespace tagslam {
     const auto T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic? 0 : frame);
     if (values_.find(T_w_b_sym) != values_.end()) {
       gtsam::Pose3 pose = values_.at<gtsam::Pose3>(T_w_b_sym);
-      if (marginals_) {
-        const auto &noiseMat = marginals_->marginalCovariance(T_w_b_sym);
-        *pe = PoseEstimate(pose, 0.0, 0, gtsam::noiseModel::Gaussian::Covariance(noiseMat));
-      } else {
-        *pe = PoseEstimate(pose, 0.0, 0);
-      }
+      *pe = getPoseEstimate(T_w_b_sym, pose);
       return (true);
     }
     *pe = PoseEstimate();
@@ -311,28 +324,21 @@ namespace tagslam {
   }
 
   void TagGraph::computeMarginals() {
-    marginals_.reset(new gtsam::Marginals(graph_, optimizedValues_));
+    covariances_.clear();
+    for (const auto &v: optimizedValues_) {
+      covariances_[v.key] = graph_.marginalCovariance(v.key);
+    }
   }
 
   double TagGraph::tryOptimization(gtsam::Values *result,
-                                   const gtsam::NonlinearFactorGraph &graph,
+                                   const gtsam::ISAM2 &graph,
                                    const gtsam::Values &values,
                                    const std::string &verbosity, int maxIter) {
-      gtsam::LevenbergMarquardtParams lmp;
-      //lmp.setVerbosity(verbosity);
-      lmp.setVerbosity("TERMINATION");
-      lmp.setMaxIterations(maxIter);
-      lmp.setAbsoluteErrorTol(1e-10);
-      lmp.setRelativeErrorTol(0);
-      //lmp.setlambdaUpperBound(1e20);
-      gtsam::LevenbergMarquardtOptimizer lmo(graph, values, lmp);
-      *result = lmo.optimize();
-      //double ni = numProjectionFactors_ > 0 ? 1.0/numProjectionFactors_ : 1.0;
-      //double ni = graph.nrFactors() > 0 ? 1.0/graph.nrFactors() : 1.0;
-      std::cout << "nr factors: " << graph.nrFactors() << std::endl;
+      *result = graph.calculateEstimate();
       double ni = 1.0;
-      optimizerError_ = lmo.error() * ni;
-      optimizerIterations_ = lmo.iterations();
+      // XXX error calculation is probably incorrect
+      optimizerError_ = graph.error(graph.getDelta());
+      optimizerIterations_ = 1;
       return (optimizerError_);
   }
 

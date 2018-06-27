@@ -844,10 +844,9 @@ namespace tagslam {
       const auto &cam = cameras_[cam_idx];
       PoseEstimate pe = tagGraph_.getCameraPose(cam, frameNum_);
       if (pe.isValid()) {
-        const std::string frame_id = "cam_" + std::to_string(cam->index);
-        camPoseInfo.push_back(PoseInfo(pe, t, frame_id));
+        camPoseInfo.push_back(PoseInfo(pe, t, cam->frame_id));
         camOdomPub_[cam_idx].publish(make_odom(t, fixedFrame_,
-                                               frame_id, pe.getPose()));
+                                               cam->frame_id, pe.getPose()));
       }
     }
     broadcastTransforms(fixedFrame_, camPoseInfo);

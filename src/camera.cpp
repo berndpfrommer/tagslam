@@ -103,6 +103,7 @@ namespace tagslam {
       }
       CameraPtr camera(new Camera());
       camera->name = cam;
+      camera->frame_id = cam;
       camera->index = cam_idx;
       CameraIntrinsics &ci = camera->intrinsics;
       if (!nh.getParam(cam + "/camera_model",
@@ -115,6 +116,7 @@ namespace tagslam {
       if (!nh.getParam(cam + "/resolution",  ci.resolution)) { bombout("resolution", cam); }
       if (!nh.getParam(cam + "/rostopic",  camera->rostopic)) { bombout("rostopic", cam); }
       if (!nh.getParam(cam + "/tagtopic",  camera->tagtopic)) { bombout("tagtopic", cam); }
+      nh.getParam(cam + "/frame_id", camera->frame_id);
       nh.getParam(cam + "/is_static", camera->isStatic);
       if (parse_camera_pose(camera, nh))  {
         std::cout << "world pose known for camera " << cam << std::endl;
