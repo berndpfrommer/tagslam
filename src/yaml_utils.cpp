@@ -3,9 +3,12 @@
  */
 
 #include "tagslam/yaml_utils.h"
+#include <boost/range/irange.hpp>
 #include <XmlRpcException.h>
 
 namespace tagslam {
+  using boost::irange;
+
   static double read_field(XmlRpc::XmlRpcValue v) {
     double x = 0;
     try {
@@ -101,5 +104,32 @@ namespace tagslam {
       }
     }
 
+    void write_pose_with_covariance(std::ostream &of,
+                                    const std::string &prefix,
+                                    const gtsam::Pose3 &pose,
+                                    const PoseNoise &n) {
+      gtsam::Vector r = gtsam::Rot3::Logmap(pose.rotation());
+      gtsam::Vector t(pose.translation());
+      const std::string pps = prefix + "  ";
+      of << prefix << "position:" << std::endl;
+      write_vec(of, pps, t(0), t(1), t(2));
+      of << prefix << "rotvec:" << std::endl;
+      write_vec(of, pps, r(0), r(1), r(2));
+      of << prefix << "R:" << std::endl;
+      const auto &R = n->R();
+      of << prefix << "  [ ";
+      for (const auto i: irange(0l, R.rows())) {
+        for (const auto j: irange(0l, R.cols())) {
+          of << R(i, j);
+          if (i != R.rows() - 1 || j != R.cols() - 1) {
+            of << ", ";
+          }
+        }
+        if (i != R.rows() - 1) {
+          of << std::endl << prefix << "    ";
+        }
+      }
+      of << " ]" << std::endl;
+    }
   }
 }  // namespace

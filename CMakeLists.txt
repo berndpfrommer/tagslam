@@ -48,6 +48,7 @@ src/board.cpp
 src/pose_estimate.cpp
 src/distance_measurement.cpp
 src/position_measurement.cpp
+src/profiler.cpp
 src/tag_graph.cpp src/initial_pose_graph.cpp
 src/gtsam_equidistant/Cal3FS2.cpp
 )

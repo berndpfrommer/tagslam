@@ -13,8 +13,7 @@
 #include "tagslam/pose_estimate.h"
 #include "tagslam/pose_noise.h"
 #include <gtsam/nonlinear/Values.h>
-#include <gtsam/nonlinear/Marginals.h>
-#include <gtsam/nonlinear/ExpressionFactorGraph.h>
+#include <gtsam/nonlinear/ISAM2.h>
 #include <gtsam/inference/Symbol.h>
 #include <gtsam/geometry/Cal3DS2.h>
 #include <opencv2/core/core.hpp>
@@ -72,22 +71,25 @@ namespace tagslam {
     std::pair<gtsam::Point3, bool>
     getPosition(const RigidBodyPtr &rb, const TagConstPtr &tag,
                 int corner) const;
+    PoseEstimate getPoseEstimate(const gtsam::Symbol &sym,
+                                 const gtsam::Pose3 &pose) const;
+
   private:
     bool findInitialTagPose(const Tag &tag, gtsam::Pose3 *pose,
                             PoseNoise *noise) const;
     double tryOptimization(gtsam::Values *result,
-                           const gtsam::NonlinearFactorGraph &graph,
+                           const gtsam::ISAM2 &graph,
                            const gtsam::Values &values,
                            const std::string &verbosity, int maxIter);
     IsotropicNoisePtr             pixelNoise_;
     gtsam::Values                 values_;
     gtsam::Values                 optimizedValues_;
-    gtsam::ExpressionFactorGraph  graph_;
+    //gtsam::ExpressionFactorGraph  graph_
+    gtsam::ISAM2                  graph_;
     std::map<std::string, int>    staticObjects_;
     double                        optimizerError_{0};
-    int                           numProjectionFactors_{0};
     int                           optimizerIterations_{0};
-    std::unique_ptr<gtsam::Marginals> marginals_;
+    std::map<gtsam::Symbol, gtsam::Matrix> covariances_;
   };
 }
 

@@ -26,7 +26,9 @@ namespace tagslam {
     CameraExtrinsics  T_cn_cnm1;
     std::string       rostopic;
     std::string       tagtopic;
+    std::string       frame_id;
     bool              isStatic{false};
+    bool              worldPoseKnown{false};
     PoseEstimate      poseEstimate; // T_w_c
     gtsam::Pose3      optimizedPose;
     int               lastFrameNumber{-1};

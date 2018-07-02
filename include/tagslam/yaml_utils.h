@@ -25,6 +25,10 @@ namespace tagslam {
     void write_pose(std::ostream &of, const std::string &prefix,
                     const gtsam::Pose3 &pose,
                     const PoseNoise &n, bool writeNoise);
+    void write_pose_with_covariance(std::ostream &of,
+                                    const std::string &prefix,
+                                    const gtsam::Pose3 &pose,
+                                    const PoseNoise &n);
     template <typename T>
     T parse(XmlRpc::XmlRpcValue xml, const std::string key, const T &def) {
       if (xml.hasMember(key)) {
