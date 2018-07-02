@@ -7,6 +7,7 @@
 #include "tagslam/camera_intrinsics.h"
 #include "tagslam/camera_extrinsics.h"
 #include "tagslam/pose_estimate.h"
+#include "gtsam_equidistant/Cal3FS2.h"
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Cal3DS2.h>
 #include <Eigen/Dense>
@@ -29,7 +30,8 @@ namespace tagslam {
     PoseEstimate      poseEstimate; // T_w_c
     gtsam::Pose3      optimizedPose;
     int               lastFrameNumber{-1};
-    boost::shared_ptr<gtsam::Cal3DS2> gtsamCameraModel;
+    boost::shared_ptr<Cal3FS2>        equidistantModel;
+    boost::shared_ptr<gtsam::Cal3DS2> radtanModel;
     typedef std::shared_ptr<Camera> CameraPtr;
     typedef std::shared_ptr<const Camera> CameraConstPtr;
     typedef std::vector<CameraPtr> CameraVec;

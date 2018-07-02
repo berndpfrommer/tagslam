@@ -241,8 +241,6 @@ namespace tagslam {
       values_.insert(T_w_c_sym, cam->poseEstimate.getPose());
     }
 
-    gtsam::Expression<Cal3DS2U> cK(*cam->gtsamCameraModel);
-
     gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
     if (!values_.exists(T_w_b_sym)) {
       const auto &pe = rb->poseEstimate;
@@ -267,8 +265,15 @@ namespace tagslam {
         // transform_from does X_A = T_AB * X_B
         gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
         gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_w_c, X_w));
-        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
-        graph_.addExpressionFactor(predict, measured[i], pixelNoise_);
+        if (cam->radtanModel) {
+          gtsam::Expression<Cal3DS2U> cK(*cam->radtanModel);
+          gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
+          graph_.addExpressionFactor(predict, measured[i], pixelNoise_);
+        } else if (cam->equidistantModel) {
+          gtsam::Expression<Cal3FS2> cK(*cam->equidistantModel);
+          gtsam::Expression<gtsam::Point2> predict(cK, &Cal3FS2::uncalibrate, xp);
+          graph_.addExpressionFactor(predict, measured[i], pixelNoise_);
+        }
       }
     }
   }

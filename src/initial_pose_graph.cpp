@@ -99,11 +99,11 @@ namespace tagslam {
       const CameraPtr &cam = cams[cam_idx];
       std::cout << "cam pose: " << std::endl;
       print_pose(cam->poseEstimate.getPose());
-      Cal3DS2U cK(*cam->gtsamCameraModel);
       if (!cam->poseEstimate.isValid()) {
         continue;
       }
-      gtsam::PinholeCamera<gtsam::Cal3DS2> phc(cam->poseEstimate.getPose(), *cam->gtsamCameraModel);
+      
+      gtsam::PinholeCamera<Cal3FS2> phc(cam->poseEstimate.getPose(), *cam->equidistantModel);
       std::vector<gtsam::Point3> bpts;
       std::vector<gtsam::Point3> wpts;
       std::vector<gtsam::Point2> ipts;
@@ -112,7 +112,6 @@ namespace tagslam {
         wpts.push_back(bodyPose.transform_from(bpts[i]));
       }
       std::cout << "ppts=[ ";
-#if 0      
       cv::Mat img;
       if (cam_idx < imgs.size()) img = imgs[cam_idx];
       for (const auto i: irange(0ul, wpts.size())) {
@@ -131,7 +130,6 @@ namespace tagslam {
         std::string fbase = "image_" + std::to_string(frameNum) + "_";
         cv::imwrite(fbase + std::to_string(cam_idx) + ".jpg", img);
       }
-#endif      
     }
     
   }
@@ -165,7 +163,6 @@ namespace tagslam {
       std::vector<gtsam::Point2> ip;
       rb->getAttachedPoints(cam_idx, &bp, &ip);
       // now add points to graph
-      gtsam::Expression<Cal3DS2U> cK(*cam->gtsamCameraModel);
       std::cout << "cam points: " << std::endl;
       std::cout << "pts=[" << std::endl;
       for (const auto i: irange(0ul, bp.size())) {
@@ -175,8 +172,15 @@ namespace tagslam {
         //std::cout << "transformed point: p: " << std::endl << cam->poseEstimate.getPose().inverse().transform_to(bp[i]) << std::endl;
         // P_A = transform_from(T_AB, P_B)
         gtsam::Point2_ xp = gtsam::project(gtsam::transform_to(T_w_c, gtsam::transform_from(T_w_b, p)));
-        gtsam::Point2_ predict(cK, &Cal3DS2U::uncalibrate, xp);
-        graph.addExpressionFactor(predict, ip[i], pixelNoise);
+        if (cam->radtanModel) {
+          gtsam::Expression<Cal3DS2U> cK(*cam->radtanModel);
+          gtsam::Point2_ predict(cK, &Cal3DS2U::uncalibrate, xp);
+          graph.addExpressionFactor(predict, ip[i], pixelNoise);
+        } else if (cam->equidistantModel) {
+          gtsam::Expression<Cal3FS2> cK(*cam->equidistantModel);
+          gtsam::Point2_ predict(cK, &Cal3FS2::uncalibrate, xp);
+          graph.addExpressionFactor(predict, ip[i], pixelNoise);
+        }
       }
       std::cout << "];" << std::endl;
     }
@@ -191,7 +195,7 @@ namespace tagslam {
   }
 
   
-
+  // returns T_c_w
   PoseEstimate
   InitialPoseGraph::estimateCameraPose(const CameraPtr &camera,
                                        const std::vector<gtsam::Point3> &wp,
@@ -201,14 +205,20 @@ namespace tagslam {
     if (wp.empty()) {
       return (pe);
     }
-    gtsam::NonlinearFactorGraph   graph;
+    gtsam::ExpressionFactorGraph   graph;
     auto pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
-    boost::shared_ptr<gtsam::Cal3DS2> cam = camera->gtsamCameraModel;
-    graph = gtsam::NonlinearFactorGraph();
-    gtsam::Symbol P = gtsam::Symbol('P', 0); // pose symbol
+    gtsam::Symbol T_w_c = gtsam::Symbol('P', 0); // camera pose symbol
     for (const auto i: boost::irange(0ul, wp.size())) {
-      graph.push_back(boost::make_shared<ResectioningFactor>(
-                         pixelNoise, P, cam, ip[i], wp[i]));
+      gtsam::Point2_ xp = gtsam::project(gtsam::transform_to(T_w_c, wp[i]));
+      if (camera->radtanModel) {
+        gtsam::Expression<Cal3DS2U> cK(*camera->radtanModel);
+        gtsam::Point2_ predict(cK, &Cal3DS2U::uncalibrate, xp);
+        graph.addExpressionFactor(predict, ip[i], pixelNoise);
+      } else if (camera->equidistantModel) {
+        gtsam::Expression<Cal3FS2> cK(*camera->equidistantModel);
+        gtsam::Point2_ predict(cK, &Cal3FS2::uncalibrate, xp);
+        graph.addExpressionFactor(predict, ip[i], pixelNoise);
+      }
     }
     gtsam::Values initialValues;
     pe = optimizeGraph(initialPose, initialValues, &graph);

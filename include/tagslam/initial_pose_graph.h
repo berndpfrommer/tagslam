@@ -24,6 +24,7 @@ namespace tagslam {
     InitialPoseGraph(const InitialPoseGraph&) = delete;
     InitialPoseGraph& operator=(const InitialPoseGraph&) = delete;
 
+    // returns T_w_c
     PoseEstimate
     estimateCameraPose(const CameraPtr &camera,
                        const std::vector<gtsam::Point3> &wp,

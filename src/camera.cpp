@@ -99,12 +99,17 @@ namespace tagslam {
       for (const auto i: irange(0ul, D.size())) {
         dc[i] = D[i];
       }
-      // TODO: only radtan is supported for now
-      camera->gtsamCameraModel.reset(
-        new gtsam::Cal3DS2(K[0], K[1], 0.0,
-                           K[2], K[3],
-                           dc[0], dc[1], dc[2], dc[3]));
-
+      if (ci.distortion_model == "radtan" ||
+          ci.distortion_model == "plumb_bob") {
+        camera->radtanModel.reset(
+          new gtsam::Cal3DS2(K[0], K[1], 0.0, K[2], K[3],
+                             dc[0], dc[1], dc[2], dc[3]));
+      } else if (ci.distortion_model == "equidistant") {
+        camera->equidistantModel.reset(new Cal3FS2(K[0], K[1], K[2], K[3],
+                                                   dc[0], dc[1], dc[2], dc[3]));
+      } else {
+        bombout("unknown distortion model", cam);
+      }
     }
     return (cdv);
   }
