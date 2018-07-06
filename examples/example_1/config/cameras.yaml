@@ -1,0 +1,10 @@
+cam0:
+  camera_model: pinhole
+  intrinsics: [465.609, 465.632, 622.637, 513.902]
+  distortion_model: equidistant
+#  distortion_model: radtan
+  distortion_coeffs: [-0.0229515, 0.01625, -0.00961832, 0.00176252]
+  resolution: [1280, 1024]
+  rostopic: /pg_16061245/image_raw
+  tagtopic: /pg_16061245/tags
+  is_static: false
