@@ -6,7 +6,7 @@
 
 namespace tagslam {
   std::ostream &operator<<(std::ostream &os, const PoseEstimate &pe) {
-    os << "pose: " << pe.getPose() << " noise: " << pe.getNoise()->sigmas() << " err: " << pe.getError();
+    os << "pose: " << pe.getPose() << " noise: " << pe.getNoise()->sigmas().transpose() << " err: " << pe.getError();
     return (os);
   }
 }  // namespace

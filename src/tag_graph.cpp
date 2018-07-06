@@ -279,7 +279,7 @@ namespace tagslam {
     }
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
-        std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+        //std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
         continue;
       }
       const auto &measured = tag->getImageCorners();

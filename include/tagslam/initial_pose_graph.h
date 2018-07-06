@@ -41,7 +41,8 @@ namespace tagslam {
     PoseEstimate
     optimizeGraph(const gtsam::Pose3 &startPose,
                   const gtsam::Values &startValues,
-                  gtsam::NonlinearFactorGraph *graph) const;
+                  gtsam::NonlinearFactorGraph *graph,
+                  double errorLimit) const;
   };
 }
 

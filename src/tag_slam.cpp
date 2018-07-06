@@ -142,7 +142,8 @@ namespace tagslam {
     }
     // find all tags and split bodies into static/dynamic
     for (auto &rb: rbv) {
-      ROS_INFO_STREAM((rb->isStatic ? "static " : "dynamic ") << rb->name
+      ROS_INFO_STREAM((rb->isStatic ? "static " : "dynamic ") <<
+                      "body " << rb->name
                       << " has tags: " << rb->tags.size());
       TagVec tvec;
       for (auto &t: rb->tags) {
@@ -295,32 +296,6 @@ namespace tagslam {
     return (pe);
   }
                               
-  PoseEstimate
-  TagSlam::estimatePoseHomography(int cam_idx,
-                           const std::vector<gtsam::Point3>&wpts,
-                           const std::vector<gtsam::Point2>&ipts) const {
-    PoseEstimate pe;
-    if (!ipts.empty()) {
-      std::vector<cv::Point3d> wp;
-      std::vector<cv::Point2d> ip;
-      to_opencv(&wp, wpts);
-      to_opencv(&ip, ipts);
-      const auto   &ci  = cameras_[cam_idx]->intrinsics;
-      cv::Mat rvec, tvec;
-      bool rc = utils::get_init_pose(wp, ip, ci.K,
-                                     ci.distortion_model,
-                                     ci.D, &rvec, &tvec);
-      if (rc) {
-        const auto T_c_w = to_gtsam(rvec, tvec);
-        pe = T_c_w.inverse();
-        pe.setError(utils::reprojection_error(wp, ip, rvec, tvec, ci.K,
-                                              ci.distortion_model, ci.D));
-      }
-    }
-    return (pe);
-  }
-                              
-
   void TagSlam::updatePosesFromGraph(unsigned int frame) {
     for (const auto &cam: cameras_) {
       cam->poseEstimate = tagGraph_.getCameraPose(cam, frame);
@@ -399,6 +374,7 @@ namespace tagslam {
     }
   }
 
+
 //#define DEBUG_POSE_ESTIMATE
   PoseEstimate
   TagSlam::poseFromPoints(int cam_idx,
@@ -406,7 +382,7 @@ namespace tagslam {
                           const std::vector<gtsam::Point2> &ip,
                           bool pointsArePlanar) const {
 #ifdef DEBUG_POSE_ESTIMATE
-    std::cout << "------ points for camera pose estimate:------" << std::endl;
+    std::cout << "------ points for pose estimate:------" << std::endl;
     for (const auto i: irange(0ul, wp.size())) {
       std::cout << cam_idx << " " << wp[i].x() << " " << wp[i].y() << " " << wp[i].z()
                 << " " << ip[i].x() << " " << ip[i].y() << std::endl;
@@ -414,14 +390,14 @@ namespace tagslam {
     std::cout << "------" << std::endl;
 #endif
     PoseEstimate pe = estimatePosePNP(cam_idx, wp, ip);
-    //std::cout << "pnp pose estimate has error: " << pe.getError() << std::endl;
+    //std::cout << "pnp pose estimate: " << pe << std::endl;
     if (!pe.isValid()) {
       // PNP failed, try with a local graph
       const PoseEstimate &prevPose = cameras_[cam_idx]->poseEstimate;
       //std::cout << "running mini graph for cam " << cam_idx << " prev pose: " << std::endl << prevPose << std::endl;
       pe = initialPoseGraph_.estimateCameraPose(cameras_[cam_idx], wp, ip,
                                                 prevPose);
-      //std::cout << "mini graph estimate err: " << pe.getError() << std::endl;
+      //std::cout << "mini graph pose estimate: " << pe << std::endl;
       if (pe.getError() > maxInitialReprojError_) {
         ROS_WARN_STREAM("cannot find pose of camera " <<
                         cam_idx << " err: " << pe.getError());

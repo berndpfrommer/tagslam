@@ -15,7 +15,7 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
-
+#include <math.h> // isnormal
 
 namespace tagslam {
   using namespace boost::random;
@@ -24,6 +24,7 @@ namespace tagslam {
   typedef boost::random::normal_distribution<double> RandDist;
   typedef boost::random::variate_generator<RandEng, RandDist> RandGen;
 
+  static const double GUESS_TERM_CRIT = 0.002;
   static void
   from_gtsam(cv::Mat *rvec, cv::Mat *tvec, const gtsam::Pose3 &p) {
     const gtsam::Point3 rv = gtsam::Rot3::Logmap(p.rotation());
@@ -59,21 +60,42 @@ namespace tagslam {
     std::cout << " " << mat(3,0) << ", " << mat(3,1) << ", " << mat(3,2) << ", " << mat(3,3) << "; " << std::endl;
     std::cout << "];" << std::endl;
   }
+
+  static double get_pixel_range(const std::vector<gtsam::Point2> &ip) {
+    double min_pix[2] = {1e30, 1e30};
+    double max_pix[2] = {-1e30, -1e30};
+    for (const auto &p: ip) {
+      min_pix[0] = std::min(min_pix[0], p(0));
+      min_pix[1] = std::min(min_pix[1], p(1));
+      max_pix[0] = std::max(max_pix[0], p(0));
+      max_pix[1] = std::max(max_pix[1], p(1));
+    }
+    return (std::min(max_pix[0]-min_pix[0], max_pix[1]-min_pix[1]));
+  }
+
   static PoseEstimate try_optimization(const gtsam::Pose3 &startPose,
                                        const gtsam::Values &startValues,
                                        gtsam::NonlinearFactorGraph *graph) {
     gtsam::Symbol P = gtsam::Symbol('P', 0); // pose symbol
     gtsam::Values                 values = startValues;
     gtsam::Values                 optimizedValues;
-    values.insert(P, startPose);
-    gtsam::LevenbergMarquardtParams lmp;
-    lmp.setVerbosity("SILENT");
     const int MAX_ITER = 100;
-    lmp.setMaxIterations(MAX_ITER);
-    lmp.setAbsoluteErrorTol(1e-7);
-    lmp.setRelativeErrorTol(0);
+    values.insert(P, startPose);
     try {
+      // if the starting pose is bad (e.g. the camera is in the
+      // plane of the world points), then the optimizer will
+      // encounter NaNs and get stuck in an infinite loop.
+      // That's why we test here first if the error is reasonable.
+      if (!std::isnormal(graph->error(values))) {
+        throw (std::runtime_error("bad starting guess"));
+      }
+      gtsam::LevenbergMarquardtParams lmp;
+      lmp.setVerbosity("SILENT");
+      lmp.setMaxIterations(MAX_ITER);
+      lmp.setAbsoluteErrorTol(1e-7);
+      lmp.setRelativeErrorTol(0);
       gtsam::LevenbergMarquardtOptimizer lmo(*graph, values, lmp);
+
       optimizedValues = lmo.optimize();
       gtsam::Pose3 op = optimizedValues.at<gtsam::Pose3>(P);
       return (PoseEstimate(op, (double)lmo.error() / graph->size(),
@@ -153,6 +175,7 @@ namespace tagslam {
     // loop through all tags on body
     auto pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     gtsam::Pose3_  T_w_b('P', 0);
+    std::vector<gtsam::Point2> all_ip;
     for (const auto &tagMap: rb->observedTags) {
       int cam_idx = tagMap.first;
       const CameraPtr &cam = cams[cam_idx];
@@ -175,6 +198,7 @@ namespace tagslam {
 #endif      
       for (const auto i: irange(0ul, bp.size())) {
         gtsam::Point3_ p(bp[i]);
+        all_ip.push_back(ip[i]);
 #ifdef DEBUG_BODY_POSE
         std::cout << bp[i].x() << "," << bp[i].y() << "," << bp[i].z() << "," << ip[i].x() << ", " << ip[i].y() << ";" << std::endl;
 #endif        
@@ -197,7 +221,8 @@ namespace tagslam {
 #endif      
     }
     gtsam::Values initialValues;
-    pe = optimizeGraph(initialPose, initialValues, &graph);
+    double pixelError = GUESS_TERM_CRIT * get_pixel_range(all_ip);
+    pe = optimizeGraph(initialPose, initialValues, &graph, pixelError);
 #ifdef DEBUG_BODY_POSE    
     std::cout << "optimized graph pose T_w_b: " << std::endl;
     print_pose(pe.getPose());
@@ -219,6 +244,7 @@ namespace tagslam {
     if (wp.empty()) {
       return (pe);
     }
+
     gtsam::ExpressionFactorGraph   graph;
     auto pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     gtsam::Symbol T_w_c = gtsam::Symbol('P', 0); // camera pose symbol
@@ -226,23 +252,26 @@ namespace tagslam {
       gtsam::Point2_ xp = gtsam::project(gtsam::transform_to(T_w_c, wp[i]));
       if (camera->radtanModel) {
         gtsam::Expression<Cal3DS2U> cK(*camera->radtanModel);
-        gtsam::Point2_ predict(cK, &Cal3DS2U::uncalibrate, xp);
+        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
         graph.addExpressionFactor(predict, ip[i], pixelNoise);
       } else if (camera->equidistantModel) {
         gtsam::Expression<Cal3FS2> cK(*camera->equidistantModel);
-        gtsam::Point2_ predict(cK, &Cal3FS2::uncalibrate, xp);
+        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3FS2::uncalibrate, xp);
         graph.addExpressionFactor(predict, ip[i], pixelNoise);
       }
     }
     gtsam::Values initialValues;
-    pe = optimizeGraph(initialPose, initialValues, &graph);
+    double pixelError = GUESS_TERM_CRIT * get_pixel_range(ip);
+    std::cout << "pixel error: " << pixelError << std::endl;
+    pe = optimizeGraph(initialPose, initialValues, &graph, pixelError);
     return (pe);
   }
 
   PoseEstimate
   InitialPoseGraph::optimizeGraph(const gtsam::Pose3 &startPose,
                                   const gtsam::Values &startValues,
-                                  gtsam::NonlinearFactorGraph *graph) const {
+                                  gtsam::NonlinearFactorGraph *graph,
+                                  double errorLimit) const {
   	RandEng	randomEngine;
     RandDist distTrans(0, 10.0); // mu, sigma for translation
     RandDist distRot(0, M_PI);	 // mu, sigma for rotations
@@ -252,11 +281,12 @@ namespace tagslam {
     PoseEstimate bestPose(startPose);
     for (const auto i: irange(0, 200)) {
       PoseEstimate pe = try_optimization(pose, startValues, graph);
-      //std::cout << i << " init pose graph error: " << pe.getError() << std::endl;
+      std::cout << "init opt " << i << " has error: " << pe.getError() << " vs " << errorLimit << std::endl;
       if (pe.getError() < bestPose.getError()) {
+        std::cout << "NEW BEST!" << std::endl;
         bestPose = pe;
       }
-      if (bestPose.getError() < 10.0) {
+      if (bestPose.getError() < errorLimit) {
         break;
       }
       pose = make_random_pose(&rgr, &rgt);

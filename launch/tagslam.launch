@@ -1,18 +1,19 @@
 <launch>
   <arg name="output" default="screen"/>
-  <arg name="calibration_file" default="$(find tagslam)/config/example_cameras.yaml"/>
-  <arg name="tag_poses_file" default="$(find
-				      tagslam)/config/tag_poses.yaml"/>
+  <arg name="data_dir" default="$(find tagslam)/examples/example_1"/>
+  <arg name="config_dir" default="$(arg data_dir)/config"/>
+  
+  <arg name="calibration_file" default="$(arg config_dir)/cameras.yaml"/>
+  <arg name="tag_poses_file" default="$(arg config_dir)/tagslam.yaml"/>
+
   <arg name="bag" default=""/>
   <arg name="start_time" default="0.0"/>
   <!-- apriltag detector nodes -->
-#	launch-prefix="gdb -ex run --args"
+  #	launch-prefix="gdb -ex run --args"
   <node pkg="tagslam" type="tagslam_node" name="tagslam"
-	output="$(arg output)">
+	output="$(arg output)" clear_params="True">
     <rosparam command="load" file="$(arg calibration_file)"/>
-    <rosparam param="tag_poses" command="load" file="$(arg
-						     tag_poses_file)"/>
-    <param name="default_tag_size" value="0.12"/>
+    <rosparam param="tag_poses" command="load" file="$(arg tag_poses_file)"/>
     <param name="bag_file" value="$(arg bag)"/>
     <param name="start_time" value="$(arg start_time)"/>
   </node>

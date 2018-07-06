@@ -120,16 +120,21 @@ namespace utils {
                          cv::Mat *tvec) {
     //std::cout << "init pose pnp: K: " << K <<std::endl;
     //std::cout << "D: " << D << std::endl;
+    bool status(false);
     if (distModel == "plumb_bob" || distModel == "radtan") {
+      status = cv::solvePnP(world_points, image_points, K, D,
+                            *rvec, *tvec);
     } else {
-      throw std::runtime_error("camera model equidistant not implemented!");
+      cv::Mat im_undist;
+      cv::fisheye::undistortPoints(image_points, im_undist, K, D, K);
+      status = cv::solvePnP(world_points, im_undist, K, cv::Mat(),
+                            *rvec, *tvec);
     }
-    bool sc = cv::solvePnP(world_points, image_points, K, D,
-                           *rvec, *tvec);
-    if (tvec->at<double>(2) < 0.0) {
-      sc = false;
+    
+    if (tvec->at<double>(2) < 0.0) { // indicates failure
+      status = false;
     }
-    return (sc);
+    return (status);
   }
 
   
