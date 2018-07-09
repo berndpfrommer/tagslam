@@ -18,9 +18,14 @@ namespace tagslam {
     if (type == "board") {
       BoardPtr board(new Board(name));
       p = board;
-    } else {
+    } else  if (type == "simple") {
       SimpleBodyPtr sb(new SimpleBody(name));
       p = sb;
+    } else if (type == "camera_rig") {
+      SimpleBodyPtr sb(new SimpleBody(name));
+      p = sb;
+    } else {
+      throw std::runtime_error("invalid rigid body type: " + type);
     }
     return (p);
   }
@@ -49,8 +54,8 @@ namespace tagslam {
     } catch (const XmlRpc::XmlRpcException &e) {
       throw std::runtime_error("error parsing body:" + name);
     }
-    if (defaultTagSize == 0) {
-      throw std::runtime_error("body " + name + " must have default_tag_size!");
+    if (!isStatic && hasPosePrior) {
+      throw std::runtime_error("dynamic body has prior pose: " + name);
     }
     return (true);
   }
@@ -59,9 +64,15 @@ namespace tagslam {
   RigidBody::parse_body(const std::string &name,
                         XmlRpc::XmlRpcValue bodyDefaults,
                         XmlRpc::XmlRpcValue body) {
+    if (!body.hasMember("type")) {
+      throw (std::runtime_error("rigid body " + name + " has no type!"));
+    }
     std::string type = static_cast<std::string>(body["type"]);
     RigidBodyPtr rb = make_type(name, type);
     rb->parse(bodyDefaults, body);
+    if (rb->isDefaultBody && rb->defaultTagSize == 0) {
+      throw std::runtime_error("default body " + name + " must have default_tag_size!");
+    }
     return (rb);
   }
 
@@ -126,10 +137,15 @@ namespace tagslam {
     return (nobs);
   }
 
-  int RigidBody::bestCamera() const {
+  int RigidBody::bestCamera(const std::vector<int> &cams) const {
     int maxCam(-1);
     double maxVariance(0.0);
-    for (const auto &cmap: observedTags) { // loop over cameras
+    for (const auto &cam_idx: cams) {
+      const auto it = observedTags.find(cam_idx);
+      if (it == observedTags.end()) {
+        continue; // no tags seen for this cameraa
+      }
+      const auto &cmap = *it;
       gtsam::Point2 sum(0.0, 0.0);
       gtsam::Point2 sumsq(0.0, 0.0);
       int cnt(0);
@@ -153,7 +169,6 @@ namespace tagslam {
           maxCam = cmap.first;
         }
       }
-      
     }
     return (maxCam);
   }

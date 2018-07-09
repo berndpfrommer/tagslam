@@ -36,6 +36,7 @@ namespace tagslam {
     void   setPixelNoise(double numPix);
 
     void addTags(const RigidBodyPtr &rb, const TagVec &tags);
+    void addCamera(const CameraConstPtr &cam);
     bool addDistanceMeasurement(const RigidBodyPtr &rb1,
                                 const RigidBodyPtr &rb2,
                                 const TagConstPtr &tag1,
@@ -51,8 +52,7 @@ namespace tagslam {
     void optimize();
     void computeMarginals();
 
-    PoseEstimate getCameraPose(const CameraPtr &cam,
-                               unsigned int frame_num) const;
+    PoseEstimate getCameraPose(const CameraPtr &cam) const;
     bool getTagRelPose(const RigidBodyPtr &rb, int tagId,
                        gtsam::Pose3 *pose) const;
     int  getMaxNumBodies() const;

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(tagslam)
 
-add_definitions(-std=c++11 -g)
+add_definitions(-std=c++11 -g -Wall)
 #set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 find_package(catkin REQUIRED COMPONENTS

@@ -77,6 +77,12 @@ namespace tagslam {
     if (!readRigidBodies()) {
       return (false);
     }
+    if (!attachCamerasToBodies()) {
+      return (false);
+    }
+    for (const auto &cam: cameras_) {
+      tagGraph_.addCamera(cam);
+    }
     for (const auto &rb: dynamicBodies_) {
       bodyOdomPub_.push_back(
         nh_.advertise<nav_msgs::Odometry>("odom/body_" + rb->name, 1));
@@ -96,7 +102,36 @@ namespace tagslam {
     }
     return (true);
   }
-  
+
+  bool TagSlam::attachCamerasToBodies() {
+    std::set<RigidBodyPtr> cameraRigs;
+    for (auto &cam: cameras_) {
+      for (const auto &rb: allBodies_) {
+        if (rb->name == cam->rig_body) {
+          std::cout << "attaching camera " << cam->name << " to body: " << rb->name << std::endl;
+          cam->rig = rb;
+          cameraRigs.insert(rb);
+        }
+      }
+      if (!cam->rig) {
+        ROS_ERROR_STREAM("rig body " << cam->rig_body << " not found for " << cam->name);
+        return (false);
+      }
+    }
+    for (const auto &cam: cameras_) {
+      if (cam->poseEstimate.isValid()) {
+        cameraRigs.erase(cam->rig); // camera pose wrt rig is known, good!
+      }
+    }
+    if (!cameraRigs.empty()) {
+      for (const auto &rig: cameraRigs) {
+        ROS_ERROR_STREAM("camera rig " << rig->name <<
+                         " has no cameras with known pose!");
+      }
+      return (false);
+    }
+    return (true);
+  }
   
   void TagSlam::readMeasurements(const std::string &type) {
     // read distance measurements
@@ -298,7 +333,7 @@ namespace tagslam {
                               
   void TagSlam::updatePosesFromGraph(unsigned int frame) {
     for (const auto &cam: cameras_) {
-      cam->poseEstimate = tagGraph_.getCameraPose(cam, frame);
+      cam->poseEstimate = tagGraph_.getCameraPose(cam);
     }
     for (const auto &rb: allBodies_) {
       PoseEstimate pe;
@@ -329,6 +364,12 @@ namespace tagslam {
           }
         }
       }
+    }
+  }
+
+  void TagSlam::invalidateDynamicPoses() {
+    for (const auto &rb: dynamicBodies_) {
+      rb->poseEstimate = PoseEstimate();
     }
   }
 
@@ -375,7 +416,7 @@ namespace tagslam {
   }
 
 
-//#define DEBUG_POSE_ESTIMATE
+#define DEBUG_POSE_ESTIMATE
   PoseEstimate
   TagSlam::poseFromPoints(int cam_idx,
                           const std::vector<gtsam::Point3> &wp,
@@ -390,11 +431,15 @@ namespace tagslam {
     std::cout << "------" << std::endl;
 #endif
     PoseEstimate pe = estimatePosePNP(cam_idx, wp, ip);
-    //std::cout << "pnp pose estimate: " << pe << std::endl;
+#ifdef DEBUG_POSE_ESTIMATE
+    std::cout << "pnp pose estimate: " << pe << std::endl;
+#endif    
     if (!pe.isValid()) {
       // PNP failed, try with a local graph
       const PoseEstimate &prevPose = cameras_[cam_idx]->poseEstimate;
-      //std::cout << "running mini graph for cam " << cam_idx << " prev pose: " << std::endl << prevPose << std::endl;
+#ifdef DEBUG_POSE_ESTIMATE
+      std::cout << "running mini graph for cam " << cam_idx << " prev pose: " << std::endl << prevPose << std::endl;
+#endif      
       pe = initialPoseGraph_.estimateCameraPose(cameras_[cam_idx], wp, ip,
                                                 prevPose);
       //std::cout << "mini graph pose estimate: " << pe << std::endl;
@@ -410,6 +455,7 @@ namespace tagslam {
   PoseEstimate
   TagSlam::findCameraPose(int cam_idx, const RigidBodyConstVec &rigidBodies,
                           bool bodiesMustHavePose) const {
+    std::cout << "finding pose for cam: " << cam_idx << std::endl;
     std::vector<gtsam::Point3> wp;
     std::vector<gtsam::Point2> ip;
     for (const auto &rb : rigidBodies) {
@@ -424,12 +470,46 @@ namespace tagslam {
   }
                                        
 
-  void TagSlam::findInitialCameraPoses() {
+  void TagSlam::findInitialCameraAndRigPoses() {
+    std::vector<PoseEstimate> camPoses;
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      cameras_[cam_idx]->poseEstimate =
-        findCameraPose(cam_idx, {staticBodies_.begin(), staticBodies_.end()}, true);
-      //std::cout << "initial cam pose: " << cameras_[cam_idx]->poseEstimate << std::endl;
+      camPoses.push_back(findCameraPose(cam_idx, {staticBodies_.begin(),
+              staticBodies_.end()}, true));
     }
+    // TODO: use the "best" camera pose to compute the rig pose
+    for (const auto cam_idx: irange(0ul, cameras_.size())) {
+      const auto &cam = cameras_[cam_idx];
+      std::cout << "camera idx: " << cam_idx << std::endl;
+      if (camPoses[cam_idx].isValid()) {
+        std::cout << "has valid pose!" << std::endl;
+        // if we know both the camera world pose and its pose
+        // relative to the rig, we can determine the rig pose.
+        // NOTE: if multiple camera world poses are established,
+        // the largest camera number will set the rig pose.
+        // This is not optimal.
+        std::cout << "camera has valid pose estimate: " << cam->poseEstimate.isValid() << std::endl;
+        if (cam->poseEstimate.isValid()) {
+          // T_w_r  = T_w_c * T_c_r
+          const gtsam::Pose3 T_w_r = camPoses[cam_idx].getPose() * cam->poseEstimate.getPose().inverse();
+          // if either the rig pose is unknown, or it is dynamic,
+          // initialize it here
+          if (!cam->rig->poseEstimate.isValid() || !cam->rig->isStatic) {
+            cam->rig->poseEstimate = PoseEstimate(T_w_r, 0.0, 0);
+            std::cout << "updated rig pose to: " << cam->rig->poseEstimate << std::endl;
+          } else {
+            std::cout << "NOT updating rig pose: " << cam->rig->poseEstimate.isValid() << " " << cam->rig->isStatic << std::endl;
+          }
+        } 
+        // if the rig world pose is known and the camera world pose
+        // as well, we can deduce the camera-to-rig pose
+        if (!cam->poseEstimate.isValid() && cam->rig->poseEstimate.isValid()) {
+          // T_r_c = T_r_w * T_w_c
+          const gtsam::Pose3 T_r_c = cam->rig->poseEstimate.inverse() * camPoses[cam_idx].getPose();
+          cam->poseEstimate = PoseEstimate(T_r_c, 0.0, 0);
+        }
+      }
+    }
+    
   }
 
   bool TagSlam::isBadViewingAngle(const gtsam::Pose3 &p) const {
@@ -439,29 +519,31 @@ namespace tagslam {
   
   bool
   TagSlam::estimateTagPose(int cam_idx,
-                           const gtsam::Pose3 &bodyPose,
+                           const gtsam::Pose3 &T_w_b,
                            const TagPtr &tag) const {
     const auto &wp = tag->getObjectCorners();
     const auto ip = tag->getImageCorners();
+    std::cout << "finding pose for tag: " << tag->id << std::endl;
     PoseEstimate pe = poseFromPoints(cam_idx, wp, ip, false);
-    if (pe.isValid()) {
+    const CameraPtr &cam = cameras_[cam_idx];
+    if (pe.isValid() && cam->rig->poseEstimate.isValid()) {
       if (isBadViewingAngle(pe.getPose())) {
         ROS_INFO_STREAM("IGNORING tag " << tag->id << " (bad viewing angle)");
         tag->poseEstimate = PoseEstimate(); // mark invalid
         return (false);
       }
-      const CameraPtr &cam = cameras_[cam_idx];
       // pe pose estimate has T_o_c
       // body pose has T_w_b
-      // camera pose has T_w_c
+      // camera pose has T_r_c
+      // rig pose has T_w_r
       // tag pose should have T_b_o
-      // T_b_o = T_b_w * T_w_c * T_c_o
-      gtsam::Pose3 pose = bodyPose.inverse() *
-        cam->poseEstimate * pe.inverse();
+      // T_b_o = T_b_w * T_w_r * T_r_c  * T_c_o
+      gtsam::Pose3 pose = T_w_b.inverse() *
+        cam->rig->poseEstimate * cam->poseEstimate * pe.inverse();
       tag->poseEstimate = PoseEstimate(pose, 0.0, 0);
       //std::cout << "init tag pose est: " << tag->id << std::endl << " T_c_o: " << pe.inverse() << std::endl;
       //std::cout << "T_w_c: " << cam->poseEstimate.getPose() << std::endl;
-      //std::cout << "T_b_w: " << bodyPose.inverse() <<  std::endl;
+      //std::cout << "T_b_w: " << T_w_b.inverse() <<  std::endl;
       //std::cout << "T_b_o: " << tag->poseEstimate.getPose() <<  std::endl;
     }
     //std::cout << "pose estimate for tag " << tag->id << ": " << pe << std::endl;
@@ -469,14 +551,15 @@ namespace tagslam {
   }
                                 
   void TagSlam::findInitialDiscoveredTagPoses() {
+    std::cout << "finding intial discovered tag poses " << std::endl;
     for (auto &rb: allBodies_) {
       if (rb->poseEstimate.isValid()) {
-        //std::cout << "RIGID BODY " << rb->name << " has pose: " << rb->poseEstimate << std::endl;
+        std::cout << "RIGID BODY " << rb->name << " has pose: " << rb->poseEstimate << std::endl;
         // body has valid pose, let's see what
         // observed tags it has
         for (auto &tagMap: rb->observedTags) {
           const CameraPtr &cam = cameras_[tagMap.first];
-          if (cam->poseEstimate.isValid()) {
+          if (cam->poseEstimate.isValid() && cam->rig->poseEstimate.isValid()) {
             for (const auto &tag: tagMap.second) {
               auto gTagIt = allTags_.find(tag->id);
               if (gTagIt == allTags_.end()) {
@@ -497,13 +580,12 @@ namespace tagslam {
             }
           }
         }
+      } else {
+        std::cout << "RIGID BODY " << rb->name << " has invalid pose" << std::endl;
       }
     }
-    // loop through all bodies and look for tags that
-    // don't have a pose estimate yet. If body pose estimate is valid
-    // and corresponding camera pose estimate is good too,
-    // estimate the tag pose relative to body.
   }
+
         
   void TagSlam::processTags(const std::vector<TagArrayConstPtr> &msgvec) {
     profiler_.reset();
@@ -517,9 +599,11 @@ namespace tagslam {
     // off of the bodies, to be used subsequently
     const auto nobs = attachObservedTagsToBodies(msgvec);
     profiler_.record("attachObservedTagsToBodies");
+    // Mark all dynamic body poses as invalid
+    markDynamicBodyPosesInvalid();
     // Go over all bodies and use tags with
-    // established positions to determine camera poses
-    findInitialCameraPoses();
+    // established positions to determine camera poses.
+    findInitialCameraAndRigPoses();
     profiler_.record("findInitialCameraPoses");
     // For dynamic and pose-free static bodies, find their
     // initial poses if any of their tags are observed
@@ -554,6 +638,7 @@ namespace tagslam {
     ROS_INFO_STREAM("frame " << frameNum_ << " total tags: " << allTags_.size()
                     << " obs: " << nobs << " err: " << tagGraph_.getError()
                     << " iter: " << tagGraph_.getIterations());
+    invalidateDynamicPoses();
     frameNum_++;
     profiler_.record("writing");
     std::cout << std::flush;
@@ -585,13 +670,15 @@ namespace tagslam {
     std::map<double, std::pair<int, int>> sortedTagErrors;
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
       const auto &cam = cameras_[cam_idx];
-      if (!cam->poseEstimate.isValid()) {
+      if (!(cam->poseEstimate.isValid() & cam->rig->poseEstimate.isValid())) {
         continue;
       }
       cv::Mat img;
       if (cam_idx < images_.size()) img = images_[cam_idx];
       cv::Mat rvec, tvec;
-      from_gtsam(&rvec, &tvec, cam->poseEstimate.getPose().inverse());
+      // T_c_w = T_c_r * T_r_w
+      const gtsam::Pose3 T_c_w = cam->poseEstimate.inverse() * cam->rig->poseEstimate.inverse();
+      from_gtsam(&rvec, &tvec, T_c_w);
       std::vector<Stat> bodyCamStats(allBodies_.size()); // per cam stat
       for (const auto body_idx: irange(0ul, allBodies_.size())) {
         const auto &rb = allBodies_[body_idx];
@@ -680,26 +767,45 @@ namespace tagslam {
     tagGraph_.optimize();
   }
 
+  std::vector<int> TagSlam::findCamerasWithKnownWorldPose() const {
+    std::vector<int> cams;
+    for (const auto cam_idx: irange(0ul, cameras_.size())) {
+      const auto &cam = cameras_[cam_idx];
+      if (cam->poseEstimate.isValid() && cam->rig->poseEstimate.isValid()) {
+        cams.push_back(cam_idx);
+      }
+    }
+    return (cams);
+  }
+
+  // have: T_r_c,   T_r_b, T_b_w, T_b_o
+  //
+  // loop through all bodies
+  // 
+
   PoseEstimate
   TagSlam::estimateBodyPose(const RigidBodyConstPtr &rb) const {
-    //std::cout << "&&&& estimating body pose for " << rb->name << std::endl;
+    std::cout << "&&&& estimating body pose for " << rb->name << std::endl;
     PoseEstimate bodyPose; // defaults to invalid pose estimate
-    int best_cam_idx = rb->bestCamera();
+    int best_cam_idx = rb->bestCamera(findCamerasWithKnownWorldPose());
     if (best_cam_idx < 0) {
       // don't see any tags of the body in this frame!
+      std::cout << "no best camera index found!" << std::endl;
       return (bodyPose);
     }
     RigidBodyConstVec rbv = {rb};
     PoseEstimate pe  = findCameraPose(best_cam_idx, rbv, false);
-    // pose estimate has T_b_c
-    // T_w_b = T_w_c * T_c_b
-    const auto &T_w_c = cameras_[best_cam_idx]->poseEstimate;
-    gtsam::Pose3 bPose = T_w_c * pe.inverse();
-    //std::cout << "body pose from single camera " << best_cam_idx << std::endl;
-    //std::cout << bPose << std::endl;
+    // pose estimate pe has T_b_c
+    // T_w_b = T_w_r * T_r_c * T_c_b
+    const auto &bestCam = cameras_[best_cam_idx];
+    const auto &T_r_c = bestCam->poseEstimate;
+    const auto &T_w_r = bestCam->rig->poseEstimate; // should be valid!
+    gtsam::Pose3 T_w_b = T_w_r * T_r_c * pe.inverse();
+    std::cout << "body pose from single camera " << best_cam_idx << std::endl;
+    std::cout << T_w_b << std::endl;
 
-    bodyPose = initialPoseGraph_.estimateBodyPose(cameras_, images_, frameNum_, rb, bPose);
-    //std::cout << "body pose from body graph: " << std::endl << bodyPose << std::endl;
+    bodyPose = initialPoseGraph_.estimateBodyPose(cameras_, images_, frameNum_, rb, T_w_b);
+    std::cout << "body pose from body graph: " << std::endl << T_w_b << std::endl;
 
     if (bodyPose.getError() > initBodyPoseMaxError_) {
       ROS_WARN_STREAM("no body pose for " << rb->name << " due to high error: " << bodyPose.getError());
@@ -708,17 +814,22 @@ namespace tagslam {
     return (bodyPose);
   }
 
+  void TagSlam::markDynamicBodyPosesInvalid() {
+    for (auto &rb: dynamicBodies_) {
+      rb->poseEstimate = PoseEstimate();
+    }
+  }
+
   void TagSlam::findInitialBodyPoses() {
     for (auto &rb: allBodies_) {
-      if (rb->isStatic && rb->poseEstimate.isValid()) {
+      if (rb->poseEstimate.isValid()) {
         continue;
       }
-      rb->poseEstimate = PoseEstimate(); // mark invalid
       PoseEstimate pe = estimateBodyPose(rb);
       if (pe.isValid()) {
         rb->poseEstimate = pe;
         if (!rb->isStatic) {
-          //std::cout << "updated dynamic body pose for " << rb->name << " to " << rb->poseEstimate << std::endl;
+          std::cout << "updated dynamic body pose for " << rb->name << " to " << rb->poseEstimate << std::endl;
         }
         if (rb->isStatic) {
           ROS_INFO_STREAM("static body pose discovered for: " << rb->name);
@@ -814,18 +925,22 @@ namespace tagslam {
     return (odom);
   }
 
+  static std::string body_frame_id(const std::string &name) {
+    return (std::string("body_" + name));
+  }
+
   void TagSlam::broadcastCameraPoses(const ros::Time &t) {
     std::vector<PoseInfo> camPoseInfo;
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
       const auto &cam = cameras_[cam_idx];
-      PoseEstimate pe = tagGraph_.getCameraPose(cam, frameNum_);
+      PoseEstimate pe = tagGraph_.getCameraPose(cam);
       if (pe.isValid()) {
-        camPoseInfo.push_back(PoseInfo(pe, t, cam->frame_id));
-        camOdomPub_[cam_idx].publish(make_odom(t, fixedFrame_,
+        camPoseInfo.push_back(PoseInfo(pe, t,body_frame_id(cam->rig->name), cam->frame_id));
+        camOdomPub_[cam_idx].publish(make_odom(t, body_frame_id(cam->rig->name),
                                                cam->frame_id, pe.getPose()));
       }
     }
-    broadcastTransforms(fixedFrame_, camPoseInfo);
+    broadcastTransforms(camPoseInfo);
   }
 
   
@@ -834,17 +949,17 @@ namespace tagslam {
     for (const auto &rb: allBodies_) {
       const PoseEstimate &pe = rb->poseEstimate;
       if (pe.isValid()) {
-        const std::string frame_id = "body_" + rb->name;
-        bodyPoseInfo.push_back(PoseInfo(pe, t, frame_id));
+        const std::string frame_id = body_frame_id(rb->name);
+        bodyPoseInfo.push_back(PoseInfo(pe, t, fixedFrame_, frame_id));
       }
     }
-    broadcastTransforms(fixedFrame_, bodyPoseInfo);
+    broadcastTransforms(bodyPoseInfo);
     // publish odom for dynamic bodies
     for (const auto body_idx : irange(0ul, dynamicBodies_.size())) {
       const auto rb = dynamicBodies_[body_idx];
       const PoseEstimate &pe = rb->poseEstimate;
       if (pe.isValid()) {
-        const std::string frame_id = "body_" + rb->name;
+        const std::string frame_id = body_frame_id(rb->name);
         bodyOdomPub_[body_idx].publish(
           make_odom(t, fixedFrame_, frame_id, pe.getPose()));
       }
@@ -859,20 +974,20 @@ namespace tagslam {
           TagPtr tag = tg.second;
           if (tag->poseEstimate.isValid()) {
             const std::string frame_id = "tag_" + std::to_string(tag->id);
-            tagPoseInfo.push_back(PoseInfo(tag->poseEstimate, t, frame_id));
+            tagPoseInfo.push_back(PoseInfo(tag->poseEstimate, t,
+                                           body_frame_id(rb->name), frame_id));
           }
         }
-        broadcastTransforms("body_" + rb->name, tagPoseInfo);
+        broadcastTransforms(tagPoseInfo);
       }
     }
   }
 
-  void TagSlam::broadcastTransforms(const std::string &parentFrame,
-                                    const std::vector<PoseInfo> &poses) {
+  void TagSlam::broadcastTransforms(const std::vector<PoseInfo> &poses) {
     for (const auto &p: poses) {
       const auto &tf = gtsam_pose_to_tf(p.pose);
       tfBroadcaster_.sendTransform(tf::StampedTransform(tf, p.time,
-                                                        parentFrame, p.frame_id));
+                                                        p.parent_frame_id, p.frame_id));
     }
   }
 
@@ -1050,12 +1165,10 @@ namespace tagslam {
   void TagSlam::writeStaticCameraPoses(const std::string &fname) const {
     std::ofstream f(fname);
     for (const auto &cam : cameras_) {
-      if (cam->isStatic) {
-        f << cam->name << ":" << std::endl;
-        PoseEstimate pe = tagGraph_.getCameraPose(cam, 0 /*frame num */);
-        if (pe.isValid()) {
-          yaml_utils::write_pose_with_covariance(f, "  ", pe.getPose(), pe.getNoise());
-        }
+      f << cam->name << ":" << std::endl;
+      PoseEstimate pe = tagGraph_.getCameraPose(cam);
+      if (pe.isValid()) {
+        yaml_utils::write_pose_with_covariance(f, "  ", pe.getPose(), pe.getNoise());
       }
     }
   }

@@ -49,7 +49,7 @@ namespace tagslam {
                              std::vector<gtsam::Point3> *wp,
                              std::vector<gtsam::Point2> *ip,
                              std::vector<int> *tagids = NULL) const;
-    int    bestCamera() const;
+    int bestCamera(const std::vector<int> &cams) const;
     // -------------------------
     typedef std::map<int, TagVec> CamToTagVec;
     std::string         name;

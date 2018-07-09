@@ -36,24 +36,28 @@ namespace tagslam {
   // tag corners in world coordinates
   static const gtsam::Symbol sym_X_w_i(int tagId, int corner,
                                        unsigned int frame) {
-    if (tagId > MAX_TAG_ID) {
+    if (tagId > (int) MAX_TAG_ID) {
       throw std::runtime_error("tag id exceeds MAX_TAG_ID: " + std::to_string(tagId));
     }
     return (gtsam::Symbol('w', frame * MAX_TAG_ID * 4 + tagId * 4 + corner));
   }
-  // T_w_c(t) camera-to-world transform for given frame  
-  static const gtsam::Symbol sym_T_c_t(int camId, unsigned int frame_num) {
-    if (camId >= MAX_CAM_ID) {
-      throw std::runtime_error("cam id exceeds MAX_CAM_ID: " + std::to_string(camId));
-    }
-    return (gtsam::Symbol('a' + camId, frame_num));
-  }
   // T_w_b(t) dynamic_body-to-world transform for given frame  
   static const gtsam::Symbol sym_T_w_b(int bodyIdx, unsigned int frame_num) {
-    if (bodyIdx >= MAX_BODY_ID) {
+    if (bodyIdx >= (int) MAX_BODY_ID) {
       throw std::runtime_error("body idx exceeds MAX_BODY_ID: " + std::to_string(bodyIdx));
     }
     return (gtsam::Symbol('A' + bodyIdx, frame_num));
+  }
+  // T_r_c camera-to-rig transform for given camera
+  static const gtsam::Symbol sym_T_r_c(int camId) {
+    if (camId >= (int) MAX_CAM_ID) {
+      throw std::runtime_error("cam id exceeds MAX_CAM_ID: " + std::to_string(camId));
+    }
+    return (gtsam::Symbol('a' + camId, 0));
+  }
+  // T_w_r(t) camera rig to world transform
+  static const gtsam::Symbol sym_T_w_r_t(int bodyIdx, unsigned int frame_num) {
+    return (sym_T_w_b(bodyIdx, frame_num));
   }
 
   static unsigned int X_w_i_sym_to_index(gtsam::Key k, int *tagId, int *corner) {
@@ -75,6 +79,30 @@ namespace tagslam {
 
   int TagGraph::getMaxNumBodies() const {
     return (MAX_BODY_ID);
+  }
+
+  void TagGraph::addCamera(const CameraConstPtr &cam) {
+    if (cam->hasPosePrior) {
+      gtsam::ExpressionFactorGraph graph;
+      gtsam::Values newValues;
+      // if there is a pose prior, we can
+      // already add the camera-to-rig transform here
+      if (cam->poseEstimate.isValid()) {
+        gtsam::Symbol T_r_c_sym = sym_T_r_c(cam->index);
+        if (!values_.exists(T_r_c_sym)) {
+          newValues.insert(T_r_c_sym, cam->poseEstimate.getPose());
+          graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_r_c_sym, cam->poseEstimate.getPose(),
+                                                           cam->poseEstimate.getNoise()));
+          values_.insert(newValues);
+          graph_.update(graph, newValues);
+        } else {
+          std::cout << "TagGraph: ERROR: cam " << cam->name << " already exists!" << std::endl;
+        }
+      } else {
+        std::cout << "TagGraph: ERROR: cam " << cam->name <<
+          " has invalid prior pose!" << std::endl;
+      }
+    }
   }
 
   void TagGraph::addTags(const RigidBodyPtr &rb, const TagVec &tags) {
@@ -219,30 +247,25 @@ namespace tagslam {
   }
 
   PoseEstimate
-  TagGraph::getCameraPose(const CameraPtr &cam,
-                          unsigned int frame_num) const {
-    if (cam->worldPoseKnown) {
-      return (cam->poseEstimate);
-    }
+  TagGraph::getCameraPose(const CameraPtr &cam) const {
     PoseEstimate pe;
-    gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, cam->isStatic ? 0 : frame_num);
-    if (values_.find(T_w_c_sym) != values_.end()) {
-      gtsam::Pose3 pose = values_.at<gtsam::Pose3>(T_w_c_sym);
-      pe = getPoseEstimate(T_w_c_sym, pose);
+    gtsam::Symbol T_r_c_sym = sym_T_r_c(cam->index);
+    if (values_.find(T_r_c_sym) != values_.end()) {
+      pe = getPoseEstimate(T_r_c_sym, values_.at<gtsam::Pose3>(T_r_c_sym));
     }
     return (pe);
   }
 
-  void TagGraph::observedTags(const CameraPtr &cam, const RigidBodyPtr &rb,
-                              const TagVec &tags,
+  void TagGraph::observedTags(const CameraPtr &cam, 
+                              const RigidBodyPtr &rb, const TagVec &tags,
                               unsigned int frame_num) {
-    //std::cout << "---------- points for cam " << cam->name << " body: " << rb->name << std::endl;
+    std::cout << "---------- points for cam " << cam->name << " body: " << rb->name << std::endl;
     if (tags.empty()) {
       std::cout << "TagGraph WARN: no tags for " << cam->name << " in frame "
                 << frame_num << std::endl;
       return;
     }
-    if (!cam->poseEstimate.isValid()) {
+    if (!cam->poseEstimate.isValid() || !cam->rig->poseEstimate.isValid()) {
       std::cout << "TagGraph WARN: no pose estimate for cam " << cam->name
                 <<  " in frame " << frame_num << std::endl;
       return;
@@ -250,23 +273,31 @@ namespace tagslam {
     if (!rb->poseEstimate.isValid()) {
       return;
     }
-    if (rb->hasPosePrior && cam->worldPoseKnown) {
-      // if both camera and body positions are fixed and known,
-      // there is no point adding measurements!
-      return;
-    }
+
     gtsam::ExpressionFactorGraph graph;
     gtsam::Values newValues;
-    // new camera location
-    gtsam::Symbol T_w_c_sym = sym_T_c_t(cam->index, cam->isStatic ? 0 : frame_num);
-    if (!values_.exists(T_w_c_sym)) {
-      newValues.insert(T_w_c_sym, cam->poseEstimate.getPose());
-      if (cam->worldPoseKnown) {
-        graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_c_sym, cam->poseEstimate.getPose(),
-                                                         cam->poseEstimate.getNoise()));
+    // add rig world pose if needed
+    const RigidBodyConstPtr &camRig = cam->rig;
+    gtsam::Symbol T_w_r_sym = sym_T_w_r_t(camRig->index, camRig->isStatic ? 0 : frame_num);
+    if (!values_.exists(T_w_r_sym)) {
+      newValues.insert(T_w_r_sym, camRig->poseEstimate.getPose());
+      if (camRig->hasPosePrior) {
+        graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_r_sym, camRig->poseEstimate.getPose(),
+                                                         camRig->poseEstimate.getNoise()));
       }
     }
-
+    // add camera->rig transform if needed
+    gtsam::Symbol T_r_c_sym = sym_T_r_c(cam->index);
+    if (!values_.exists(T_r_c_sym)) {
+      // This is the first time the camera-to-rig transform is known,
+      // insert it!
+      if (!cam->poseEstimate.isValid()) {
+        std::cout << "TagGraph: ERROR: INVALID POSE FOR CAM " << cam->name << std::endl;
+        return;
+      }
+      newValues.insert(T_r_c_sym, cam->poseEstimate.getPose());
+    }
+    // add body->world transform if now known
     gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
     if (!values_.exists(T_w_b_sym)) {
       const auto &pe = rb->poseEstimate;
@@ -279,19 +310,20 @@ namespace tagslam {
     }
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
-        //std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+        std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
         continue;
       }
       const auto &measured = tag->getImageCorners();
       gtsam::Expression<gtsam::Pose3>  T_b_o(sym_T_b_o(tag->id));
       gtsam::Expression<gtsam::Pose3>  T_w_b(T_w_b_sym);
-      gtsam::Expression<gtsam::Pose3>  T_w_c(T_w_c_sym);
+      gtsam::Expression<gtsam::Pose3>  T_r_c(T_r_c_sym);
+      gtsam::Expression<gtsam::Pose3>  T_w_r(sym_T_w_r_t(camRig->index, camRig->isStatic ? 0 : frame_num));
       for (const auto i: irange(0, 4)) {
         gtsam::Expression<gtsam::Point3> X_o(tag->getObjectCorner(i));
         // transform_from does X_A = T_AB * X_B
+        // transform_to   does X_A = T_BA * X_B
         gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
-        T_w_c = gtsam::Expression<gtsam::Pose3>(T_w_c_sym);
-        gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_w_c, X_w));
+        gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_r_c, gtsam::transform_to(T_w_r, X_w)));
         if (cam->radtanModel) {
           gtsam::Expression<Cal3DS2U> cK(*cam->radtanModel);
           gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);

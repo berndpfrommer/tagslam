@@ -43,3 +43,7 @@ bodies:
            x: 1.0e-05
            y: 1.0e-05
            z: 1.0e-05
+ - rig:
+     is_default_body: false
+     is_static: false
+     type: camera_rig

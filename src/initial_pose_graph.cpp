@@ -156,7 +156,7 @@ namespace tagslam {
     
   }
 
-//#define DEBUG_BODY_POSE
+#define DEBUG_BODY_POSE
   PoseEstimate
   InitialPoseGraph::estimateBodyPose(const CameraVec &cams,
                                      const ImageVec &imgs,
@@ -182,7 +182,8 @@ namespace tagslam {
       if (!cam->poseEstimate.isValid()) {
         continue;
       }
-      gtsam::Pose3_ T_w_c  = cam->poseEstimate.getPose();
+      gtsam::Pose3_ T_r_c  = cam->poseEstimate.getPose();
+      gtsam::Pose3_ T_w_r  = cam->rig->poseEstimate.getPose();
 #ifdef DEBUG_BODY_POSE
       std::cout << "camera " << cam_idx << " pose: " << std::endl;
       print_pose(cam->poseEstimate.getPose());
@@ -205,7 +206,9 @@ namespace tagslam {
         //std::cout << "transform to camera: T_c_w= " << std::endl << cam->poseEstimate.getPose().inverse() << std::endl;
         //std::cout << "transformed point: p: " << std::endl << cam->poseEstimate.getPose().inverse().transform_to(bp[i]) << std::endl;
         // P_A = transform_from(T_AB, P_B)
-        gtsam::Point2_ xp = gtsam::project(gtsam::transform_to(T_w_c, gtsam::transform_from(T_w_b, p)));
+        //
+        // X_c = T_c_r * T_r_w * T_w_b * X_b
+        gtsam::Point2_ xp = gtsam::project(gtsam::transform_to(T_r_c, gtsam::transform_to(T_w_r, gtsam::transform_from(T_w_b, p))));
         if (cam->radtanModel) {
           gtsam::Expression<Cal3DS2U> cK(*cam->radtanModel);
           gtsam::Point2_ predict(cK, &Cal3DS2U::uncalibrate, xp);

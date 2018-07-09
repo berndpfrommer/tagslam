@@ -57,6 +57,13 @@ namespace tagslam {
     return (T);
   }
 
+  static std::vector<double> make_default_noise(double sigma_rot, double sigma_trans) {
+    std::vector<double> n(36, 0.0);
+    n[0]  = n[7]   = n [14] = 1.0/sigma_rot;
+    n[21] = n[28]  = n[35]  = 1.0/sigma_trans;
+    return (n);
+  }
+
   static bool parse_camera_pose(CameraPtr cam, const ros::NodeHandle &nh) {
     PoseEstimate pe;
     double posd[3], rvecd[3];
@@ -72,7 +79,7 @@ namespace tagslam {
     }
     std::vector<double> Rd;
     if (!nh.getParam(cam->name + "/R", Rd)) {
-      bombout("R", cam->name);
+      Rd = make_default_noise(1e-6 /* rot */, 1e-6 /* trans */);
     }
     if (Rd.size() != 36) {
       bombout("R size != 36", cam->name);
@@ -86,7 +93,7 @@ namespace tagslam {
     gtsam::Pose3 pose(rmat, t);
     const auto noise = gtsam::noiseModel::Gaussian::SqrtInformation(R, true /*smart*/);
     cam->poseEstimate = PoseEstimate(pose, 0, 0, noise);
-    cam->worldPoseKnown = true;
+    cam->hasPosePrior = true;
     return (true);
   }
 
@@ -116,10 +123,10 @@ namespace tagslam {
       if (!nh.getParam(cam + "/resolution",  ci.resolution)) { bombout("resolution", cam); }
       if (!nh.getParam(cam + "/rostopic",  camera->rostopic)) { bombout("rostopic", cam); }
       if (!nh.getParam(cam + "/tagtopic",  camera->tagtopic)) { bombout("tagtopic", cam); }
+      if (!nh.getParam(cam + "/rig_body", camera->rig_body)) {  bombout("rig_body", cam); }
       nh.getParam(cam + "/frame_id", camera->frame_id);
-      nh.getParam(cam + "/is_static", camera->isStatic);
       if (parse_camera_pose(camera, nh))  {
-        std::cout << "world pose known for camera " << cam << std::endl;
+        ROS_INFO_STREAM("camera " << cam << " has known extrinsics calibration!");
       }
       // TODO: don't use CameraExtrinsics, rather use gtsam::Pose3
       camera->T_cam_body = get_transform(nh, cam + "/T_cam_body", CameraExtrinsics::Zero());

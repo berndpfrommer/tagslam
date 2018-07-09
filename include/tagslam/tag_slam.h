@@ -94,9 +94,12 @@ namespace tagslam {
     typedef std::vector<std::pair<gtsam::Point3, bool> > PointVector;
     struct PoseInfo {
       PoseInfo(const gtsam::Pose3 &p = gtsam::Pose3(), const ros::Time &t = ros::Time(0),
-               const std::string &frid = "") : pose(p), time(t), frame_id(frid) {}
+               const std::string &pfrid = "",
+               const std::string &frid  = "") :
+        pose(p), time(t), parent_frame_id(pfrid), frame_id(frid) {}
       gtsam::Pose3 pose;
       ros::Time    time;
+      std::string  parent_frame_id;
       std::string  frame_id;
     };
     void processTags(const std::vector<TagArrayConstPtr> &msgvec);
@@ -105,8 +108,7 @@ namespace tagslam {
                               const std::vector<ImageConstPtr> &msgvec2);
 
     bool subscribe();
-    void broadcastTransforms(const std::string &parentframe,
-                             const std::vector<PoseInfo> &poses);
+    void broadcastTransforms(const std::vector<PoseInfo> &poses);
     void broadcastBodyPoses(const ros::Time &t);
     void broadcastCameraPoses(const ros::Time &t);
     void broadcastTagPoses(const ros::Time &t);
@@ -137,16 +139,20 @@ namespace tagslam {
     void finalize();
     PoseEstimate findCameraPose(int cam_idx, const RigidBodyConstVec &rigidBodies,
                                 bool bodiesMustHavePose) const;
-    void findInitialCameraPoses();
+    void findInitialCameraAndRigPoses();
     void findInitialBodyPoses();
     void findInitialDiscoveredTagPoses();
+    std::vector<int> findCamerasWithKnownWorldPose() const;
     void updatePosesFromGraph(unsigned int frame_num);
     void writeBodyPoses(const std::string &poseFile) const;
     void writeTagWorldPoses(const std::string &poseFile, unsigned int frameNum) const;
     void writeStaticCameraPoses(const std::string &fname) const;
     void playFromBag(const std::string &fname);
     bool readRigidBodies();
+    void markDynamicBodyPosesInvalid();
     void readMeasurements(const std::string &type);
+    bool attachCamerasToBodies();
+    void invalidateDynamicPoses();
     void applyDistanceMeasurements();
     void applyPositionMeasurements();
     bool isBadViewingAngle(const gtsam::Pose3 &p) const;

@@ -17,6 +17,7 @@
 #include <set>
 
 namespace tagslam {
+  struct RigidBody;
   struct Camera {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     std::string       name;
@@ -27,11 +28,12 @@ namespace tagslam {
     std::string       rostopic;
     std::string       tagtopic;
     std::string       frame_id;
-    bool              isStatic{false};
-    bool              worldPoseKnown{false};
-    PoseEstimate      poseEstimate; // T_w_c
+    bool              hasPosePrior{false};
+    PoseEstimate      poseEstimate; // T_r_c
     gtsam::Pose3      optimizedPose;
     int               lastFrameNumber{-1};
+    std::string       rig_body; // string with name
+    std::shared_ptr<RigidBody>        rig;
     boost::shared_ptr<Cal3FS2>        equidistantModel;
     boost::shared_ptr<gtsam::Cal3DS2> radtanModel;
     typedef std::shared_ptr<Camera> CameraPtr;

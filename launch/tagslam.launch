@@ -5,6 +5,7 @@
   
   <arg name="calibration_file" default="$(arg config_dir)/cameras.yaml"/>
   <arg name="tag_poses_file" default="$(arg config_dir)/tagslam.yaml"/>
+  <arg name="camera_poses_file" default="$(arg config_dir)/camera_poses.yaml"/>
 
   <arg name="bag" default=""/>
   <arg name="start_time" default="0.0"/>
@@ -13,6 +14,7 @@
   <node pkg="tagslam" type="tagslam_node" name="tagslam"
 	output="$(arg output)" clear_params="True">
     <rosparam command="load" file="$(arg calibration_file)"/>
+    <rosparam command="load" file="$(arg camera_poses_file)"/>
     <rosparam param="tag_poses" command="load" file="$(arg tag_poses_file)"/>
     <param name="bag_file" value="$(arg bag)"/>
     <param name="start_time" value="$(arg start_time)"/>
