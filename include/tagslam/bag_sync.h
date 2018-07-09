@@ -45,6 +45,7 @@ namespace tagslam {
         }
         msgMap_[m.getTopic()] = msg;
       }
+      return (true);
     }
     const ros::Time &getCurrentTime() { return (currentTime_); }
   private:
@@ -127,12 +128,13 @@ namespace tagslam {
       } else {
         it->second++;
       }
-      if (it->second == topics1_.size() + topics2_.size()) {
+      if (it->second == (int) (topics1_.size() + topics2_.size())) {
         currentTime_ = t;
         publishMessages(t);  // also cleans out queues
         it++;
         msgCount_.erase(msgCount_.begin(), it);
       }
+      return (true);
     }
   private:
     typedef std::map<ros::Time, int> CountMap;

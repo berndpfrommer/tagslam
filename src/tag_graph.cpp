@@ -77,7 +77,7 @@ namespace tagslam {
     pixelNoise_ = gtsam::noiseModel::Isotropic::Sigma(2, numPix);
   }
 
-  int TagGraph::getMaxNumBodies() const {
+  unsigned int TagGraph::getMaxNumBodies() const {
     return (MAX_BODY_ID);
   }
 
@@ -372,8 +372,7 @@ namespace tagslam {
                                    const gtsam::Values &values,
                                    const std::string &verbosity, int maxIter) {
       *result = graph.calculateEstimate();
-      double ni = 1.0;
-      // XXX error calculation is probably incorrect
+      // XXX error calculation is incorrect!
       optimizerError_ = graph.error(graph.getDelta());
       optimizerIterations_ = 1;
       return (optimizerError_);
@@ -445,7 +444,7 @@ namespace tagslam {
     //graph_.print();
     //values_.print();
     //double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
-    double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
+    tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
     values_ = optimizedValues_;
     //optimizedValues_.print();
   }

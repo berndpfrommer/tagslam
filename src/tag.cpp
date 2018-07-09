@@ -55,10 +55,10 @@ namespace tagslam {
 
   TagVec Tag::parseTags(XmlRpc::XmlRpcValue xmltags, double size) {
     std::vector<TagPtr> tags;
-    for (uint32_t i = 0; i < xmltags.size(); i++) {
+    for (uint32_t i = 0; i < (unsigned int) xmltags.size(); i++) {
       if (xmltags[i].getType() != XmlRpc::XmlRpcValue::TypeStruct) continue;
       int id(0), bits(6);
-      double sz(size), uc(0);
+      double sz(size);
       for (XmlRpc::XmlRpcValue::iterator it = xmltags[i].begin();
            it != xmltags[i].end(); ++it) {
         std::string field = it->first;

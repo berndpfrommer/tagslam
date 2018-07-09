@@ -25,26 +25,6 @@ namespace tagslam {
   typedef boost::random::variate_generator<RandEng, RandDist> RandGen;
 
   static const double GUESS_TERM_CRIT = 0.002;
-  static void
-  from_gtsam(cv::Mat *rvec, cv::Mat *tvec, const gtsam::Pose3 &p) {
-    const gtsam::Point3 rv = gtsam::Rot3::Logmap(p.rotation());
-    const gtsam::Point3 tv = p.translation();
-    *rvec = (cv::Mat_<double>(3,1) << rv.x(), rv.y(), rv.z());
-    *tvec = (cv::Mat_<double>(3,1) << tv.x(), tv.y(), tv.z());
-  }
-
-  static void to_opencv(std::vector<cv::Point3d> *a,
-                       const std::vector<gtsam::Point3> b) {
-    for (const auto &p: b) {
-      a->emplace_back(p.x(), p.y(), p.z());
-    }
-  }
-  static void to_opencv(std::vector<cv::Point2d> *a,
-                       const std::vector<gtsam::Point2> b) {
-    for (const auto &p: b) {
-      a->emplace_back(p.x(), p.y());
-    }
-  }
 
   static gtsam::Pose3 make_random_pose(RandGen *rgr, RandGen *rgt) {
     gtsam::Point3 t((*rgt)(), (*rgt)(), (*rgt)());
@@ -106,6 +86,7 @@ namespace tagslam {
     return (PoseEstimate(startPose, 1e10, MAX_ITER));
   }
 
+#if 0  
   static void analyze_pose(const CameraVec &cams,
                            const ImageVec &imgs,
                            bool debug,
@@ -135,7 +116,7 @@ namespace tagslam {
       }
       std::cout << "ppts=[ ";
       cv::Mat img;
-      if (cam_idx < imgs.size()) img = imgs[cam_idx];
+      if (cam_idx < (int)imgs.size()) img = imgs[cam_idx];
       for (const auto i: irange(0ul, wpts.size())) {
         gtsam::Point3 wp  = wpts[i];
         gtsam::Point2 icp = phc.project(wp);
@@ -155,6 +136,7 @@ namespace tagslam {
     }
     
   }
+#endif  
 
 #define DEBUG_BODY_POSE
   PoseEstimate

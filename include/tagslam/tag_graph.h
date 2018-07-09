@@ -55,7 +55,7 @@ namespace tagslam {
     PoseEstimate getCameraPose(const CameraPtr &cam) const;
     bool getTagRelPose(const RigidBodyPtr &rb, int tagId,
                        gtsam::Pose3 *pose) const;
-    int  getMaxNumBodies() const;
+    unsigned int  getMaxNumBodies() const;
     
     PoseEstimate getTagWorldPose(const RigidBodyConstPtr &rb,
                                  int tagId, unsigned int frame_num) const;

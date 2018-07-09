@@ -21,14 +21,6 @@ namespace utils {
     return (gtsam::Matrix3(m));
   }
     
-  // creates intrinsic matrix from 4 doubles: fx, fy, cx, cy
-  static cv::Mat make_intrinsic_matrix(const std::vector<double> &intr) {
-    return (cv::Mat_<double>(3,3) <<
-            intr[0], 0,       intr[2],
-            0,       intr[1], intr[3],
-            0,       0,       1.0);
-  }
-
   static void decomposeHomography(const cv::Mat &HIN,
                                   cv::Mat *RR, cv::Mat *TT) {
     // H has scale invariance and scale can be negative! We can ensure that

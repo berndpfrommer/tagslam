@@ -138,7 +138,7 @@ namespace tagslam {
               0.0,  K[1], K[3],
               0.0,  0.0,  1.0);
       ci.D = cv::Mat_<double>(1, D.size());
-      for (int i = 0; i < D.size(); i++) {
+      for (unsigned int i = 0; i < D.size(); i++) {
         ci.D.at<double>(i) = D[i];
       }
       cdv.push_back(camera);
