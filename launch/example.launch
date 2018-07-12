@@ -1,0 +1,8 @@
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="example" default="2"/>
+  <arg name="data_dir" default="$(find tagslam)/examples/example_$(arg example)"/>
+  <include file="$(find tagslam)/launch/tagslam.launch">
+    <arg name="data_dir" value="$(arg data_dir)"/>
+  </include>
+</launch>

@@ -122,7 +122,7 @@ namespace tagslam {
       if (!nh.getParam(cam + "/intrinsics",  ci.intrinsics)) { bombout("intrinsics", cam); }
       if (!nh.getParam(cam + "/resolution",  ci.resolution)) { bombout("resolution", cam); }
       if (!nh.getParam(cam + "/rostopic",  camera->rostopic)) { bombout("rostopic", cam); }
-      if (!nh.getParam(cam + "/tagtopic",  camera->tagtopic)) { bombout("tagtopic", cam); }
+      nh.param<std::string>(cam + "/tagtopic",  camera->tagtopic, "");
       if (!nh.getParam(cam + "/rig_body", camera->rig_body)) {  bombout("rig_body", cam); }
       nh.getParam(cam + "/frame_id", camera->frame_id);
       if (parse_camera_pose(camera, nh))  {

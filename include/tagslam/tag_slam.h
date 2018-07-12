@@ -139,6 +139,7 @@ namespace tagslam {
     void finalize();
     PoseEstimate findCameraPose(int cam_idx, const RigidBodyConstVec &rigidBodies,
                                 bool bodiesMustHavePose) const;
+    PoseEstimate guessCameraWorldPose(unsigned int cam_idx) const;
     void findInitialCameraAndRigPoses();
     void findInitialBodyPoses();
     void findInitialDiscoveredTagPoses();
@@ -146,10 +147,9 @@ namespace tagslam {
     void updatePosesFromGraph(unsigned int frame_num);
     void writeBodyPoses(const std::string &poseFile) const;
     void writeTagWorldPoses(const std::string &poseFile, unsigned int frameNum) const;
-    void writeStaticCameraPoses(const std::string &fname) const;
+    void writeCameraPoses(const std::string &fname) const;
     void playFromBag(const std::string &fname);
     bool readRigidBodies();
-    void markDynamicBodyPosesInvalid();
     void readMeasurements(const std::string &type);
     bool attachCamerasToBodies();
     void invalidateDynamicPoses();
@@ -198,9 +198,10 @@ namespace tagslam {
     bool                                          writeDebugImages_{false};
     double                                        maxInitialReprojError_{1e3};
     tf::TransformBroadcaster                      tfBroadcaster_;
+    std::string                                   paramPrefix_;
     std::string                                   bodyPosesOutFile_;
     std::string                                   tagWorldPosesOutFile_;
-    std::string                                   staticCameraPosesOutFile_;
+    std::string                                   cameraPosesOutFile_;
     std::string                                   measurementsOutFile_;
     std::string                                   fixedFrame_;
     double                                        viewingAngleThreshold_;

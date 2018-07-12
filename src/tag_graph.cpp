@@ -259,7 +259,7 @@ namespace tagslam {
   void TagGraph::observedTags(const CameraPtr &cam, 
                               const RigidBodyPtr &rb, const TagVec &tags,
                               unsigned int frame_num) {
-    std::cout << "---------- points for cam " << cam->name << " body: " << rb->name << std::endl;
+    //std::cout << "---------- points for cam " << cam->name << " body: " << rb->name << std::endl;
     if (tags.empty()) {
       std::cout << "TagGraph WARN: no tags for " << cam->name << " in frame "
                 << frame_num << std::endl;
@@ -310,7 +310,7 @@ namespace tagslam {
     }
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
-        std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+        //std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
         continue;
       }
       const auto &measured = tag->getImageCorners();

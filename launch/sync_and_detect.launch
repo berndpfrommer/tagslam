@@ -1,0 +1,13 @@
+<launch>
+  <arg name="output" default="screen"/>
+  <arg name="bag" default=""/>
+  <arg name="start_time" default="0.0"/>
+#	launch-prefix="gdb -ex run --args"
+  <node pkg="tagslam" type="sync_and_detect_node" name="sync_and_detect"
+	output="$(arg output)" clear_params="True">
+    <rosparam param="image_topics"> ["/stereo/left/image_raw/compressed", "/stereo/right/image_raw/compressed"]</rosparam>
+    <rosparam param="tag_topics"> ["/stereo/left/tags", "/stereo/right/tags"]</rosparam>
+    <param name="bag_file" value="$(arg bag)"/>
+    <param name="start_time" value="$(arg start_time)"/>
+  </node>
+</launch>

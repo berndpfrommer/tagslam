@@ -138,7 +138,7 @@ namespace tagslam {
   }
 #endif  
 
-#define DEBUG_BODY_POSE
+//#define DEBUG_BODY_POSE
   PoseEstimate
   InitialPoseGraph::estimateBodyPose(const CameraVec &cams,
                                      const ImageVec &imgs,
@@ -247,7 +247,6 @@ namespace tagslam {
     }
     gtsam::Values initialValues;
     double pixelError = GUESS_TERM_CRIT * get_pixel_range(ip);
-    std::cout << "pixel error: " << pixelError << std::endl;
     pe = optimizeGraph(initialPose, initialValues, &graph, pixelError);
     return (pe);
   }
@@ -264,11 +263,9 @@ namespace tagslam {
     RandGen  rgr(randomEngine, distRot);	   // random angle generator
     gtsam::Pose3 pose = startPose;
     PoseEstimate bestPose(startPose);
-    for (const auto i: irange(0, 200)) {
+    for (const auto i: irange(0, 2000)) {
       PoseEstimate pe = try_optimization(pose, startValues, graph);
-      std::cout << "init opt " << i << " has error: " << pe.getError() << " vs " << errorLimit << std::endl;
       if (pe.getError() < bestPose.getError()) {
-        std::cout << "NEW BEST!" << std::endl;
         bestPose = pe;
       }
       if (bestPose.getError() < errorLimit) {
