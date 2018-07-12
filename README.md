@@ -29,6 +29,12 @@ Now the ROS stuff (this assumes you know your way around ROS packages):
     catkin config -DCMAKE_BUILD_TYPE=Release
 	catkin build
 
+## Examples
+
+There are some tests/examples in the repo. First start up rviz,
+visualize the transform tree ("TF"), then run one of the examples, e.g:
+
+	roslaunch tagslam example.launch example:=1
 
 ## Running
 
