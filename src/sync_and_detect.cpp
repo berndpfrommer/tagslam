@@ -1,0 +1,149 @@
+/* -*-c++-*--------------------------------------------------------------------
+ * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
+ */
+
+#include "tagslam/sync_and_detect.h"
+#include "tagslam/bag_sync.h"
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <eigen_conversions/eigen_msg.h>
+#include <boost/range/irange.hpp>
+#include <apriltag_msgs/ApriltagArrayStamped.h>
+#include <math.h>
+#include <fstream>
+#include <iomanip>
+#include <functional>
+
+namespace tagslam {
+  using boost::irange;
+
+  SyncAndDetect::SyncAndDetect(const ros::NodeHandle& pnh) :  nh_(pnh) {
+  }
+
+  SyncAndDetect::~SyncAndDetect() {
+  }
+
+  bool SyncAndDetect::initialize() {
+    if (!nh_.getParam("image_topics", imageTopics_)) {
+      ROS_ERROR("must specify image_topics parameter!");
+      return (false);
+    }
+    if (!nh_.getParam("tag_topics", tagTopics_)) {
+      ROS_ERROR("must specify tagTopics parameter!");
+      return (false);
+    }
+    if (tagTopics_.size() != imageTopics_.size()) {
+      ROS_ERROR("must have same number of tag_topics and image_topics!");
+      return (false);
+    }
+    detector_ = apriltag_ros::ApriltagDetector::Create(
+      apriltag_ros::DetectorType::Mit, apriltag_ros::TagFamily::tf36h11);
+    detector_->set_black_border(1);
+
+    std::string bagFile;
+    nh_.param<std::string>("bag_file", bagFile, "");
+    std::string outfname;
+    nh_.param<std::string>("output_bag_file", outfname, "output.bag");
+    outbag_.open(outfname, rosbag::bagmode::Write);
+    if (!bagFile.empty()) {
+      processBag(bagFile);
+    } else {
+      ROS_ERROR("must specify bag_file parameter!");
+      outbag_.close();
+      return (false);
+    }
+    outbag_.close();
+    return (true);
+  }
+
+
+  void SyncAndDetect::processCVMat(const std::vector<std_msgs::Header> &headers,
+                                   const std::vector<cv::Mat> &grey,
+                                   const std::vector<cv::Mat> &imgs) {
+    int totTags(0);
+    for (const auto i: irange(0ul, grey.size())) {
+      std::vector<apriltag_msgs::Apriltag> tags = detector_->Detect(grey[i]);
+      totTags += tags.size();
+      apriltag_msgs::ApriltagArrayStamped tagMsg;
+      tagMsg.header = headers[i];
+      for (const auto &tag: tags) {
+        tagMsg.apriltags.push_back(tag);
+      }
+      cv::Mat colorImg = imgs[i].clone();
+      if (!tags.empty()) {
+        outbag_.write<apriltag_msgs::ApriltagArrayStamped>(tagTopics_[i], headers[i].stamp, tagMsg);
+        apriltag_ros::DrawApriltags(colorImg, tags);
+      }
+      sensor_msgs::ImagePtr msg = cv_bridge::CvImage(headers[i], "bgr8", colorImg).toImageMsg();
+      outbag_.write<sensor_msgs::Image>(imageTopics_[i], headers[i].stamp, msg);
+    }
+    ROS_INFO_STREAM("frame " << fnum_ << " " << headers[0].stamp << " detected "
+                    << totTags << " tags with " << grey.size() << " cameras");
+    fnum_++;
+  }
+
+  void SyncAndDetect::processCompressedImages(const std::vector<CompressedImageConstPtr> &msgvec) {
+    if (msgvec.empty()) {
+      ROS_ERROR("got empty image vector!");
+      return;
+    }
+    std::vector<cv::Mat> images, grey_images;
+    std::vector<std_msgs::Header> headers;
+    for (const auto i: irange(0ul, msgvec.size())) {
+      const auto &img = msgvec[i];
+      cv::Mat im = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8)->image;
+      images.push_back(im);
+      cv::Mat im_grey = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8)->image;
+      grey_images.push_back(im_grey);
+      headers.push_back(img->header);
+    }
+    processCVMat(headers, grey_images, images);
+  }
+
+  void SyncAndDetect::processImages(const std::vector<ImageConstPtr> &msgvec) {
+    if (msgvec.empty()) {
+      ROS_ERROR("got empty image vector!");
+      return;
+    }
+    std::vector<cv::Mat> images, grey_images;
+    std::vector<std_msgs::Header> headers;
+    for (const auto i: irange(0ul, msgvec.size())) {
+      const auto &img = msgvec[i];
+      cv::Mat im = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8)->image;
+      images.push_back(im);
+      cv::Mat im_grey = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8)->image;
+      grey_images.push_back(im_grey);
+      headers.push_back(img->header);
+    }
+    processCVMat(headers, grey_images, images);
+  }
+
+  void SyncAndDetect::processBag(const std::string &fname) {
+    rosbag::Bag bag;
+    bag.open(fname, rosbag::bagmode::Read);
+    ROS_INFO_STREAM("playing from file: " << fname);
+    double start_time(0);
+    nh_.param<double>("start_time", start_time, 0);
+    ros::Time t_start(start_time);
+    rosbag::View view(bag, rosbag::TopicQuery(imageTopics_));
+    rosbag::View t0View(bag);
+    for (const auto i: irange(0ul, tagTopics_.size())) {
+      ROS_INFO_STREAM("image topic: "  << imageTopics_[i] << " maps to: " << tagTopics_[i]);
+    }
+
+    BagSync<CompressedImage> sync(imageTopics_, std::bind(&SyncAndDetect::processCompressedImages,
+                                                         this, std::placeholders::_1));
+    for (const rosbag::MessageInstance &m: view) {
+      sync.process(m);
+      if (!ros::ok()) {
+        break;
+      }
+    }
+    bag.close();
+    ros::shutdown();
+  }
+  
+}  // namespace
