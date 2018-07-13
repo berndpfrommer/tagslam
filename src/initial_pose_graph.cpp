@@ -263,7 +263,7 @@ namespace tagslam {
     RandGen  rgr(randomEngine, distRot);	   // random angle generator
     gtsam::Pose3 pose = startPose;
     PoseEstimate bestPose(startPose);
-    for (const auto i: irange(0, 2000)) {
+    for (int i = 0; i < 2000; i++) {
       PoseEstimate pe = try_optimization(pose, startValues, graph);
       if (pe.getError() < bestPose.getError()) {
         bestPose = pe;

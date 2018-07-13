@@ -43,6 +43,8 @@ namespace tagslam {
       apriltag_ros::DetectorType::Mit, apriltag_ros::TagFamily::tf36h11);
     detector_->set_black_border(1);
 
+    nh_.param<bool>("images_are_compressed", imagesAreCompressed_, false);
+    nh_.param<bool>("annotate_images", annotateImages_, false);
     std::string bagFile;
     nh_.param<std::string>("bag_file", bagFile, "");
     std::string outfname;
@@ -64,21 +66,31 @@ namespace tagslam {
                                    const std::vector<cv::Mat> &grey,
                                    const std::vector<cv::Mat> &imgs) {
     int totTags(0);
+    typedef std::vector<apriltag_msgs::Apriltag> TagVec;
+    std::vector<TagVec> allTags(grey.size());
+#pragma omp parallel for
+    for (int i = 0; i < (int)grey.size(); i++) {
+      allTags[i] = detector_->Detect(grey[i]);
+    }
     for (const auto i: irange(0ul, grey.size())) {
-      std::vector<apriltag_msgs::Apriltag> tags = detector_->Detect(grey[i]);
+      const std::vector<apriltag_msgs::Apriltag> tags = allTags[i];
       totTags += tags.size();
       apriltag_msgs::ApriltagArrayStamped tagMsg;
       tagMsg.header = headers[i];
       for (const auto &tag: tags) {
         tagMsg.apriltags.push_back(tag);
       }
-      cv::Mat colorImg = imgs[i].clone();
       if (!tags.empty()) {
         outbag_.write<apriltag_msgs::ApriltagArrayStamped>(tagTopics_[i], headers[i].stamp, tagMsg);
-        apriltag_ros::DrawApriltags(colorImg, tags);
       }
-      sensor_msgs::ImagePtr msg = cv_bridge::CvImage(headers[i], "bgr8", colorImg).toImageMsg();
-      outbag_.write<sensor_msgs::Image>(imageTopics_[i], headers[i].stamp, msg);
+      if (annotateImages_) {
+        cv::Mat colorImg = imgs[i].clone();
+        if (!tags.empty()) {
+          apriltag_ros::DrawApriltags(colorImg, tags);
+        }
+        sensor_msgs::ImagePtr msg = cv_bridge::CvImage(headers[i], "bgr8", colorImg).toImageMsg();
+        outbag_.write<sensor_msgs::Image>(imageTopics_[i], headers[i].stamp, msg);
+      }
     }
     ROS_INFO_STREAM("frame " << fnum_ << " " << headers[0].stamp << " detected "
                     << totTags << " tags with " << grey.size() << " cameras");
@@ -121,6 +133,22 @@ namespace tagslam {
     processCVMat(headers, grey_images, images);
   }
 
+  template<typename T>
+  static void iterate_through_bag(
+    const std::vector<std::string> &topics,
+    rosbag::View *view,
+    rosbag::Bag *bag,
+    const std::function<void(const std::vector<boost::shared_ptr<T const>> &)> &callback) {
+    BagSync<T> sync(topics, callback);
+    int fnum(0);
+    for (const rosbag::MessageInstance &m: *view) {
+      sync.process(m);
+      if (!ros::ok()) {
+        break;
+      }
+    }
+  }
+
   void SyncAndDetect::processBag(const std::string &fname) {
     rosbag::Bag bag;
     bag.open(fname, rosbag::bagmode::Read);
@@ -134,13 +162,14 @@ namespace tagslam {
       ROS_INFO_STREAM("image topic: "  << imageTopics_[i] << " maps to: " << tagTopics_[i]);
     }
 
-    BagSync<CompressedImage> sync(imageTopics_, std::bind(&SyncAndDetect::processCompressedImages,
-                                                         this, std::placeholders::_1));
-    for (const rosbag::MessageInstance &m: view) {
-      sync.process(m);
-      if (!ros::ok()) {
-        break;
-      }
+    if (imagesAreCompressed_) {
+      iterate_through_bag<CompressedImage>(imageTopics_, &view, &outbag_,
+                                           std::bind(&SyncAndDetect::processCompressedImages,
+                                                     this, std::placeholders::_1));
+    } else {
+      iterate_through_bag<sensor_msgs::Image>(imageTopics_,&view, &outbag_,
+                                              std::bind(&SyncAndDetect::processImages,
+                                                        this, std::placeholders::_1));
     }
     bag.close();
     ros::shutdown();

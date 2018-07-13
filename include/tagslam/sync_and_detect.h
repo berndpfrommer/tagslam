@@ -42,6 +42,8 @@ namespace tagslam {
     rosbag::Bag                         outbag_;
     std::vector<std::string>            tagTopics_;
     std::vector<std::string>            imageTopics_;
+    bool                                imagesAreCompressed_{false};
+    bool                                annotateImages_{false};
     apriltag_ros::ApriltagDetector::Ptr detector_;
   };
 }

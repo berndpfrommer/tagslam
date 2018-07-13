@@ -44,8 +44,9 @@ namespace tagslam {
           currentTime_ = msg->header.stamp;
         }
         msgMap_[m.getTopic()] = msg;
+        return (true);
       }
-      return (true);
+      return (false);
     }
     const ros::Time &getCurrentTime() { return (currentTime_); }
   private:
