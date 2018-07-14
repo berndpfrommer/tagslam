@@ -5,6 +5,7 @@
 #ifndef TAGSLAM_SYNC_AND_DETECT_H
 #define TAGSLAM_SYNC_AND_DETECT_H
 
+#include "tagslam/bag_sync.h"
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
@@ -29,12 +30,31 @@ namespace tagslam {
 
     bool initialize();
 
+  private:
     void processImages(const std::vector<ImageConstPtr> &msgvec);
     void processCompressedImages(const std::vector<CompressedImageConstPtr> &msgvec);
     void processCVMat(const std::vector<std_msgs::Header> &headers,
                       const std::vector<cv::Mat> &grey,
                       const std::vector<cv::Mat> &imgs);
     void processBag(const std::string &fname);
+    template<typename T>
+    void iterate_through_bag(
+      const std::vector<std::string> &topics,
+      rosbag::View *view,
+      rosbag::Bag *bag,
+      const std::function<void(const std::vector<boost::shared_ptr<T const>> &)> &callback)
+      {
+      BagSync<T> sync(topics, callback);
+      for (const rosbag::MessageInstance &m: *view) {
+        sync.process(m);
+        if (!ros::ok()) {
+          break;
+        }
+        if ((int)fnum_ > maxFrameNumber_) {
+          break;
+        }
+      }
+    }
 
     // ----------------------------------------------------------
     ros::NodeHandle                     nh_;
@@ -44,6 +64,7 @@ namespace tagslam {
     std::vector<std::string>            imageTopics_;
     bool                                imagesAreCompressed_{false};
     bool                                annotateImages_{false};
+    int                                 maxFrameNumber_;
     apriltag_ros::ApriltagDetector::Ptr detector_;
   };
 }

@@ -3,7 +3,6 @@
  */
 
 #include "tagslam/sync_and_detect.h"
-#include "tagslam/bag_sync.h"
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <cv_bridge/cv_bridge.h>
@@ -43,6 +42,7 @@ namespace tagslam {
       apriltag_ros::DetectorType::Mit, apriltag_ros::TagFamily::tf36h11);
     detector_->set_black_border(1);
 
+    nh_.param<int>("max_number_frames", maxFrameNumber_, 1000000);
     nh_.param<bool>("images_are_compressed", imagesAreCompressed_, false);
     nh_.param<bool>("annotate_images", annotateImages_, false);
     std::string bagFile;
@@ -131,22 +131,6 @@ namespace tagslam {
       headers.push_back(img->header);
     }
     processCVMat(headers, grey_images, images);
-  }
-
-  template<typename T>
-  static void iterate_through_bag(
-    const std::vector<std::string> &topics,
-    rosbag::View *view,
-    rosbag::Bag *bag,
-    const std::function<void(const std::vector<boost::shared_ptr<T const>> &)> &callback) {
-    BagSync<T> sync(topics, callback);
-    int fnum(0);
-    for (const rosbag::MessageInstance &m: *view) {
-      sync.process(m);
-      if (!ros::ok()) {
-        break;
-      }
-    }
   }
 
   void SyncAndDetect::processBag(const std::string &fname) {
