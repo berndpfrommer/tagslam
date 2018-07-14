@@ -1,0 +1,96 @@
+cam0:
+  camera_model: pinhole
+  distortion_coeffs: [-0.198866, 0.155338, 0.001388, -0.000423, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [2165.856,  2163.656, 949.972, 613.130]
+  resolution: [1920, 1200]
+# pg camera id: 17408094
+  rostopic: /cam_sync/cam0/image_raw
+  tagtopic: /cam_sync/cam0/tags
+  frame_id: /cam_sync/cam0
+  rig_body: aviary
+  is_static: true
+cam1:
+  camera_model: pinhole
+  distortion_coeffs: [-0.198223, 0.159132, -0.000497, 0.000188, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [2172.675284, 2171.410435, 950.194529, 607.904579]
+  resolution: [1900, 1200]
+# pg camera id: 18025945
+  rostopic: /cam_sync/cam1/image_raw
+  tagtopic: /cam_sync/cam1/tags
+  frame_id: /cam_sync/cam1
+  rig_body: aviary
+  is_static: true
+cam2:
+  camera_model: pinhole
+  distortion_coeffs: [-0.160887, 0.087520, -0.000100, -0.000319, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [2168.222, 2165.460, 978.186, 587.592]
+  resolution: [1900, 1200]
+# pg camera id: 17408093
+  rostopic: /cam_sync/cam2/image_raw
+  tagtopic: /cam_sync/cam2/tags
+  frame_id: /cam_sync/cam2
+  rig_body: aviary
+  is_static: true
+cam3:
+  camera_model: pinhole
+  distortion_coeffs: [-0.201938, 0.169372, 0.000337, 0.000505, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [2162.772695,  2161.018824,  959.400561, 596.661584]
+  resolution: [1900, 1200]
+# pg camera id: 18057299
+  rostopic: /cam_sync/cam3/image_raw
+  tagtopic: /cam_sync/cam3/tags
+  frame_id: /cam_sync/cam3
+  rig_body: aviary
+  is_static: true
+cam4:
+  camera_model: pinhole
+  distortion_coeffs: [-0.198990, 0.166636, 0.000302, -0.000387, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [2163.966278,  2162.164688,  941.521405, 603.384351]
+  resolution: [1900, 1200]
+# pg camera id: 18025950
+  rostopic: /cam_sync/cam4/image_raw
+  tagtopic: /cam_sync/cam4/tags
+  frame_id: /cam_sync/cam4
+  rig_body: aviary
+  is_static: true
+cam5:
+  camera_model: pinhole
+  distortion_coeffs: [-0.202588, 0.179161, -0.000003, -0.000189, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [2162.274519,  2160.789228,  965.213733, 592.229302]
+  resolution: [1900, 1200]
+# pg camera id: 18057298
+  rostopic: /cam_sync/cam5/image_raw
+  tagtopic: /cam_sync/cam5/tags
+  frame_id: /cam_sync/cam5
+  rig_body: aviary
+  is_static: true
+cam6:
+  camera_model: pinhole
+  distortion_coeffs: [-0.197654, 0.159163, -0.000087, -0.000205, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [2168.793342,  2167.195300,  956.762147, 592.004910]
+  resolution: [1900, 1200]
+# pg camera id: 18057304
+  rostopic: /cam_sync/cam6/image_raw
+  tagtopic: /cam_sync/cam6/tags
+  frame_id: /cam_sync/cam6
+  rig_body: aviary
+  is_static: true
+cam7:
+  camera_model: pinhole
+  distortion_coeffs: [-0.199745, 0.165276, -0.000005, -0.000522, 0.000000]
+  distortion_model: plumb_bob
+  intrinsics: [2168.558335,  2166.660921,  957.183663, 599.473163]
+  resolution: [1900, 1200]
+# pg camera id: 18057303
+  rostopic: /cam_sync/cam7/image_raw
+  tagtopic: /cam_sync/cam7/tags
+  frame_id: /cam_sync/cam7
+  rig_body: aviary
+  is_static: true
