@@ -299,7 +299,7 @@ namespace tagslam {
     }
     // add body->world transform if now known
     gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
-    if (!values_.exists(T_w_b_sym)) {
+    if (!values_.exists(T_w_b_sym) && !newValues.exists(T_w_b_sym)) {
       const auto &pe = rb->poseEstimate;
       newValues.insert(T_w_b_sym, pe.getPose());
       if (rb->isStatic && rb->hasPosePrior) {

@@ -24,6 +24,13 @@ namespace tagslam {
     InitialPoseGraph(const InitialPoseGraph&) = delete;
     InitialPoseGraph& operator=(const InitialPoseGraph&) = delete;
 
+    // set the maximum allowed relative pixel error below
+    // which a pose is accepted as "good enough" to
+    // be a valid initial pose
+    void setInitialRelativePixelError(double maxErr) {
+      initRelPixErr_ = maxErr;
+    }
+
     // returns T_w_c
     PoseEstimate
     estimateCameraPose(const CameraPtr &camera,
@@ -43,6 +50,8 @@ namespace tagslam {
                   const gtsam::Values &startValues,
                   gtsam::NonlinearFactorGraph *graph,
                   double errorLimit) const;
+    // --- variables--------------
+    double initRelPixErr_{0.005};
   };
 }
 

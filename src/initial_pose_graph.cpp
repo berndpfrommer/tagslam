@@ -24,8 +24,6 @@ namespace tagslam {
   typedef boost::random::normal_distribution<double> RandDist;
   typedef boost::random::variate_generator<RandEng, RandDist> RandGen;
 
-  static const double GUESS_TERM_CRIT = 0.002;
-
   static gtsam::Pose3 make_random_pose(RandGen *rgr, RandGen *rgt) {
     gtsam::Point3 t((*rgt)(), (*rgt)(), (*rgt)());
     gtsam::Point3 om((*rgr)(), (*rgr)(), (*rgr)());
@@ -110,7 +108,7 @@ namespace tagslam {
       std::vector<gtsam::Point3> bpts;
       std::vector<gtsam::Point3> wpts;
       std::vector<gtsam::Point2> ipts;
-      rb->getAttachedPoints(cam_idx, &bpts, &ipts);
+      rb->getAttachedPoints(cam_idx, &bpts, &ipts, false);
       for (const auto i: irange(0ul, bpts.size())) {
         wpts.push_back(bodyPose.transform_from(bpts[i]));
       }
@@ -152,8 +150,8 @@ namespace tagslam {
 #ifdef DEBUG_BODY_POSE
     std::cout << "estimating body pose from cameras: " << rb->observedTags.size() << std::endl;
     std::cout << "initial guess pose: " << std::endl;
-#endif    
     print_pose(initialPose);
+#endif    
     // loop through all tags on body
     auto pixelNoise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
     gtsam::Pose3_  T_w_b('P', 0);
@@ -172,7 +170,8 @@ namespace tagslam {
 #endif      
       std::vector<gtsam::Point3> bp;
       std::vector<gtsam::Point2> ip;
-      rb->getAttachedPoints(cam_idx, &bp, &ip);
+      rb->getAttachedPoints(cam_idx, &bp, &ip,
+                            false /* get world points in body frame! */);
       // now add points to graph
 
 #ifdef DEBUG_BODY_POSE
@@ -206,7 +205,7 @@ namespace tagslam {
 #endif      
     }
     gtsam::Values initialValues;
-    double pixelError = GUESS_TERM_CRIT * get_pixel_range(all_ip);
+    double pixelError = initRelPixErr_ * get_pixel_range(all_ip);
     pe = optimizeGraph(initialPose, initialValues, &graph, pixelError);
 #ifdef DEBUG_BODY_POSE    
     std::cout << "optimized graph pose T_w_b: " << std::endl;
@@ -246,7 +245,7 @@ namespace tagslam {
       }
     }
     gtsam::Values initialValues;
-    double pixelError = GUESS_TERM_CRIT * get_pixel_range(ip);
+    double pixelError = initRelPixErr_ * get_pixel_range(ip);
     pe = optimizeGraph(initialPose, initialValues, &graph, pixelError);
     return (pe);
   }
@@ -263,16 +262,34 @@ namespace tagslam {
     RandGen  rgr(randomEngine, distRot);	   // random angle generator
     gtsam::Pose3 pose = startPose;
     PoseEstimate bestPose(startPose);
-    for (int i = 0; i < 2000; i++) {
+
+    int num_iter(0);
+    const int MAX_NUM_ITER = 2000;
+    const double MAX_ADJUST_RATIO = 5.0; // max ratio to which err limit can grow
+    const double ffac = std::pow(MAX_ADJUST_RATIO, 1.0/MAX_NUM_ITER);
+    double adjFac = 1.0;
+    for (num_iter = 0; num_iter < MAX_NUM_ITER; num_iter++) {
       PoseEstimate pe = try_optimization(pose, startValues, graph);
+      double adjustedLimit = errorLimit * adjFac;
       if (pe.getError() < bestPose.getError()) {
         bestPose = pe;
+        //std::cout << num_iter << " best pose: " << pe.getError() << " vs lim: " << adjustedLimit << std::endl;
       }
-      if (bestPose.getError() < errorLimit) {
+      if (bestPose.getError() < adjustedLimit) {
         break;
       }
       pose = make_random_pose(&rgr, &rgt);
+      adjFac = adjFac * ffac; // exponentially increasing limit
     }
+    if (num_iter * 10 > MAX_NUM_ITER) {
+      ROS_WARN_STREAM("init pose guess took " << num_iter << " iterations, slowing you down!");
+      ROS_WARN_STREAM("consider increasing initial_maximum_relative_pixel_error from " << initRelPixErr_);
+    }
+    if (bestPose.getError() >= errorLimit) {
+      ROS_WARN_STREAM("initialization graph failed with error " <<
+                      bestPose.getError() << " vs limit: " << errorLimit);
+    }
+    bestPose.setValid(bestPose.getError() < errorLimit);
     return (bestPose);
   }
   

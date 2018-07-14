@@ -48,6 +48,7 @@ namespace tagslam {
     void   getAttachedPoints(int cam_idx,
                              std::vector<gtsam::Point3> *wp,
                              std::vector<gtsam::Point2> *ip,
+                             bool inWorldCoordinates,
                              std::vector<int> *tagids = NULL) const;
     int bestCamera(const std::vector<int> &cams) const;
     // -------------------------

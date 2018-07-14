@@ -84,12 +84,16 @@ namespace tagslam {
   void RigidBody::getAttachedPoints(int cam_idx,
                                     std::vector<gtsam::Point3> *wp,
                                     std::vector<gtsam::Point2> *ip,
+                                    bool pointsInWorldCoordinates,
                                     std::vector<int> *tagids) const {
     const auto tagmap = observedTags.find(cam_idx);
     if (tagmap == observedTags.end()) {
       return;
     }
-    //std::cout << name << " get attached points pose estimate: " << poseEstimate << std::endl;
+    // return points in body coordinates or world coordinates,
+    // depending on what is asked for
+    gtsam::Pose3 T_w_b = pointsInWorldCoordinates ? poseEstimate.getPose() : gtsam::Pose3();
+    //std::cout << name << " get attached points, T_w_b: " << T_w_b << std::endl;
     for (const auto &tag: tagmap->second) {
       if (tag->poseEstimate.isValid()) {
         if (tagids) tagids->push_back(tag->id);
@@ -98,7 +102,7 @@ namespace tagslam {
         //std::cout << "tag pose: " << tag->poseEstimate << std::endl;
         const auto opts = tag->getObjectCorners();
         for (const auto &op: opts) {
-          wp->push_back(poseEstimate * tag->poseEstimate * op);
+          wp->push_back(T_w_b * tag->poseEstimate * op);
           //std::cout << "tag id: " << tag->id << " wp: " << wp->back() << std::endl;
         }
       }

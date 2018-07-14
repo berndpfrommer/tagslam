@@ -138,7 +138,7 @@ namespace tagslam {
     void runOptimizer();
     void finalize();
     PoseEstimate findCameraPose(int cam_idx, const RigidBodyConstVec &rigidBodies,
-                                bool bodiesMustHavePose) const;
+                                bool inWorldFrame) const;
     PoseEstimate guessCameraWorldPose(unsigned int cam_idx) const;
     void findInitialCameraAndRigPoses();
     void findInitialBodyPoses();
@@ -196,7 +196,6 @@ namespace tagslam {
     unsigned int                                  frameNum_{0};
     int                                           maxFrameNum_{1000000};
     bool                                          writeDebugImages_{false};
-    double                                        maxInitialReprojError_{1e3};
     tf::TransformBroadcaster                      tfBroadcaster_;
     std::string                                   paramPrefix_;
     std::string                                   bodyPosesOutFile_;
