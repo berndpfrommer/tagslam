@@ -44,3 +44,13 @@ and tagslam:
     roslaunch tagslam apritag_detector_node.launch
     roslaunch tagslam tagslam.launch
 
+You can also run it afterwards on a bag file. First pre-process the
+bag (you need to adjust the topics in the launch script below!):
+
+	roslaunch tagslam sync_and_detect.launch bag:=bag_with_images.bag
+
+Afterwards you should find a bag with the detections in ``~/.ros/``
+Now run directly off of this bag (see example.launch) for examples.
+
+
+
