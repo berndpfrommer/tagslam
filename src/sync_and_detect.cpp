@@ -39,7 +39,7 @@ namespace tagslam {
       return (false);
     }
     detector_ = apriltag_ros::ApriltagDetector::Create(
-      apriltag_ros::DetectorType::Mit, apriltag_ros::TagFamily::tf36h11);
+      apriltag_ros::DetectorType::Umich, apriltag_ros::TagFamily::tf36h11);
     detector_->set_black_border(1);
 
     nh_.param<int>("max_number_frames", maxFrameNumber_, 1000000);
@@ -68,7 +68,7 @@ namespace tagslam {
     int totTags(0);
     typedef std::vector<apriltag_msgs::Apriltag> TagVec;
     std::vector<TagVec> allTags(grey.size());
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int i = 0; i < (int)grey.size(); i++) {
       allTags[i] = detector_->Detect(grey[i]);
     }
@@ -80,9 +80,7 @@ namespace tagslam {
       for (const auto &tag: tags) {
         tagMsg.apriltags.push_back(tag);
       }
-      if (!tags.empty()) {
-        outbag_.write<apriltag_msgs::ApriltagArrayStamped>(tagTopics_[i], headers[i].stamp, tagMsg);
-      }
+      outbag_.write<apriltag_msgs::ApriltagArrayStamped>(tagTopics_[i], headers[i].stamp, tagMsg);
       if (annotateImages_) {
         cv::Mat colorImg = imgs[i].clone();
         if (!tags.empty()) {
@@ -106,9 +104,12 @@ namespace tagslam {
     std::vector<std_msgs::Header> headers;
     for (const auto i: irange(0ul, msgvec.size())) {
       const auto &img = msgvec[i];
-      cv::Mat im = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8)->image;
+      cv::Mat im1 = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8)->image;
+      cv::Mat im;
+      cv::cvtColor(im1, im, cv::COLOR_BayerBG2BGR);
       images.push_back(im);
-      cv::Mat im_grey = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8)->image;
+      cv::Mat im_grey;
+      cv::cvtColor(im, im_grey, cv::COLOR_BGR2GRAY);
       grey_images.push_back(im_grey);
       headers.push_back(img->header);
     }
