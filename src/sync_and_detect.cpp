@@ -78,7 +78,6 @@ namespace tagslam {
     int totTags(0);
     typedef std::vector<apriltag_msgs::Apriltag> TagVec;
     std::vector<TagVec> allTags(grey.size());
-<<<<<<< HEAD
     if (detectorType_ == "Umich") {
       for (int i = 0; i < (int)grey.size(); i++) {
         allTags[i] = detector_->Detect(grey[i]);
@@ -88,11 +87,6 @@ namespace tagslam {
       for (int i = 0; i < (int)grey.size(); i++) {
         allTags[i] = detector_->Detect(grey[i]);
       }
-=======
-//#pragma omp parallel for
-    for (int i = 0; i < (int)grey.size(); i++) {
-      allTags[i] = detector_->Detect(grey[i]);
->>>>>>> e5903ca7a28c6103392dae6eae64f61e54fab93f
     }
     for (const auto i: irange(0ul, grey.size())) {
       const std::vector<apriltag_msgs::Apriltag> tags = allTags[i];
