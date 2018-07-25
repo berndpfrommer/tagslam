@@ -7,7 +7,8 @@
   <arg name="tagslam_config_file" default="$(arg config_dir)/tagslam.yaml"/>
   <arg name="camera_poses_file" default="$(arg config_dir)/camera_poses.yaml"/>
 
-  <arg name="bag" default="$(arg data_dir)/tag_detections.bag"/>
+  <!--<arg name="bag" default="$(arg data_dir)/tag_detections.bag"/> -->
+  <arg name="bag" default=""/>
   <!-- apriltag detector nodes -->
   #	launch-prefix="gdb -ex run --args"
   <node pkg="tagslam" type="tagslam_node" name="tagslam"
