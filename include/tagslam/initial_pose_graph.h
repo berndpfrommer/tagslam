@@ -36,20 +36,23 @@ namespace tagslam {
     estimateCameraPose(const CameraPtr &camera,
                        const std::vector<gtsam::Point3> &wp,
                        const std::vector<gtsam::Point2> &ip,
-                       const PoseEstimate &initialPose) const;
+                       const PoseEstimate &initialPose,
+                       double *errorLimit) const;
     PoseEstimate
     estimateBodyPose(const CameraVec &cams,
                      const ImageVec &imgs,
                      unsigned int frameNum,
                      const RigidBodyConstPtr &rb,
-                     const gtsam::Pose3 &initialPose) const;
+                     const gtsam::Pose3 &initialPose,
+                     double *errorLimit) const;
 
   private:
     PoseEstimate
     optimizeGraph(const gtsam::Pose3 &startPose,
                   const gtsam::Values &startValues,
                   gtsam::NonlinearFactorGraph *graph,
-                  double errorLimit) const;
+                  double errorLimit, double *adjErrorLimit,
+                  const std::vector<gtsam::Point3> &wp) const;
     // --- variables--------------
     double initRelPixErr_{0.005};
   };

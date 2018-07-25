@@ -266,8 +266,8 @@ namespace tagslam {
       return;
     }
     if (!cam->poseEstimate.isValid() || !cam->rig->poseEstimate.isValid()) {
-      std::cout << "TagGraph WARN: no pose estimate for cam " << cam->name
-                <<  " in frame " << frame_num << std::endl;
+      //std::cout << "TagGraph WARN: no pose estimate for cam " << cam->name
+      //<<  " in frame " << frame_num << std::endl;
       return;
     }
     if (!rb->poseEstimate.isValid()) {
@@ -303,7 +303,7 @@ namespace tagslam {
       const auto &pe = rb->poseEstimate;
       newValues.insert(T_w_b_sym, pe.getPose());
       if (rb->isStatic && rb->hasPosePrior) {
-        std::cout << "TagGraph: adding prior for body: " << rb->name << std::endl;
+        //std::cout << "TagGraph: adding prior for body: " << rb->name << std::endl;
         graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_b_sym,
                                                           pe.getPose(), pe.getNoise()));
       }

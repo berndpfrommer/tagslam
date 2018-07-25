@@ -115,12 +115,12 @@ namespace utils {
     bool status(false);
     if (distModel == "plumb_bob" || distModel == "radtan") {
       status = cv::solvePnP(world_points, image_points, K, D,
-                            *rvec, *tvec);
+                            *rvec, *tvec, false);
     } else {
       cv::Mat im_undist;
       cv::fisheye::undistortPoints(image_points, im_undist, K, D, K);
       status = cv::solvePnP(world_points, im_undist, K, cv::Mat(),
-                            *rvec, *tvec);
+                            *rvec, *tvec, false);
     }
     
     if (tvec->at<double>(2) < 0.0) { // indicates failure
@@ -172,6 +172,17 @@ namespace utils {
     }
     return (err / (double) ipp.size());
   }
-
+  
+  double get_pixel_range(const std::vector<gtsam::Point2> &ip) {
+    double min_pix[2] = {1e30, 1e30};
+    double max_pix[2] = {-1e30, -1e30};
+    for (const auto &p: ip) {
+      min_pix[0] = std::min(min_pix[0], p(0));
+      min_pix[1] = std::min(min_pix[1], p(1));
+      max_pix[0] = std::max(max_pix[0], p(0));
+      max_pix[1] = std::max(max_pix[1], p(1));
+    }
+    return (std::min(max_pix[0]-min_pix[0], max_pix[1]-min_pix[1]));
+  }
 }
 }

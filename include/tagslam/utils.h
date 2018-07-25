@@ -56,6 +56,11 @@ namespace tagslam {
                               const std::string &distModel,
                               const cv::Mat &D);
 
+    //
+    // returns the shorter side of the square into which
+    // all pixels fall.
+    //
+    double get_pixel_range(const std::vector<gtsam::Point2> &ip);
   }
 }
 

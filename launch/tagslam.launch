@@ -17,5 +17,6 @@
     <rosparam param="tagslam_config" command="load" file="$(arg tagslam_config_file)"/>
     <param name="bag_file" value="$(arg bag)"/>
     <param name="write_debug_images" value="False"/>
+    <param name="initial_maximum_relative_pixel_error" value="0.08"/>
   </node>
 </launch>

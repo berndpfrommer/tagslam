@@ -205,6 +205,7 @@ namespace tagslam {
     std::string                                   fixedFrame_;
     double                                        viewingAngleThreshold_;
     double                                        initBodyPoseMaxError_;
+    double                                        maxInitErr_{0.02};
     Profiler                                      profiler_;
   };
 

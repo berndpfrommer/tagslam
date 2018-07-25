@@ -23,6 +23,8 @@
 #include <iomanip>
 #include <functional>
 
+//#define DEBUG_POSE_ESTIMATE
+
 namespace tagslam {
   using boost::irange;
   struct PoseError {
@@ -41,9 +43,8 @@ namespace tagslam {
   bool TagSlam::initialize() {
     double pixNoise;
     nh_.param<double>("corner_measurement_error", pixNoise, 2.0);
-    double maxInitErr;
-    nh_.param<double>("initial_maximum_relative_pixel_error", maxInitErr, 0.02);
-    initialPoseGraph_.setInitialRelativePixelError(maxInitErr);
+    nh_.param<double>("initial_maximum_relative_pixel_error", maxInitErr_, 0.02);
+    initialPoseGraph_.setInitialRelativePixelError(maxInitErr_);
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<std::string>("param_prefix", paramPrefix_, "tagslam_config");
@@ -435,7 +436,6 @@ namespace tagslam {
     return (pe);
   }
 
-//#define DEBUG_POSE_ESTIMATE
   PoseEstimate
   TagSlam::poseFromPoints(int cam_idx,
                           const std::vector<gtsam::Point3> &wp,
@@ -450,20 +450,32 @@ namespace tagslam {
     std::cout << "------" << std::endl;
 #endif
     PoseEstimate pe = estimatePosePNP(cam_idx, wp, ip);
+    double pixelRange = utils::get_pixel_range(ip);
 #ifdef DEBUG_POSE_ESTIMATE
     std::cout << "pnp pose estimate: " << pe << std::endl;
-#endif    
-    if (!pe.isValid()) {
+    std::cout << "pixel range: " << pixelRange << " max err: " << pixelRange * maxInitErr_ << std::endl;
+#endif
+    if (!pe.isValid() || pe.getError() > pixelRange * maxInitErr_) {
       // PNP failed, try with a local graph
-      const PoseEstimate initPose = guessCameraWorldPose(cam_idx);
+      
+      // if pnp didn't outright fail, but just has too large error,
+      // use that pose as starting guess, otherwise resort to the last
+      // known camera pose.
+      const PoseEstimate initPose = pe.isValid() ? pe : guessCameraWorldPose(cam_idx);
 #ifdef DEBUG_POSE_ESTIMATE
       std::cout << "running mini graph for cam " << cam_idx << " init pose: " << std::endl << initPose << std::endl;
-#endif      
+#endif
+      double errorLimit;
       pe = initialPoseGraph_.estimateCameraPose(cameras_[cam_idx], wp, ip,
-                                                initPose);
-      if (!pe.isValid()) {
+                                                initPose, &errorLimit);
+      if (pe.getError() >= errorLimit) {
         ROS_WARN_STREAM("mini graph pose estimate failed for " << cameras_[cam_idx]->name
                         << " err: " << pe.getError());
+        pe.setValid(false);
+      } else {
+#ifdef DEBUG_POSE_ESTIMATE
+        std::cout << "mini graph initial pose estimate: " << pe << std::endl;
+#endif      
       }
     }
     return (pe);
@@ -480,6 +492,10 @@ namespace tagslam {
       }
     }
     if (!wp.empty()) {
+#ifdef DEBUG_POSE_ESTIMATE
+      std::cout << "=============== estimating pose for camera: " << cam_idx << std::endl;
+#endif    
+
       return (poseFromPoints(cam_idx, wp, ip));
     }
     return (PoseEstimate()); // invalid pose estimate
@@ -498,8 +514,9 @@ namespace tagslam {
         //
         // TODO: we often end up computing camera-to-static-body-point transforms
         //       that end up being useless if the rig-to-camera pose is not yet known
-        camPoses.push_back(findCameraPose(cam_idx, {staticBodies_.begin(),
-                staticBodies_.end()}, true /* in world coords */));
+        PoseEstimate pe = findCameraPose(cam_idx, {staticBodies_.begin(),
+              staticBodies_.end()}, true /* in world coords */);
+        camPoses.push_back(pe);
       }
     }
     // TODO: use the "best" camera pose to compute the rig pose
@@ -514,6 +531,12 @@ namespace tagslam {
           // This is not optimal.
           // T_w_r  = T_w_c * T_c_r
           const gtsam::Pose3 T_w_r = camPoses[cam_idx].getPose() * cam->poseEstimate.getPose().inverse();
+          gtsam::Pose3 diff = (T_w_r.inverse() * cam->rig->poseEstimate);
+          double d = diff.translation().norm();
+          if (d > 0.5 && !cam->rig->poseEstimate.equals(gtsam::Pose3(), 1e-8)) {
+            ROS_WARN_STREAM("camera " << cam_idx << " has large jump in position: " << d);
+            ROS_WARN_STREAM("pose difference to previous frame: " << std::endl << diff);
+          }
           // if either the rig pose is unknown, or it is dynamic,
           // initialize it here
           if (!cam->rig->poseEstimate.isValid() || !cam->rig->isStatic) {
@@ -540,6 +563,9 @@ namespace tagslam {
   TagSlam::estimateTagPose(int cam_idx,
                            const gtsam::Pose3 &T_w_b,
                            const TagPtr &tag) const {
+#ifdef DEBUG_POSE_ESTIMATE
+    std::cout << "&&&&&&&&&&&& estimating pose for tag: " << tag->id << std::endl;
+#endif    
     const auto &wp = tag->getObjectCorners();
     const auto ip = tag->getImageCorners();
     PoseEstimate pe = poseFromPoints(cam_idx, wp, ip, false);
@@ -740,7 +766,9 @@ namespace tagslam {
         }
       }
       if (img.rows > 0 && writeDebugImages_) {
-        std::string fbase = "image_" + std::to_string(frameNum_) + "_";
+        std::stringstream ss;
+        ss << std::setfill('0') << std::setw(4) << frameNum_;
+        std::string fbase = "image_" + ss.str() + "_";
         cv::imwrite(fbase + std::to_string(cam_idx) + ".jpg", img);
       }
 
@@ -777,6 +805,10 @@ namespace tagslam {
   void TagSlam::runOptimizer() {
     for (const auto &rb: allBodies_) {
       for (const auto &camToTag: rb->observedTags) {
+        if (!cameras_[camToTag.first]->poseEstimate.isValid()) {
+          ROS_WARN_STREAM("cam " << cameras_[camToTag.first]->name <<
+                          " has no pose for frame: " << frameNum_);
+        }
         tagGraph_.observedTags(cameras_[camToTag.first],
                                rb, camToTag.second, frameNum_);
       }
@@ -820,10 +852,13 @@ namespace tagslam {
     gtsam::Pose3 T_w_b = T_w_r * T_r_c * pe.inverse();
     //std::cout << "body pose from single camera " << best_cam_idx << std::endl;
     //std::cout << T_w_b << std::endl;
-    bodyPose = initialPoseGraph_.estimateBodyPose(cameras_, images_, frameNum_, rb, T_w_b);
+    double errorLimit;
+    bodyPose = initialPoseGraph_.estimateBodyPose(cameras_, images_, frameNum_, rb, T_w_b,
+                                                  &errorLimit);
     //std::cout << "body pose from body graph: " << std::endl << T_w_b << std::endl;
-    if (!bodyPose.isValid()) {
+    if (bodyPose.getError() > errorLimit) {
       ROS_WARN_STREAM("no body pose for " << rb->name << " due to high error!");
+      bodyPose.setValid(false);
     }
     return (bodyPose);
   }

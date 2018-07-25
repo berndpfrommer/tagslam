@@ -29,7 +29,7 @@ namespace tagslam {
     gtsam::Point3 om((*rgr)(), (*rgr)(), (*rgr)());
     return (gtsam::Pose3(gtsam::Rot3::rodriguez(om.x(),om.y(),om.z()), gtsam::Point3(t)));
   }
-
+#if 0
   static void print_pose(const gtsam::Pose3 &p) {
     const auto mat = p.matrix();
     std::cout << "[" << mat(0,0) << ", " << mat(0,1) << ", " << mat(0,2) << ", " << mat(0,3) << "; " << std::endl;
@@ -38,18 +38,7 @@ namespace tagslam {
     std::cout << " " << mat(3,0) << ", " << mat(3,1) << ", " << mat(3,2) << ", " << mat(3,3) << "; " << std::endl;
     std::cout << "];" << std::endl;
   }
-
-  static double get_pixel_range(const std::vector<gtsam::Point2> &ip) {
-    double min_pix[2] = {1e30, 1e30};
-    double max_pix[2] = {-1e30, -1e30};
-    for (const auto &p: ip) {
-      min_pix[0] = std::min(min_pix[0], p(0));
-      min_pix[1] = std::min(min_pix[1], p(1));
-      max_pix[0] = std::max(max_pix[0], p(0));
-      max_pix[1] = std::max(max_pix[1], p(1));
-    }
-    return (std::min(max_pix[0]-min_pix[0], max_pix[1]-min_pix[1]));
-  }
+#endif  
 
   static PoseEstimate try_optimization(const gtsam::Pose3 &startPose,
                                        const gtsam::Values &startValues,
@@ -142,7 +131,8 @@ namespace tagslam {
                                      const ImageVec &imgs,
                                      unsigned int frameNum,
                                      const RigidBodyConstPtr &rb,
-                                     const gtsam::Pose3 &initialPose) const {
+                                     const gtsam::Pose3 &initialPose,
+                                     double *errorLimit) const {
     //std::cout << "----------------- analysis of initial pose -----" << std::endl;
     //analyze_pose(cams, imgs, false, frameNum, rb, initialPose);
     PoseEstimate pe; // defaults to invalid
@@ -205,8 +195,9 @@ namespace tagslam {
 #endif      
     }
     gtsam::Values initialValues;
-    double pixelError = initRelPixErr_ * get_pixel_range(all_ip);
-    pe = optimizeGraph(initialPose, initialValues, &graph, pixelError);
+    double pixelError = initRelPixErr_ * utils::get_pixel_range(all_ip);
+    pe = optimizeGraph(initialPose, initialValues, &graph, pixelError,
+                       errorLimit, std::vector<gtsam::Point3>());
 #ifdef DEBUG_BODY_POSE    
     std::cout << "optimized graph pose T_w_b: " << std::endl;
     print_pose(pe.getPose());
@@ -218,12 +209,13 @@ namespace tagslam {
   }
 
   
-  // returns T_c_w
+  // returns T_w_c
   PoseEstimate
   InitialPoseGraph::estimateCameraPose(const CameraPtr &camera,
                                        const std::vector<gtsam::Point3> &wp,
                                        const std::vector<gtsam::Point2> &ip,
-                                       const PoseEstimate &initialPose) const {
+                                       const PoseEstimate &initialPose,
+                                       double *errorLimit) const {
     PoseEstimate pe; // defaults to invalid
     if (wp.empty()) {
       return (pe);
@@ -245,16 +237,33 @@ namespace tagslam {
       }
     }
     gtsam::Values initialValues;
-    double pixelError = initRelPixErr_ * get_pixel_range(ip);
-    pe = optimizeGraph(initialPose, initialValues, &graph, pixelError);
+    double pixelError = initRelPixErr_ * utils::get_pixel_range(ip);
+    pe = optimizeGraph(initialPose, initialValues, &graph, pixelError,
+                       errorLimit, wp);
     return (pe);
   }
+
+  static bool is_camera_z_positive(const gtsam::Pose3 &T_c_w,
+                                   const std::vector<gtsam::Point3> &wp) {
+    bool all_z_positive(true);
+    for (const auto p: wp) {
+      const gtsam::Point3 campt = T_c_w * p;
+      if (campt.z() <= 0) {
+        all_z_positive = false;
+        break;
+      }
+    }
+    return (all_z_positive);
+  }
+                                   
+                                   
 
   PoseEstimate
   InitialPoseGraph::optimizeGraph(const gtsam::Pose3 &startPose,
                                   const gtsam::Values &startValues,
                                   gtsam::NonlinearFactorGraph *graph,
-                                  double errorLimit) const {
+                                  double errorLimit, double *adjErrorLimit,
+                                  const std::vector<gtsam::Point3> &wp) const {
   	RandEng	randomEngine;
     RandDist distTrans(0, 10.0); // mu, sigma for translation
     RandDist distRot(0, M_PI);	 // mu, sigma for rotations
@@ -272,8 +281,10 @@ namespace tagslam {
       PoseEstimate pe = try_optimization(pose, startValues, graph);
       double adjustedLimit = errorLimit * adjFac;
       if (pe.getError() < bestPose.getError()) {
-        bestPose = pe;
-        //std::cout << num_iter << " best pose: " << pe.getError() << " vs lim: " << adjustedLimit << std::endl;
+        if (is_camera_z_positive(pe.getPose().inverse(), wp)) {
+          bestPose = pe;
+          //std::cout << num_iter << " best pose: " << pe.getError() << " vs lim: " << adjustedLimit << std::endl;
+        }
       }
       if (bestPose.getError() < adjustedLimit) {
         break;
@@ -285,11 +296,11 @@ namespace tagslam {
       ROS_WARN_STREAM("init pose guess took " << num_iter << " iterations, slowing you down!");
       ROS_WARN_STREAM("consider increasing initial_maximum_relative_pixel_error from " << initRelPixErr_);
     }
-    if (bestPose.getError() >= errorLimit) {
+    if (bestPose.getError() >= errorLimit * adjFac) {
       ROS_WARN_STREAM("initialization graph failed with error " <<
-                      bestPose.getError() << " vs limit: " << errorLimit);
+                      bestPose.getError() << " vs limit: " << errorLimit * adjFac);
     }
-    bestPose.setValid(bestPose.getError() < errorLimit);
+    *adjErrorLimit = errorLimit * adjFac;
     return (bestPose);
   }
   
