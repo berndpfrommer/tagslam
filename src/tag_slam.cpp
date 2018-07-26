@@ -519,16 +519,17 @@ namespace tagslam {
         camPoses.push_back(pe);
       }
     }
-    // TODO: use the "best" camera pose to compute the rig pose
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
       const auto &cam = cameras_[cam_idx];
       if (camPoses[cam_idx].isValid()) {
+        bool foundRigPose(false);
         if (cam->poseEstimate.isValid()) {
           // if we know both the camera world pose and its pose
           // relative to the rig, we can determine the rig pose.
           // NOTE: if multiple camera world poses are established,
           // the largest camera number will set the rig pose.
           // This is not optimal.
+          // TODO: use the "best" camera pose to compute the rig pose
           // T_w_r  = T_w_c * T_c_r
           const gtsam::Pose3 T_w_r = camPoses[cam_idx].getPose() * cam->poseEstimate.getPose().inverse();
           gtsam::Pose3 diff = (T_w_r.inverse() * cam->rig->poseEstimate);
@@ -541,14 +542,21 @@ namespace tagslam {
           // initialize it here
           if (!cam->rig->poseEstimate.isValid() || !cam->rig->isStatic) {
             cam->rig->poseEstimate = PoseEstimate(T_w_r, 0.0, 0);
+            foundRigPose = true;
           }
         }
         // if the rig world pose is known and the camera world pose
-        // as well, we can deduce the camera-to-rig pose
-        if (!cam->poseEstimate.isValid() && cam->rig->poseEstimate.isValid()) {
-          // T_r_c = T_r_w * T_w_c
-          const gtsam::Pose3 T_r_c = cam->rig->poseEstimate.inverse() * camPoses[cam_idx].getPose();
-          cam->poseEstimate = PoseEstimate(T_r_c, 0.0, 0);
+        // as well, we can deduce the camera-to-rig pose.
+        // If we just discovered the rig pose, then we can try this
+        // for all cameras up to and including this one.
+        for (int cam2_idx = foundRigPose ? 0 : cam_idx; cam2_idx <= cam_idx; cam2_idx++) {
+          const auto &cam2 = cameras_[cam2_idx];
+          if (!cam2->poseEstimate.isValid() && cam2->rig->poseEstimate.isValid()
+              && camPoses[cam2_idx].isValid()) {
+            // T_r_c = T_r_w * T_w_c
+            const gtsam::Pose3 T_r_c = cam2->rig->poseEstimate.inverse() * camPoses[cam2_idx].getPose();
+            cam2->poseEstimate = PoseEstimate(T_r_c, 0.0, 0);
+          }
         }
       }
     }
@@ -641,8 +649,6 @@ namespace tagslam {
     const auto nobs = attachObservedTagsToBodies(msgvec);
     profiler_.record("attachObservedTagsToBodies");
     
-    // XXX Mark all dynamic body poses as invalid (already done elsewhere, do we need to do this here???
-
     // Go over all bodies and use tags with
     // established positions to determine camera poses.
     findInitialCameraAndRigPoses();

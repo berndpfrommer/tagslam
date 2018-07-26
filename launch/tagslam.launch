@@ -10,7 +10,7 @@
   <!--<arg name="bag" default="$(arg data_dir)/tag_detections.bag"/> -->
   <arg name="bag" default=""/>
   <!-- apriltag detector nodes -->
-  #	launch-prefix="gdb -ex run --args"
+#  	launch-prefix="gdb -ex run --args"
   <node pkg="tagslam" type="tagslam_node" name="tagslam"
 	output="$(arg output)" clear_params="True">
     <rosparam command="load" file="$(arg calibration_file)"/>

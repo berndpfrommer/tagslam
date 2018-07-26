@@ -16,6 +16,7 @@
 #include <gtsam/nonlinear/ISAM2.h>
 #include <gtsam/inference/Symbol.h>
 #include <gtsam/geometry/Cal3DS2.h>
+#include <gtsam/nonlinear/ExpressionFactorGraph.h>
 #include <opencv2/core/core.hpp>
 #include <map>
 #include <vector>
@@ -90,6 +91,8 @@ namespace tagslam {
     double                        optimizerError_{0};
     int                           optimizerIterations_{0};
     std::map<gtsam::Symbol, gtsam::Matrix> covariances_;
+    gtsam::ExpressionFactorGraph  newGraph_;
+    gtsam::Values                 newValues_;
   };
 }
 

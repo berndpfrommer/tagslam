@@ -11,7 +11,6 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/ProjectionFactor.h>
 #include <gtsam/slam/ReferenceFrameFactor.h>
-#include <gtsam/nonlinear/ExpressionFactorGraph.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
 
@@ -21,7 +20,6 @@ namespace tagslam {
   // when using a large number of frames.
   // TODO: safeguard against overflow!
   static const unsigned int MAX_TAG_ID = 255;
-  static const unsigned int MAX_CAM_ID = 8;
   static const unsigned int MAX_BODY_ID = 'Z' - 'A' - 1;
 
   typedef gtsam::GenericProjectionFactor<gtsam::Pose3,
@@ -50,10 +48,7 @@ namespace tagslam {
   }
   // T_r_c camera-to-rig transform for given camera
   static const gtsam::Symbol sym_T_r_c(int camId) {
-    if (camId >= (int) MAX_CAM_ID) {
-      throw std::runtime_error("cam id exceeds MAX_CAM_ID: " + std::to_string(camId));
-    }
-    return (gtsam::Symbol('a' + camId, 0));
+    return (gtsam::Symbol('a', camId));
   }
   // T_w_r(t) camera rig to world transform
   static const gtsam::Symbol sym_T_w_r_t(int bodyIdx, unsigned int frame_num) {
@@ -259,6 +254,7 @@ namespace tagslam {
   void TagGraph::observedTags(const CameraPtr &cam, 
                               const RigidBodyPtr &rb, const TagVec &tags,
                               unsigned int frame_num) {
+
     //std::cout << "---------- points for cam " << cam->name << " body: " << rb->name << std::endl;
     if (tags.empty()) {
       std::cout << "TagGraph WARN: no tags for " << cam->name << " in frame "
@@ -274,7 +270,6 @@ namespace tagslam {
       return;
     }
 
-    gtsam::ExpressionFactorGraph graph;
     gtsam::Values newValues;
     // add rig world pose if needed
     const RigidBodyConstPtr &camRig = cam->rig;
@@ -282,7 +277,7 @@ namespace tagslam {
     if (!values_.exists(T_w_r_sym)) {
       newValues.insert(T_w_r_sym, camRig->poseEstimate.getPose());
       if (camRig->hasPosePrior) {
-        graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_r_sym, camRig->poseEstimate.getPose(),
+        newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_r_sym, camRig->poseEstimate.getPose(),
                                                          camRig->poseEstimate.getNoise()));
       }
     }
@@ -304,7 +299,7 @@ namespace tagslam {
       newValues.insert(T_w_b_sym, pe.getPose());
       if (rb->isStatic && rb->hasPosePrior) {
         //std::cout << "TagGraph: adding prior for body: " << rb->name << std::endl;
-        graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_b_sym,
+        newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_w_b_sym,
                                                           pe.getPose(), pe.getNoise()));
       }
     }
@@ -327,16 +322,16 @@ namespace tagslam {
         if (cam->radtanModel) {
           gtsam::Expression<Cal3DS2U> cK(*cam->radtanModel);
           gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
-          graph.addExpressionFactor(predict, measured[i], pixelNoise_);
+          newGraph_.addExpressionFactor(predict, measured[i], pixelNoise_);
         } else if (cam->equidistantModel) {
           gtsam::Expression<Cal3FS2> cK(*cam->equidistantModel);
           gtsam::Expression<gtsam::Point2> predict(cK, &Cal3FS2::uncalibrate, xp);
-          graph.addExpressionFactor(predict, measured[i], pixelNoise_);
+          newGraph_.addExpressionFactor(predict, measured[i], pixelNoise_);
         }
       }
     }
     values_.insert(newValues);
-    graph_.update(graph, newValues);
+    newValues_.insert(newValues);
   }
 
   PoseEstimate TagGraph::getPoseEstimate(const gtsam::Symbol &sym,
@@ -371,11 +366,14 @@ namespace tagslam {
                                    const gtsam::ISAM2 &graph,
                                    const gtsam::Values &values,
                                    const std::string &verbosity, int maxIter) {
-      *result = graph.calculateEstimate();
-      // XXX error calculation is incorrect!
-      optimizerError_ = graph.error(graph.getDelta());
-      optimizerIterations_ = 1;
-      return (optimizerError_);
+    graph_.update(newGraph_, newValues_);
+    newGraph_.erase(newGraph_.begin(), newGraph_.end());
+    newValues_.clear();
+    *result = graph.calculateEstimate();
+    // XXX error calculation is probably incorrect!
+    optimizerError_ = graph.error(graph.getDelta());
+    optimizerIterations_ = 1;
+    return (optimizerError_);
   }
 
 
