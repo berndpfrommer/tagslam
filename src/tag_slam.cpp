@@ -23,7 +23,7 @@
 #include <iomanip>
 #include <functional>
 
-//#define DEBUG_POSE_ESTIMATE
+#define DEBUG_POSE_ESTIMATE
 
 namespace tagslam {
   using boost::irange;
@@ -344,12 +344,10 @@ namespace tagslam {
     for (const auto &rb: allBodies_) {
       PoseEstimate pe;
       if (tagGraph_.getBodyPose(rb, &pe, frame)) {
-        //std::cout << "UPDATE: body " << rb->name << " from " << std::endl;
-        //std::cout << rb->poseEstimate.getPose() << std::endl << " to: " << std::endl;
-        
-        //rb->poseEstimate.setPose(p);
+        std::cout << "UPDATE: body " << rb->name << " from " << std::endl;
+        std::cout << rb->poseEstimate.getPose() << std::endl << " to: " << std::endl;
+        std::cout << pe << std::endl;
         rb->poseEstimate = pe;
-        //std::cout << rb->poseEstimate << std::endl;
       } else {
         if (!rb->isStatic) {
           // mark pose estimate of dynamic bodies as invalid
@@ -542,6 +540,9 @@ namespace tagslam {
           // initialize it here
           if (!cam->rig->poseEstimate.isValid() || !cam->rig->isStatic) {
             cam->rig->poseEstimate = PoseEstimate(T_w_r, 0.0, 0);
+            std::cout << "+++++ init rig pose based on cam: " << cam->name << " to be: " << std::endl;
+            std::cout << cam->rig->poseEstimate << std::endl;
+            std::cout << "DIFF to prev: " << std::endl << diff << std::endl;
             foundRigPose = true;
           }
         }
@@ -549,7 +550,7 @@ namespace tagslam {
         // as well, we can deduce the camera-to-rig pose.
         // If we just discovered the rig pose, then we can try this
         // for all cameras up to and including this one.
-        for (int cam2_idx = foundRigPose ? 0 : cam_idx; cam2_idx <= cam_idx; cam2_idx++) {
+        for (int cam2_idx = foundRigPose ? 0 : cam_idx; cam2_idx <= (int)cam_idx; cam2_idx++) {
           const auto &cam2 = cameras_[cam2_idx];
           if (!cam2->poseEstimate.isValid() && cam2->rig->poseEstimate.isValid()
               && camPoses[cam2_idx].isValid()) {

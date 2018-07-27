@@ -20,5 +20,6 @@
     <param name="bag_file" value="$(arg bag)"/>
     <param name="write_debug_images" value="$(arg write_debug_images)"/>
     <param name="initial_maximum_relative_pixel_error" value="0.08"/>
+    <param name="max_number_of_frames" value="72"/>
   </node>
 </launch>

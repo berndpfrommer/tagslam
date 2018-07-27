@@ -305,7 +305,11 @@ namespace tagslam {
     }
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
-        //std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+        std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+        continue;
+      }
+      if (cam->index == 1 && frame_num == 72 && (tag->id == 11 || tag->id == 14)) {
+        std::cout << "XXX skipping tag: " << tag->id << " cam " << cam->name << std::endl;
         continue;
       }
       const auto &measured = tag->getImageCorners();
@@ -366,6 +370,8 @@ namespace tagslam {
                                    const gtsam::ISAM2 &graph,
                                    const gtsam::Values &values,
                                    const std::string &verbosity, int maxIter) {
+    newValues_.print();
+    newGraph_.print();
     graph_.update(newGraph_, newValues_);
     newGraph_.erase(newGraph_.begin(), newGraph_.end());
     newValues_.clear();
