@@ -74,6 +74,8 @@ namespace tagslam {
                 int corner) const;
     PoseEstimate getPoseEstimate(const gtsam::Symbol &sym,
                                  const gtsam::Pose3 &pose) const;
+    void testProjection(const CameraConstPtr &cam, const RigidBodyPtr &rb, const TagVec &tags,
+                        unsigned int frame_num);
 
   private:
     bool findInitialTagPose(const Tag &tag, gtsam::Pose3 *pose,

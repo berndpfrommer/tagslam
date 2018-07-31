@@ -22,12 +22,15 @@ namespace tagslam {
     void         setError(double e) { err = e; }
     void         setPose(const gtsam::Pose3 &p) {
       *this = PoseEstimate(p, err, numIter, noise); }
+    void         setQuality(double q) { quality = q; }
     double       getError() const { return (err); }
     PoseNoise    getNoise() const { return (noise); }
     gtsam::Pose3 getPose() const { return (*this); }
+    double       getQuality() const { return (quality); }
   private:
     PoseNoise noise;
     double    err{1e10};
+    double    quality{0};
     int       numIter{1000};
   };
   std::ostream &operator<<(std::ostream &os, const PoseEstimate &pe);
