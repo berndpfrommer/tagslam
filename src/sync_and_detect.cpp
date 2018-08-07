@@ -88,6 +88,13 @@ namespace tagslam {
         allTags[i] = detector_->Detect(grey[i]);
       }
     }
+
+    sensor_msgs::CompressedImage msg;
+    msg.format = "jpeg";
+    std::vector<int> param(2);
+    param[0] = cv::IMWRITE_JPEG_QUALITY;
+    param[1] = 80;//default(95) 0-100
+
     for (const auto i: irange(0ul, grey.size())) {
       const std::vector<apriltag_msgs::Apriltag> tags = allTags[i];
       totTags += tags.size();
@@ -96,14 +103,19 @@ namespace tagslam {
       for (const auto &tag: tags) {
         tagMsg.apriltags.push_back(tag);
       }
-      outbag_.write<apriltag_msgs::ApriltagArrayStamped>(tagTopics_[i], headers[i].stamp, tagMsg);
+      if(headers[i].stamp.toSec() != 0)
+        outbag_.write<apriltag_msgs::ApriltagArrayStamped>(tagTopics_[i], headers[i].stamp, tagMsg);
       if (annotateImages_) {
         cv::Mat colorImg = imgs[i].clone();
         if (!tags.empty()) {
           apriltag_ros::DrawApriltags(colorImg, tags);
         }
-        sensor_msgs::ImagePtr msg = cv_bridge::CvImage(headers[i], "bgr8", colorImg).toImageMsg();
-        outbag_.write<sensor_msgs::Image>(imageTopics_[i], headers[i].stamp, msg);
+        
+        msg.header = headers[i];
+        cv::imencode(".jpg", colorImg, msg.data, param);
+
+        if(headers[i].stamp.toSec() != 0)
+          outbag_.write<sensor_msgs::CompressedImage>(imageTopics_[i], headers[i].stamp, msg);
       }
     }
     ROS_INFO_STREAM("frame " << fnum_ << " " << headers[0].stamp << " detected "
