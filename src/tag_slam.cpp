@@ -47,6 +47,7 @@ namespace tagslam {
     initialPoseGraph_.setInitialRelativePixelError(maxInitErr_);
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
+    nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
     nh_.param<std::string>("param_prefix", paramPrefix_, "tagslam_config");
     nh_.param<std::string>("body_poses_out_file", bodyPosesOutFile_,
                            "body_poses_out.yaml");
@@ -1326,17 +1327,25 @@ namespace tagslam {
     processTags(msg_vec);
   }
 
-  void TagSlam::processImages(const std::vector<ImageConstPtr> &msgvec) {
-    images_.clear();
+  template <typename T>
+  static void process_images(const std::vector<T> &msgvec, std::vector<cv::Mat> *images) {
+    images->clear();
     for (const auto i: irange(0ul, msgvec.size())) {
       const auto &img = msgvec[i];
       cv::Mat im = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8)->image;
-      images_.push_back(im);
+      images->push_back(im);
     }
   }
+
   void TagSlam::processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
                                      const std::vector<ImageConstPtr> &msgvec2) {
-    processImages(msgvec2);
+    process_images<ImageConstPtr>(msgvec2, &images_);
+    processTags(msgvec1);
+  }
+
+  void TagSlam::processTagsAndCompressedImages(const std::vector<TagArrayConstPtr> &msgvec1,
+                                               const std::vector<CompressedImageConstPtr> &msgvec2) {
+    process_images<CompressedImageConstPtr>(msgvec2, &images_);
     processTags(msgvec1);
   }
 
@@ -1378,10 +1387,17 @@ namespace tagslam {
     BagSync2<TagArray, Image> sync2(tagTopics, imageTopics,
                                     std::bind(&TagSlam::processTagsAndImages, this,
                                               std::placeholders::_1, std::placeholders::_2));
+    BagSync2<TagArray, CompressedImage> sync2c(tagTopics, imageTopics,
+                                               std::bind(&TagSlam::processTagsAndCompressedImages, this,
+                                                         std::placeholders::_1, std::placeholders::_2));
 
     for (const rosbag::MessageInstance &m: view) {
       if (writeDebugImages_) {
-        sync2.process(m);
+        if (hasCompressedImages_) {
+          sync2c.process(m);
+        } else {
+          sync2.process(m);
+        }
       } else {
         sync.process(m);
       }

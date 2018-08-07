@@ -15,6 +15,7 @@
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/CompressedImage.h>
 #include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/subscriber.h>
@@ -31,6 +32,8 @@ namespace tagslam {
   using TagArrayConstPtr = TagArray::ConstPtr;
   using Image = sensor_msgs::Image;
   using ImageConstPtr = sensor_msgs::ImageConstPtr;
+  using CompressedImage = sensor_msgs::CompressedImage;
+  using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
   typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray> SyncPolicy2;
   typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray> SyncPolicy3;
   typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray> SyncPolicy4;
@@ -103,9 +106,10 @@ namespace tagslam {
       std::string  frame_id;
     };
     void processTags(const std::vector<TagArrayConstPtr> &msgvec);
-    void processImages(const std::vector<ImageConstPtr> &msgvec);
     void processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
                               const std::vector<ImageConstPtr> &msgvec2);
+    void processTagsAndCompressedImages(const std::vector<TagArrayConstPtr> &msgvec1,
+                                        const std::vector<CompressedImageConstPtr> &msgvec2);
 
     bool subscribe();
     void broadcastTransforms(const std::vector<PoseInfo> &poses);
@@ -196,6 +200,7 @@ namespace tagslam {
     unsigned int                                  frameNum_{0};
     int                                           maxFrameNum_{1000000};
     bool                                          writeDebugImages_{false};
+    bool                                          hasCompressedImages_{false};
     tf::TransformBroadcaster                      tfBroadcaster_;
     std::string                                   paramPrefix_;
     std::string                                   bodyPosesOutFile_;
