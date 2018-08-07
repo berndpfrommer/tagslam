@@ -9,6 +9,7 @@
 #include "tagslam/tag.h"
 #include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <iostream>
 
@@ -25,7 +26,8 @@ namespace tagslam {
     typedef std::shared_ptr<const RigidBody> RigidBodyConstPtr;
     typedef std::vector<RigidBodyPtr>        RigidBodyVec;
     typedef std::vector<RigidBodyConstPtr>   RigidBodyConstVec;
-  
+    typedef std::unordered_map<int, TagPtr>       IdToTagMap;
+
     virtual bool write(std::ostream &os, const std::string &prefix) const = 0;
     virtual bool parse(XmlRpc::XmlRpcValue body_defaults,
                        XmlRpc::XmlRpcValue body) = 0;
@@ -59,15 +61,17 @@ namespace tagslam {
     PoseEstimate        poseEstimate;
     bool                isStatic{true};
     bool                isDefaultBody{false};
+    int                 maxHammingDistance{2};
     TagMap              tags;
     CamToTagVec         observedTags;
     double              defaultTagSize{0};
     bool                hasPosePrior{false};
+    std::set<int>       ignoreTags;
     // -------- static functions
     static RigidBodyPtr parse_body(const std::string &name,
                                    XmlRpc::XmlRpcValue bodyDefaults,
                                    XmlRpc::XmlRpcValue body);
-
+    void updateAttachedTagPoses(const IdToTagMap &updatedTags);
     static RigidBodyVec parse_bodies(XmlRpc::XmlRpcValue body_defaults,
                                      XmlRpc::XmlRpcValue bodies);
   };

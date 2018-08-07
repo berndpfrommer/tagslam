@@ -9,6 +9,7 @@
 #include <boost/range/irange.hpp>
 #include <XmlRpcException.h>
 
+//#define DEBUG_POSE_ESTIMATE
 namespace tagslam {
   using boost::irange;
 
@@ -38,6 +39,15 @@ namespace tagslam {
       defaultTagSize = static_cast<double>(body["default_tag_size"]);
       isDefaultBody  = static_cast<bool>(body["is_default_body"]);
       isStatic       = static_cast<bool>(body["is_static"]);
+      if (body.hasMember("max_hamming_distance")) {
+        maxHammingDistance = static_cast<int>(body["max_hamming_distance"]);
+      }
+      if (body.hasMember("ignore_tags")) {
+        auto ignTags = body["ignore_tags"];
+        for (const auto i: irange(0, ignTags.size())) {
+          ignoreTags.insert(static_cast<int>(ignTags[i]));
+        }
+      }
       if (body.hasMember("pose") > 0 && body["pose"].getType() ==
           XmlRpc::XmlRpcValue::TypeStruct) {
           gtsam::Pose3 pose;
@@ -81,6 +91,24 @@ namespace tagslam {
     return ((it == tags.end() || it->second->bits != bits)? NULL: it->second);
   }
 
+  void RigidBody::updateAttachedTagPoses(const IdToTagMap &updatedTags) {
+    for (const auto &camToTags: observedTags) {
+      for (auto &tag: camToTags.second) {
+        IdToTagMap::const_iterator it = updatedTags.find(tag->id);
+        if (it == updatedTags.end()) {
+          std::cout << "ERROR: unknown tag: " << tag->id;
+          continue;
+        }
+        if (it->second->poseEstimate.isValid()) {
+#ifdef DEBUG_POSE_ESTIMATE          
+          std::cout << "observed tag pose updated for tag: " << it->first << std::endl;
+#endif          
+          tag->poseEstimate = it->second->poseEstimate;
+        }
+      }
+    }
+  }
+
   void RigidBody::getAttachedPoints(int cam_idx,
                                     std::vector<gtsam::Point3> *wp,
                                     std::vector<gtsam::Point2> *ip,
@@ -93,18 +121,26 @@ namespace tagslam {
     // return points in body coordinates or world coordinates,
     // depending on what is asked for
     gtsam::Pose3 T_w_b = pointsInWorldCoordinates ? poseEstimate.getPose() : gtsam::Pose3();
-    //std::cout << name << " get attached points, T_w_b: " << T_w_b << std::endl;
+#ifdef DEBUG_POSE_ESTIMATE    
+    std::cout << name << " get attached points for cam " << cam_idx << ", T_w_b: " << std::endl << T_w_b << std::endl;
+#endif    
     for (const auto &tag: tagmap->second) {
       if (tag->poseEstimate.isValid()) {
         if (tagids) tagids->push_back(tag->id);
         std::vector<gtsam::Point2> uv = tag->getImageCorners();
         ip->insert(ip->end(), uv.begin(), uv.end());
-        //std::cout << "tag pose: " << tag->poseEstimate << std::endl;
+#ifdef DEBUG_POSE_ESTIMATE        
+        std::cout << "tag pose for tag: " << tag->id << std::endl << tag->poseEstimate << std::endl;
+#endif        
         const auto opts = tag->getObjectCorners();
         for (const auto &op: opts) {
           wp->push_back(T_w_b * tag->poseEstimate * op);
           //std::cout << "tag id: " << tag->id << " wp: " << wp->back() << std::endl;
         }
+      } else {
+#ifdef DEBUG_POSE_ESTIMATE
+        std::cout << "INVALID tag pose for tag: " << tag->id << std::endl;
+#endif
       }
     }
   }
@@ -129,6 +165,14 @@ namespace tagslam {
                                 const TagArrayConstPtr &tags) {
     unsigned int nobs(0);
     for (const auto &tag: tags->apriltags) {
+      if (tag.hamming > maxHammingDistance) {
+        ROS_INFO_STREAM(name << " IGNORING tag " << tag.id << " with hamming dist: " << tag.hamming);
+        continue;
+      }
+      if (ignoreTags.find(tag.id) != ignoreTags.end()) {
+        ROS_INFO_STREAM("IGNORING disallowed tag " << tag.id);
+        continue;
+      }
       TagPtr tagPtr = findTag(tag.id, tag.bits);
       if (tagPtr) { // tag belongs to me
         TagPtr newTag(new Tag(*tagPtr));

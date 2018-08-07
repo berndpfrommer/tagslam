@@ -35,8 +35,8 @@ namespace tagslam {
         if (msg->header.stamp > currentTime_) {
           if (msgMap_.size() == topics_.size()) {
             std::vector<ConstPtr> msgVec;
-            for (const auto &m: msgMap_) {
-              msgVec.push_back(m.second);
+            for (const auto &tp: topics_) {
+              msgVec.push_back(msgMap_[tp]);
             }
             callback_(msgVec);
           }
@@ -81,12 +81,13 @@ namespace tagslam {
     const ros::Time &getCurrentTime() { return (currentTime_); }
     
     template<typename T>
-    static std::vector<boost::shared_ptr<T const>>  makeVec(const ros::Time &t,
-      std::map<std::string, std::map<ros::Time, boost::shared_ptr<T const> >> *topicToQueue) {
-
+    static std::vector<boost::shared_ptr<T const>>
+    makeVec(const ros::Time &t,
+            const std::vector<std::string> &topics,
+            std::map<std::string, std::map<ros::Time, boost::shared_ptr<T const> >> *topicToQueue) {
       std::vector<boost::shared_ptr<T const>> mvec;
-      for (auto &queue: *topicToQueue) { // iterate over all topics
-        auto &t2m = queue.second; // time to message
+      for (const auto &topic: topics) {
+        auto &t2m = (*topicToQueue)[topic]; // time to message
         while (t2m.begin()->first < t) {
           t2m.erase(t2m.begin());
         }
@@ -97,8 +98,8 @@ namespace tagslam {
     }
 
     void publishMessages(const ros::Time &t) {
-      std::vector<boost::shared_ptr<T1 const>> mvec1 = makeVec(t, &msgMap1_);
-      std::vector<boost::shared_ptr<T2 const>> mvec2 = makeVec(t, &msgMap2_);
+      std::vector<boost::shared_ptr<T1 const>> mvec1 = makeVec(t, topics1_, &msgMap1_);
+      std::vector<boost::shared_ptr<T2 const>> mvec2 = makeVec(t, topics2_, &msgMap2_);
       callback_(mvec1, mvec2);
     }
     // have per-topic queue

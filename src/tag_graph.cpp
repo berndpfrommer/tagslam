@@ -283,6 +283,7 @@ namespace tagslam {
     }
     // add camera->rig transform if needed
     gtsam::Symbol T_r_c_sym = sym_T_r_c(cam->index);
+    gtsam::Pose3 T_r_c_pose = cam->poseEstimate.getPose();
     if (!values_.exists(T_r_c_sym)) {
       // This is the first time the camera-to-rig transform is known,
       // insert it!
@@ -291,6 +292,10 @@ namespace tagslam {
         return;
       }
       newValues.insert(T_r_c_sym, cam->poseEstimate.getPose());
+    } else {
+      T_r_c_pose = values_.at<gtsam::Pose3>(T_r_c_sym);
+      //std::cout << "using old T_r_c with error: " << std::endl <<
+      //T_r_c_pose.inverse() * cam->poseEstimate.getPose() << std::endl;
     }
     // add body->world transform if now known
     gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
@@ -305,7 +310,9 @@ namespace tagslam {
     }
     for (const auto &tag: tags) {
       if (!tag->poseEstimate.isValid()) {
-        //std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+#ifdef DEBUG_POSE_ESTIMATE        
+        std::cout << "TagGraph WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+#endif
         continue;
       }
       const auto &measured = tag->getImageCorners();
@@ -438,6 +445,65 @@ namespace tagslam {
   }
 */
 
+  void TagGraph::testProjection(const CameraConstPtr &cam, const RigidBodyPtr &rb, const TagVec &tags,
+                                  unsigned int frame_num) {
+    if (tags.empty()) {
+      //std::cout << "TagGraph TESTPROJ WARN: no tags for " << cam->name << " in frame "
+      //<< frame_num << std::endl;
+      return;
+    }
+    // add camera->rig transform if needed
+    gtsam::Symbol T_r_c_sym = sym_T_r_c(cam->index);
+    if (!values_.exists(T_r_c_sym)) {
+      //std::cout << "TagGraph TESTPROJ WARN: camera-rig tf not avail for " << cam->name << std::endl;
+      return;
+    }
+    gtsam::Pose3 T_r_c = values_.at<gtsam::Pose3>(T_r_c_sym);
+    
+    const RigidBodyConstPtr &camRig = cam->rig;
+    gtsam::Symbol T_w_r_sym = sym_T_w_r_t(camRig->index, camRig->isStatic ? 0 : frame_num);
+    if (!values_.exists(T_w_r_sym)) {
+      //std::cout << "TagGraph TESTPROJ WARN: rig pose not avail for " << cam->name << std::endl;
+      return;
+    }
+    const gtsam::Pose3 T_w_r = values_.at<gtsam::Pose3>(T_w_r_sym);
+    
+    gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, rb->isStatic ? 0 : frame_num);
+    if (!values_.exists(T_w_b_sym)) {
+      //std::cout << "TagGraph TESTPROJ WARN: body pose not avail for " << cam->name << " " << rb->name << std::endl;
+      return;
+    }
+    const gtsam::Pose3 T_w_b = values_.at<gtsam::Pose3>(T_w_b_sym);
+    std::cout << "TESTPROJ: T_w_b " << T_w_b << std::endl;
+    for (const auto &tag: tags) {
+      gtsam::Symbol T_b_o_sym(sym_T_b_o(tag->id));
+      if (!values_.exists(T_b_o_sym)) {
+        std::cout << "TagGraph TESTPROJ WARN: tag " << tag->id << " has invalid pose!" << std::endl;
+        continue;
+      }
+      const gtsam::Pose3 T_b_o = values_.at<gtsam::Pose3>(T_b_o_sym);
+      std::cout << "TESTPROJ: T_b_o: " << T_b_o << std::endl;
+      const auto &measured = tag->getImageCorners();
+      for (const auto i: irange(0, 4)) {
+        const gtsam::Point3 X_o(tag->getObjectCorner(i));
+        const gtsam::Point3 X_w = T_w_b.transform_from(T_b_o.transform_from(X_o));
+        const gtsam::Point3 X_r = T_w_r.transform_to(X_w);
+        const gtsam::Point3 X_c = T_r_c.transform_to(X_r);
+        std::cout << "TESTPROJ " << tag->id << " " << measured[i] << " " << X_c << " X_w: " << X_w << " X_r: " << X_r;
+        gtsam::Point2 pp;
+        if (cam->radtanModel) {
+          const auto cm = gtsam::PinholeCamera<Cal3DS2U>(gtsam::Pose3(), *cam->radtanModel);
+          pp = cm.project(X_c);
+        } else if (cam->equidistantModel) {
+          const auto cm = gtsam::PinholeCamera<Cal3FS2>(gtsam::Pose3(), *cam->equidistantModel);
+          pp = cm.project(X_c);
+        }
+        const auto dp = pp - measured[i];
+        std::cout << " " << dp.x() << " " << dp.y() << " " << std::endl;
+      }
+    }
+  }
+    
   void TagGraph::optimize() {
     //graph_.print();
     //values_.print();

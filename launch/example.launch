@@ -1,9 +1,11 @@
 <launch>
   <arg name="output" default="screen"/>
   <arg name="example" default="2"/>
+  <arg name="write_debug_images" default="false"/>
   <arg name="data_dir" default="$(find tagslam)/examples/example_$(arg example)"/>
   <include file="$(find tagslam)/launch/tagslam.launch">
     <arg name="data_dir" value="$(arg data_dir)"/>
+    <arg name="write_debug_images" value="$(arg write_debug_images)"/>
     <arg name="bag" value="$(arg data_dir)/tag_detections.bag"/>
   </include>
 </launch>
