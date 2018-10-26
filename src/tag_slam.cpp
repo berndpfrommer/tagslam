@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iomanip>
 #include <functional>
+#include <rosgraph_msgs/Clock.h>
 
 //#define DEBUG_POSE_ESTIMATE
 
@@ -76,6 +77,7 @@ namespace tagslam {
                                           std::to_string(cam_idx), 1));
     }
 
+    clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", 1);
     readMeasurements("distance");
     readMeasurements("position");
 
@@ -704,6 +706,10 @@ namespace tagslam {
     detachObservedTagsFromBodies();
     profiler_.record("detachObservedTagsFromBodies");
     ros::Time t = get_latest_time(msgvec);
+    rosgraph_msgs::Clock clockMsg;
+    clockMsg.clock = t;
+    clockPub_.publish(clockMsg);
+    
     broadcastCameraPoses(t);
     broadcastBodyPoses(t);
     broadcastTagPoses(t);

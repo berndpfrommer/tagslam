@@ -172,6 +172,7 @@ namespace tagslam {
     typedef message_filters::Subscriber<TagArray> TagSubscriber;
     typedef std::unordered_map<int, TagPtr>       IdToTagMap;
     ros::Subscriber                               singleCamSub_;
+    ros::Publisher                                clockPub_;
     std::vector<ros::Publisher>                   camOdomPub_;
     std::vector<ros::Publisher>                   bodyOdomPub_;
     std::vector<std::shared_ptr<TagSubscriber>>   sub_;

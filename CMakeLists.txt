@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   apriltag_msgs
   apriltag_ros
   message_filters
+  rosgraph_msgs
   cv_bridge
   tf
   tf_conversions
@@ -36,7 +37,7 @@ ENDIF()
 
 catkin_package(
 	INCLUDE_DIRS include
-	CATKIN_DEPENDS geometry_msgs roscpp
+	CATKIN_DEPENDS geometry_msgs rosgraph_msgs roscpp
 	)
 
 include_directories(
