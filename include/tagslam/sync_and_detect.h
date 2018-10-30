@@ -62,6 +62,7 @@ namespace tagslam {
     rosbag::Bag                         outbag_;
     std::vector<std::string>            tagTopics_;
     std::vector<std::string>            imageTopics_;
+    std::vector<std::string>            imageOutputTopics_;
     bool                                imagesAreCompressed_{false};
     bool                                annotateImages_{false};
     int                                 maxFrameNumber_;
