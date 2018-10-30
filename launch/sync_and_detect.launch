@@ -7,10 +7,14 @@
   <node pkg="tagslam" type="sync_and_detect_node" name="sync_and_detect"
 	output="$(arg output)" clear_params="True">
     <rosparam param="image_topics"> ["/fla/ovc_node/left/image_raw", "/fla/ovc_node/right/image_raw"]</rosparam>
-    <rosparam param="tag_topics"> ["/fla/ovc_node/left/tags", "/fla/ovc_node/left/tags"]</rosparam>
+    <rosparam param="image_output_topics"> ["/fla/ovc_node/left/compressed", "/fla/ovc_node/right/compressed"]</rosparam>
+    <rosparam param="tag_topics"> ["/fla/ovc_node/left/tags", "/fla/ovc_node/right/tags"]</rosparam>
     <param name="bag_file" value="$(arg bag)"/>
     <param name="detector_type" value="$(arg detector_type)"/>
     <param name="black_border_width" value="1"/>
+    <param name="annotate_images" value="false"/>
     <param name="start_time" value="$(arg start_time)"/>
+    <param name="output_bag_file" value="$(arg bag)_output.bag"/>
+    <param name="max_number_frames" value="500000"/>
   </node>
 </launch>

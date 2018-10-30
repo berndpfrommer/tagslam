@@ -30,6 +30,9 @@ namespace tagslam {
       ROS_ERROR("must specify image_topics parameter!");
       return (false);
     }
+    if (!nh_.getParam("image_output_topics", imageOutputTopics_)) {
+      imageOutputTopics_ = imageTopics_;
+    }
     if (!nh_.getParam("tag_topics", tagTopics_)) {
       ROS_ERROR("must specify tagTopics parameter!");
       return (false);
@@ -115,7 +118,7 @@ namespace tagslam {
         cv::imencode(".jpg", colorImg, msg.data, param);
 
         if(headers[i].stamp.toSec() != 0)
-          outbag_.write<sensor_msgs::CompressedImage>(imageTopics_[i], headers[i].stamp, msg);
+          outbag_.write<sensor_msgs::CompressedImage>(imageOutputTopics_[i], headers[i].stamp, msg);
       }
     }
     ROS_INFO_STREAM("frame " << fnum_ << " " << headers[0].stamp << " detected "
