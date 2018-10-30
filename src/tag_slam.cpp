@@ -315,6 +315,7 @@ namespace tagslam {
     }
   }
 
+  // returns T_world_cam
   PoseEstimate
   TagSlam::estimatePosePNP(int cam_idx,
                            const std::vector<gtsam::Point3>&wpts,
@@ -337,12 +338,16 @@ namespace tagslam {
         bool hasNegZ(false);
         for (const auto i: irange(0ul, wpts.size())) {
             const auto wt = T_c_w.transform_from(wpts[i]);
-            //std::cout << wt.x() << " " << wt.y() << " " << wt.z() << " " << ipts[i].x() << " " << ipts[i].y() << std::endl;
+            //std::cout << wpts[i] << " " << wt.x() << " " << wt.y() << " " << wt.z() << " " << ipts[i].x() << " " << ipts[i].y() << std::endl;
             if (wt.z() <= 0) {
               hasNegZ = true;
             }
         }
         pe = T_c_w.inverse();
+#if 1
+        std::cout << "T_c_w: " << std::endl << T_c_w << std::endl;
+        std::cout << "T_w_c: " << std::endl << T_c_w.inverse() << std::endl;
+#endif        
         if (hasNegZ) {
           pe.setValid(false);
         } else {
@@ -453,6 +458,7 @@ namespace tagslam {
     return (pe);
   }
 
+  // returns T_world_cam
   PoseEstimate
   TagSlam::poseFromPoints(int cam_idx,
                           const std::vector<gtsam::Point3> &wp,
@@ -466,6 +472,7 @@ namespace tagslam {
     }
     std::cout << "------" << std::endl;
 #endif
+    // returns T_world_cam
     PoseEstimate pe = estimatePosePNP(cam_idx, wp, ip);
     double pixelRange = utils::get_pixel_range(ip);
 #ifdef DEBUG_POSE_ESTIMATE
@@ -592,7 +599,10 @@ namespace tagslam {
   }
 
   bool TagSlam::isBadViewingAngle(const gtsam::Pose3 &p) const {
-    double costheta = -p.matrix()(2,2);
+    // viewing angle is given by the position of the camera
+    // in the tag coordinates! TODO: ignore tags at the image
+    // boundaries because they often are distorted.
+    double costheta = p.translation().normalize().z();
     return (costheta < viewingAngleThreshold_);
   }
   
@@ -605,6 +615,7 @@ namespace tagslam {
 #endif    
     const auto &wp = tag->getObjectCorners();
     const auto ip = tag->getImageCorners();
+    // get T_o_c, the transform from camera to object coordinates
     PoseEstimate pe = poseFromPoints(cam_idx, wp, ip, false);
     const CameraPtr &cam = cameras_[cam_idx];
     if (pe.isValid() && cam->rig->poseEstimate.isValid()) {
@@ -1388,7 +1399,12 @@ namespace tagslam {
     }
     ROS_INFO_STREAM("using topics: " << all_topics);
     ROS_INFO_STREAM("playing from file: " << fname);
-    rosbag::View view(bag, rosbag::TopicQuery(topics));
+    double deltaStartTime{0};
+    nh_.param<double>("bag_start_time", deltaStartTime, 0.0);
+    rosbag::View dummyView(bag, rosbag::TopicQuery(topics));
+    const ros::Time startTime = dummyView.getBeginTime() + ros::Duration(deltaStartTime);
+    
+    rosbag::View view(bag, rosbag::TopicQuery(topics), startTime);
     BagSync<TagArray> sync(tagTopics, std::bind(&TagSlam::processTags, this, std::placeholders::_1));
     BagSync2<TagArray, Image> sync2(tagTopics, imageTopics,
                                     std::bind(&TagSlam::processTagsAndImages, this,

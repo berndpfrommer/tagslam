@@ -121,10 +121,12 @@ namespace utils {
       cv::fisheye::undistortPoints(image_points, im_undist, K, D, K);
       status = cv::solvePnP(world_points, im_undist, K, cv::Mat(),
                             *rvec, *tvec, false);
-    }
-    
-    if (tvec->at<double>(2) < 0.0) { // indicates failure
-      status = false;
+      if (!status && (image_points.size() == 4)) { // indicates failure
+        *tvec = (cv::Mat_<double>(3, 1) << 0, 0, 1);
+        *rvec = (cv::Mat_<double>(3, 1) << 3.141, 0, 0);
+        status = cv::solvePnP(world_points, im_undist, K, cv::Mat(),
+                              *rvec, *tvec, true, CV_P3P);
+      }
     }
     return (status);
   }
