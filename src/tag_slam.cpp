@@ -344,7 +344,7 @@ namespace tagslam {
             }
         }
         pe = T_c_w.inverse();
-#if 1
+#if 0
         std::cout << "T_c_w: " << std::endl << T_c_w << std::endl;
         std::cout << "T_w_c: " << std::endl << T_c_w.inverse() << std::endl;
 #endif        
