@@ -1,0 +1,1064 @@
+body_defaults:
+  position_noise: 0.05
+  rotation_noise: 0.01
+bodies:
+ - top_floor:
+     is_default_body: true
+     is_static: true
+     ignore_tags: [20, 24, 35, 166, 213, 223, 237, 367, 392, 354, 405, 585]
+     default_tag_size: 0.150
+     max_hamming_distance: 2
+     pose:
+       center:
+         x: 0
+         y: 0
+         z: 0
+       rotvec:
+         x: 0
+         y: 0
+         z: 0
+       position_noise:
+         x: 0.0001
+         y: 0.0001
+         z: 0.0001
+       rotation_noise:
+         x: 1.0e-05
+         y: 1.0e-05
+         z: 1.0e-05
+     type: simple
+     tags:
+       - id: 3
+         size: 0.150
+         center:
+           x: 1.742
+           y: 3.033
+           z: 1.14
+         rotvec:
+           x: -2.22144147
+           y: 0.0
+           z:  2.22144147
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 4
+         size: 0.150
+         center:
+           x: 0.0
+           y: 15.29
+           z: 0.1
+         rotvec:
+           x:  0
+           y:  1.570796327
+           z:  0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 8
+         size: 0.150
+         center:
+           x: 1.764
+           y: 19.96
+           z: 1.91
+         rotvec:
+           x:  2.22144147
+           y:  0.0
+           z: -2.22144147
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 15
+         size: 0.150
+         center:
+           x: 1.764
+           y: 21.09
+           z: 0.56
+         rotvec:
+           x: 0.0
+           y: -1.57079633
+           z: 0.0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 14
+         size: 0.150
+         center:
+           x: 35.55
+           y: 0.04
+           z: 1.99
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 21
+         size: 0.150
+         center:
+           x: 1.764
+           y: 18.86
+           z: 1.24
+         rotvec:
+           x: 0.0
+           y: -1.57079633
+           z: 0.0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 19
+         size: 0.150
+         center:
+           x:  50.41
+           y:  0.04
+           z:  1.24
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 420
+         # this is really 20a, beginning long corridor
+         size: 0.150
+         center:
+           x:  51.58
+           y:  0.04
+           z:  1.94
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 520
+         # 20b, the one at the end of long corridor
+         size: 0.150
+         center:
+           x: 72.97
+           y: 0.17
+           z: 0.24
+         rotvec:
+           x:  2.22144147
+           y: 0.0
+           z: -2.22144147
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 22
+         size: 0.150
+         center:
+           x: 17.69
+           y:  0.04
+           z:  1.22
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 28
+         size: 0.150
+         center:
+           x: 60.96
+           y: 2.00
+           z: 0.88
+         rotvec:
+           x:  1.20919958
+           y:  1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 30
+         size: 0.150
+         center:
+           x: 13.29
+           y: 0.04
+           z: 1.88
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 31
+         # NOT MEASURED!
+         size: 0.150
+         center:
+           x: 1.62166381
+           y: 27.52
+           z: 0.08910260
+         rotvec:
+           x:  1.20919958
+           y: -1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 535
+         # misdetected !!!!
+         size: 0.150
+         center:
+           x:  3.46
+           y:  0.04
+           z:  0.98
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 36
+         size: 0.150
+         center:
+           x:  67.93
+           y:  0.04
+           z:  1.91
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 37
+         size: 0.150
+         center:
+           x: 0.0
+           y: 4.73
+           z: 0.39
+         rotvec:
+           x: -2.22144147
+           y:  0.0
+           z: -2.22144147
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 38
+         size: 0.150
+         center:
+           x:  57.33
+           y:  0.04
+           z:  1.92
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 39
+         size: 0.150
+         center:
+           x: 18.78
+           y: 0.04
+           z: 1.89
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 40
+         size: 0.150
+         center:
+           x: 60.23
+           y: 2.00
+           z: 1.72
+         rotvec:
+           x:  1.20919958
+           y: -1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 41
+         size: 0.150
+         center:
+           x: 21.06
+           y: 1.30
+           z: 2.19
+         rotvec:
+           x:  0.0
+           y:  3.14159265
+           z:  0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 42
+         size: 0.150
+         center:
+           x: 29.87
+           y: 0.04
+           z: 1.91
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 43
+         size: 0.150
+         center:
+           x: 72.97
+           y: 1.491
+           z: 2.196
+         rotvec:
+           x:  2.22144147
+           y: 0.0
+           z: -2.22144147
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 47
+         size: 0.150
+         center:
+           x: 0.0
+           y: 9.59
+           z: 0.1
+         rotvec:
+           x:  0.0
+           y:  1.57079633
+           z:  0.0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 49
+         size: 0.150
+         center:
+           x: 42.97
+           y: 2.0
+           z: 0.1
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 51
+         size: 0.150
+         center:
+           x: 6.72
+           y: 0.04
+           z: 1.24
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 53
+         size: 0.150
+         center:
+           x: 34.03
+           y: 0.04
+           z: 1.33
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 54
+         size: 0.150
+         center:
+           x:  66.09
+           y:  0.04
+           z:  1.24
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 55
+         size: 0.150
+         center:
+           x: 7.77
+           y: 0.04
+           z: 1.91
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 56
+         size: 0.150
+         center:
+           x:  56.10
+           y:  0.04
+           z:  1.25
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 57
+         size: 0.150
+         center:
+           x: 0.528
+           y: 27.52
+           z: 0.199
+         rotvec:
+           x:  1.20919958
+           y: -1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 58
+         size: 0.150
+         center:
+           x:  45.13
+           y:  0.04
+           z:  1.24
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 59
+         size: 0.150
+         center:
+           x: 1.3
+           y: 7.15
+           z: 2.28
+         rotvec:
+           x: -2.22144147
+           y: 2.22144147
+           z: 0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 60
+         size: 0.150
+         center:
+           x: 28.66
+           y: 0.04
+           z: 1.24
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 61
+         size: 0.150
+         center:
+           x: 15.42
+           y: 1.1
+           z: 2.19
+         rotvec:
+           x:  3.1415926
+           y:  0
+           z:  0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 65
+         size: 0.150
+         center:
+           x:  63.80
+           y:  0.07
+           z:  0.88
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 66
+         size: 0.150
+         center:
+           x: 40.87
+           y: 0.04
+           z: 1.93
+         rotvec:
+           x: -1.20919958
+           y:  1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 67
+         size: 0.150
+         center:
+           x: 1.3
+           y: 10.93
+           z: 2.28
+         rotvec:
+           x: -2.22144147
+           y: 2.22144147
+           z: 0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 68
+         size: 0.150
+         center:
+           x: 1.3
+           y: 3.62
+           z: 2.28
+         rotvec:
+           x: -2.22144147
+           y: 2.22144147
+           z: 0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 69
+         size: 0.150
+         center:
+           x: 24.33
+           y: 0.04
+           z: 1.91
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 70
+         size: 0.150
+         center:
+           x: 72.95
+           y: 1.46006596
+           z: 0.19316185
+         rotvec:
+           x: 0.0
+           y: -1.5707963268
+           z: 0.0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 71
+         size: 0.150
+         center:
+           x: 26.75
+           y: 1.231
+           z: 2.18
+         rotvec:
+           x:  3.1415926
+           y:  0
+           z:  0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 72
+         size: 0.150
+         center:
+           x: 31.74
+           y: 1.231
+           z: 2.17
+         rotvec:
+           x:  0
+           y:  -3.1415926
+           z:  0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 74
+         size: 0.150
+         center:
+           x: 1.748
+           y: 2.672
+           z: 1.88
+         rotvec:
+           x: 0
+           y: -1.5707963268
+           z: 0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 77
+         size: 0.150
+         center:
+           x: 0.0
+           y: 6.01
+           z: 1.44
+         rotvec:
+           x: -2.22144147
+           y:  0.0
+           z: -2.22144147
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 78
+         size: 0.150
+         center:
+           x: 1.618
+           y: 27.51
+           z: 1.206
+         rotvec:
+           x:  1.20919958
+           y: -1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 79
+         size: 0.150
+         center:
+           x: 4.58
+           y: 2.0
+           z: 1.15
+         rotvec:
+           x:  1.20919958
+           y: -1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 80
+         size: 0.150
+         center:
+           x:   0.539
+           y:  27.552
+           z:   2.088
+         rotvec:
+           x:  1.20919958
+           y: -1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 1.0001
+           y: 1.0001
+           z: 1.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 85
+         size: 0.150
+         center:
+           x: 46.31
+           y:  0.04
+           z:  1.91
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 91
+         size: 0.150
+         center:
+           x: 72.94
+           y: 0.17
+           z: 2.19
+         rotvec:
+           x: 0.0
+           y: -1.57079633
+           z: 0.0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 98
+         size: 0.150
+         center:
+           x: 1.764
+           y: 21.74
+           z: 1.83
+         rotvec:
+           x: 0.0
+           y: -1.57079633
+           z: 0.0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 100
+         size: 0.150
+         center:
+           x: 12.17
+           y:  0.04
+           z: 1.24
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 103
+         size: 0.150
+         center:
+           x: 0.537
+           y: 27.52
+           z: 1.235
+         rotvec:
+           x:  1.20919958
+           y: -1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 104
+# NOT MEASURED
+         size: 0.150
+         center:
+           x:  1.584
+           y: 27.528
+           z:  2.128
+         rotvec:
+           x:  1.20919958
+           y: -1.20919958
+           z:  1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 105
+         size: 0.150
+         center:
+           x: 10.11
+           y:  1.10
+           z:  2.17
+         rotvec:
+           x:  0
+           y:  3.1415926
+           z:  0
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 106
+         size: 0.150
+         center:
+           x: 72.97
+           y: 0.77
+           z: 1.06
+         rotvec:
+           x:  2.22144147
+           y: 0.0
+           z: -2.22144147
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 113
+         size: 0.150
+         center:
+           x: 39.65
+           y: 0.04
+           z: 1.24
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+       - id: 115
+         size: 0.150
+         center:
+           x: 23.15
+           y: 0.04
+           z: 1.24
+         rotvec:
+           x: -1.20919958
+           y: -1.20919958
+           z: -1.20919958
+         position_noise:
+           x: 0.0001
+           y: 0.0001
+           z: 0.0001
+         rotation_noise:
+           x: 1.0e-05
+           y: 1.0e-05
+           z: 1.0e-05
+ - rig:
+     is_default_body: false
+     is_static: false
+     type: camera_rig
