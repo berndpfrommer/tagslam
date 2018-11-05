@@ -169,11 +169,12 @@ namespace tagslam {
     rosbag::Bag bag;
     bag.open(fname, rosbag::bagmode::Read);
     ROS_INFO_STREAM("playing from file: " << fname);
-    double start_time(0);
+    double start_time(0), duration(-1);
     nh_.param<double>("start_time", start_time, 0);
-    ros::Time t_start(start_time);
-    rosbag::View view(bag, rosbag::TopicQuery(imageTopics_));
-    rosbag::View t0View(bag);
+    nh_.param<double>("duration", duration, -1);
+    ros::Time t_start = rosbag::View(bag).getBeginTime() + ros::Duration(start_time);
+    ros::Time t_end   = duration >= 0 ? t_start + ros::Duration(duration) : ros::TIME_MAX;
+    rosbag::View view(bag, rosbag::TopicQuery(imageTopics_), t_start, t_end);
     for (const auto i: irange(0ul, tagTopics_.size())) {
       ROS_INFO_STREAM("image topic: "  << imageTopics_[i] << " maps to: " << tagTopics_[i]);
     }
