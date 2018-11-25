@@ -80,6 +80,7 @@ namespace tagslam {
     clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", 1);
     readMeasurements("distance");
     readMeasurements("position");
+    readRemap();
 
     if (!readRigidBodies()) {
       return (false);
@@ -675,10 +676,33 @@ namespace tagslam {
     }
   }
 
+  void TagSlam::remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
+                               const std::vector<TagArrayConstPtr> &orig) {
+    //
+    // Sometimes there are tags with duplicate ids in the data set.
+    // In this case, remap the tag ids of the detected tags dependent
+    // on time stamp, to something else so they become unique.
+    for (const auto &o: orig) {
+      TagArrayPtr p(new TagArray(*o)); // make deep copy
+      const ros::Time t = p->header.stamp;
+      for (auto &tag: p->apriltags) {
+        auto it = tagRemap_.find(tag.id);
+        if (it != tagRemap_.end()) {
+          for (const ReMap &r: it->second) {
+            if (t >= r.startTime && t <= r.endTime) {
+              tag.id = r.remappedId;
+            }
+          }
+        }
+      }
+      remapped->push_back(p);
+    }
+  }
         
-  void TagSlam::processTags(const std::vector<TagArrayConstPtr> &msgvec) {
+  void TagSlam::processTags(const std::vector<TagArrayConstPtr> &origMsgVec) {
     profiler_.reset();
-
+    std::vector<TagArrayConstPtr> msgvec;
+    remapBadTagIds(&msgvec, origMsgVec);
     // check if any of the tags are new, and associate them
     // with a rigid body
     discoverTags(msgvec);
@@ -1374,6 +1398,44 @@ namespace tagslam {
     writeTagWorldPoses(tagWorldPosesOutFile_, frameNum);
     writeMeasurements(measurementsOutFile_, getDistances(), getPositions());
     writeCameraPoses(cameraPosesOutFile_);
+  }
+
+  void TagSlam::readRemap() {
+    XmlRpc::XmlRpcValue remap;
+    if (nh_.getParam(paramPrefix_ + "/tag_id_remap", remap) &&
+        remap.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+      ROS_INFO_STREAM("found remap map!");
+      for (const auto i: irange(0, remap.size())) {
+        if (remap[i].getType() !=
+            XmlRpc::XmlRpcValue::TypeStruct) continue;
+        int remapId = -1;
+        std::vector<ReMap> remaps;
+        for (XmlRpc::XmlRpcValue::iterator it = remap[i].begin();
+             it != remap[i].end(); ++it) {
+          if (it->first == "id") {
+            remapId = static_cast<int>(it->second);
+          }
+          if (it->first == "remaps") {
+            const auto re = it->second;
+            if (re.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+              for (const auto j: irange(0, re.size())) {
+                auto a = re[j];
+                if (a.getType() !=
+                    XmlRpc::XmlRpcValue::TypeStruct) continue;
+                ReMap r(static_cast<int>(a["remap_id"]),
+                        ros::Time(static_cast<double>(a["start_time"])),
+                        ros::Time(static_cast<double>(a["end_time"])));
+                remaps.push_back(r);
+              }
+            }
+          }
+        }
+        if (remapId >= 0) {
+          ROS_INFO_STREAM("found remapping for tag " << remapId);
+          tagRemap_[remapId] = remaps;
+        }
+      }
+    }
   }
 
   void TagSlam::playFromBag(const std::string &fname) {

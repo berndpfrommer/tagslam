@@ -29,6 +29,7 @@
 
 namespace tagslam {
   using TagArray = apriltag_msgs::ApriltagArrayStamped;
+  using TagArrayPtr = TagArray::Ptr;
   using TagArrayConstPtr = TagArray::ConstPtr;
   using Image = sensor_msgs::Image;
   using ImageConstPtr = sensor_msgs::ImageConstPtr;
@@ -105,6 +106,17 @@ namespace tagslam {
       std::string  parent_frame_id;
       std::string  frame_id;
     };
+    struct ReMap {
+      ReMap(int i, ros::Time ts, ros::Time te) :
+        remappedId(i), startTime(ts), endTime(te) {
+      };
+      int       remappedId;
+      ros::Time startTime;
+      ros::Time endTime;
+    };
+    void remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
+                        const std::vector<TagArrayConstPtr> &orig);
+
     void processTags(const std::vector<TagArrayConstPtr> &msgvec);
     void processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
                               const std::vector<ImageConstPtr> &msgvec2);
@@ -155,6 +167,7 @@ namespace tagslam {
     void playFromBag(const std::string &fname);
     bool readRigidBodies();
     void readMeasurements(const std::string &type);
+    void readRemap();
     bool attachCamerasToBodies();
     void invalidateDynamicPoses();
     void applyDistanceMeasurements();
@@ -212,6 +225,7 @@ namespace tagslam {
     double                                        viewingAngleThreshold_;
     double                                        initBodyPoseMaxError_;
     double                                        maxInitErr_{0.02};
+    std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
     Profiler                                      profiler_;
   };
 
