@@ -142,16 +142,24 @@ namespace tagslam {
         ci.D.at<double>(i) = D[i];
       }
       cdv.push_back(camera);
-      double dc[4] = {0, 0, 0, 0};
-      for (const auto i: irange(0ul, D.size())) {
-        dc[i] = D[i];
-      }
       if (ci.distortion_model == "radtan" ||
           ci.distortion_model == "plumb_bob") {
+        double dc[6] = {0, 0, 0, 0, 0, 0};
+        dc[0]     = D.size() > 0 ? D[0] : 0;
+        dc[1]     = D.size() > 1 ? D[1] : 0;
+        double p1 = D.size() > 2 ? D[2] : 0;
+        double p2 = D.size() > 3 ? D[3] : 0;
+        for (const auto i: irange(4ul, D.size())) {
+          dc[i - 2] = D[i];
+        }
         camera->radtanModel.reset(
-          new gtsam::Cal3DS2(K[0], K[1], 0.0, K[2], K[3],
-                             dc[0], dc[1], dc[2], dc[3]));
+          new Cal3DS3(K[0], K[1], K[2], K[3], p1, p2, dc));
       } else if (ci.distortion_model == "equidistant") {
+          double dc[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+          for (const auto i: irange(0ul, D.size())) {
+            dc[i] = D[i];
+          }
+
         camera->equidistantModel.reset(new Cal3FS2(K[0], K[1], K[2], K[3],
                                                    dc[0], dc[1], dc[2], dc[3]));
       } else {

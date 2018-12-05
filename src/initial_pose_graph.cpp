@@ -5,7 +5,6 @@
 #include "tagslam/initial_pose_graph.h"
 #include "tagslam/utils.h"
 #include "tagslam/resectioning_factor.h"
-#include "tagslam/cal3ds2u.h"
 #include <boost/range/irange.hpp>
 #include <gtsam/slam/expressions.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
@@ -38,9 +37,23 @@ namespace tagslam {
     std::cout << " " << mat(3,0) << ", " << mat(3,1) << ", " << mat(3,2) << ", " << mat(3,3) << "; " << std::endl;
     std::cout << "];" << std::endl;
   }
-#endif  
+#endif
 
-  static PoseEstimate try_optimization(const gtsam::Pose3 &startPose,
+
+  static double get_graph_error(const gtsam::Pose3  &pose,
+                                const gtsam::Values &values,
+                                const gtsam::NonlinearFactorGraph &graph) {
+    gtsam::Values v = values;
+    gtsam::Symbol P = gtsam::Symbol('P', 0); // pose symbol
+    v.insert(P, pose);
+    double e = graph.error(v);
+    if (!std::isnormal(e)) {
+      throw (std::runtime_error("bad starting guess for graph error"));
+    }
+    return (e);
+  }
+
+  static PoseEstimate try_optimization(const gtsam::Pose3  &startPose,
                                        const gtsam::Values &startValues,
                                        gtsam::NonlinearFactorGraph *graph) {
     gtsam::Symbol P = gtsam::Symbol('P', 0); // pose symbol
@@ -160,7 +173,9 @@ namespace tagslam {
 #endif      
       std::vector<gtsam::Point3> bp;
       std::vector<gtsam::Point2> ip;
-      rb->getAttachedPoints(cam_idx, &bp, &ip,
+      std::vector<gtsam::Pose3>  T_w_o;
+
+      rb->getAttachedPoints(cam_idx, &bp, &ip, &T_w_o,
                             false /* get world points in body frame! */);
       // now add points to graph
 
@@ -181,8 +196,8 @@ namespace tagslam {
         // X_c = T_c_r * T_r_w * T_w_b * X_b
         gtsam::Point2_ xp = gtsam::project(gtsam::transform_to(T_r_c, gtsam::transform_to(T_w_r, gtsam::transform_from(T_w_b, p))));
         if (cam->radtanModel) {
-          gtsam::Expression<Cal3DS2U> cK(*cam->radtanModel);
-          gtsam::Point2_ predict(cK, &Cal3DS2U::uncalibrate, xp);
+          gtsam::Expression<Cal3DS3> cK(*cam->radtanModel);
+          gtsam::Point2_ predict(cK, &Cal3DS3::uncalibrate, xp);
           graph.addExpressionFactor(predict, ip[i], pixelNoise);
         } else if (cam->equidistantModel) {
           gtsam::Expression<Cal3FS2> cK(*cam->equidistantModel);
@@ -227,8 +242,8 @@ namespace tagslam {
     for (const auto i: boost::irange(0ul, wp.size())) {
       gtsam::Point2_ xp = gtsam::project(gtsam::transform_to(T_w_c, wp[i]));
       if (camera->radtanModel) {
-        gtsam::Expression<Cal3DS2U> cK(*camera->radtanModel);
-        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
+        gtsam::Expression<Cal3DS3> cK(*camera->radtanModel);
+        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS3::uncalibrate, xp);
         graph.addExpressionFactor(predict, ip[i], pixelNoise);
       } else if (camera->equidistantModel) {
         gtsam::Expression<Cal3FS2> cK(*camera->equidistantModel);
@@ -243,20 +258,7 @@ namespace tagslam {
     return (pe);
   }
 
-  static bool is_camera_z_positive(const gtsam::Pose3 &T_c_w,
-                                   const std::vector<gtsam::Point3> &wp) {
-    bool all_z_positive(true);
-    for (const auto p: wp) {
-      const gtsam::Point3 campt = T_c_w * p;
-      if (campt.z() <= 0) {
-        all_z_positive = false;
-        break;
-      }
-    }
-    return (all_z_positive);
-  }
-                                   
-                                   
+
 
   PoseEstimate
   InitialPoseGraph::optimizeGraph(const gtsam::Pose3 &startPose,
@@ -270,8 +272,8 @@ namespace tagslam {
     RandGen	 rgt(randomEngine, distTrans);	 // random translation generator
     RandGen  rgr(randomEngine, distRot);	   // random angle generator
     gtsam::Pose3 pose = startPose;
-    PoseEstimate bestPose(startPose);
-
+    PoseEstimate bestPose(startPose,
+                          get_graph_error(startPose, startValues, *graph));
     int num_iter(0);
     const int MAX_NUM_ITER = 2000;
     const double MAX_ADJUST_RATIO = 5.0; // max ratio to which err limit can grow
@@ -281,7 +283,7 @@ namespace tagslam {
       PoseEstimate pe = try_optimization(pose, startValues, graph);
       double adjustedLimit = errorLimit * adjFac;
       if (pe.getError() < bestPose.getError()) {
-        if (is_camera_z_positive(pe.getPose().inverse(), wp)) {
+        if (!utils::has_negative_z(pe.getPose().inverse(), wp)) {
           bestPose = pe;
           //std::cout << num_iter << " best pose: " << pe.getError() << " vs lim: " << adjustedLimit << std::endl;
         }

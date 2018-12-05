@@ -20,7 +20,7 @@
 #include <gtsam/base/Matrix.h>
 #include <gtsam/geometry/Point2.h>
 #include <gtsam/geometry/Point3.h>
-#include "gtsam_equidistant/Cal3FS2.h"
+#include "gtsam_distortion/Cal3FS2.h"
 
 /* ************************************************************************* */
 Cal3FS2::Cal3FS2(const gtsam::Vector &v):

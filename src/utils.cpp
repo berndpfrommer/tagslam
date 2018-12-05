@@ -99,6 +99,7 @@ namespace utils {
     return (true);
   }
 
+
   //
   // Will return T_c_w, i.e. world-to-camera transform
   //
@@ -114,14 +115,30 @@ namespace utils {
     //std::cout << "D: " << D << std::endl;
     bool status(false);
     if (distModel == "plumb_bob" || distModel == "radtan") {
-      status = cv::solvePnP(world_points, image_points, K, D,
-                            *rvec, *tvec, false);
+      cv::Mat im_undist;
+      cv::undistortPoints(image_points, im_undist, K, D);
+      if (image_points.size() == 4) {
+        // most robust, try this one first
+        status = cv::solvePnP(world_points, image_points, K, D,
+                              *rvec, *tvec, false, CV_P3P);
+      } else {
+        status = cv::solvePnP(world_points, image_points, K, D,
+                              *rvec, *tvec, false, CV_EPNP);
+        if (!status) {
+          std::cout << "epnp failed!" << std::endl;
+          status = cv::solvePnP(world_points, image_points, K, D,
+                              *rvec, *tvec, false, CV_ITERATIVE);  
+        } else {
+          std::cout << "epnp succeeded!" << std::endl;
+        }
+      }
     } else {
       cv::Mat im_undist;
-      cv::fisheye::undistortPoints(image_points, im_undist, K, D, K);
+      cv::fisheye::undistortPoints(image_points, im_undist, K, D);
       status = cv::solvePnP(world_points, im_undist, K, cv::Mat(),
                             *rvec, *tvec, false);
-      if (!status && (image_points.size() == 4)) { // indicates failure
+      // if it failed and has only 4 points, try different method
+      if (!status && (image_points.size() == 4)) {
         *tvec = (cv::Mat_<double>(3, 1) << 0, 0, 1);
         *rvec = (cv::Mat_<double>(3, 1) << 3.141, 0, 0);
         status = cv::solvePnP(world_points, im_undist, K, cv::Mat(),
@@ -186,5 +203,16 @@ namespace utils {
     }
     return (std::min(max_pix[0]-min_pix[0], max_pix[1]-min_pix[1]));
   }
+  
+  bool has_negative_z(const gtsam::Pose3 &T_c_w,
+                      const std::vector<gtsam::Point3>&wp) {
+    for (const auto w: wp) {
+      if (T_c_w.transform_from(w).z() <= 0) {
+        return (true);
+      }
+    }
+    return (false);
+  }
+
 }
 }

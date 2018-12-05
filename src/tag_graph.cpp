@@ -14,6 +14,8 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
 
+// #define USE_FULL_GRAPH
+
 namespace tagslam {
   // you can probably bump MAX_TAG_ID without too much trouble,
   // but watch out for integer overflow on the 'w' symbol
@@ -65,6 +67,14 @@ namespace tagslam {
   }
 
   TagGraph::TagGraph() {
+    gtsam::ISAM2Params p;
+    p.setEnableDetailedResults(true);
+    p.setEvaluateNonlinearError(true);
+    // these two settings were absolutely necessary to
+    // make ISAM2 work.
+    p.relinearizeThreshold = 0.01;
+    p.relinearizeSkip = 1;
+    graph_.reset(new gtsam::ISAM2(p));
     pixelNoise_= gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
   }
 
@@ -78,18 +88,15 @@ namespace tagslam {
 
   void TagGraph::addCamera(const CameraConstPtr &cam) {
     if (cam->hasPosePrior) {
-      gtsam::ExpressionFactorGraph graph;
-      gtsam::Values newValues;
       // if there is a pose prior, we can
       // already add the camera-to-rig transform here
       if (cam->poseEstimate.isValid()) {
         gtsam::Symbol T_r_c_sym = sym_T_r_c(cam->index);
         if (!values_.exists(T_r_c_sym)) {
-          newValues.insert(T_r_c_sym, cam->poseEstimate.getPose());
-          graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_r_c_sym, cam->poseEstimate.getPose(),
+          values_.insert(T_r_c_sym, cam->poseEstimate.getPose());
+          newValues_.insert(T_r_c_sym, cam->poseEstimate.getPose());
+          newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>(T_r_c_sym, cam->poseEstimate.getPose(),
                                                            cam->poseEstimate.getNoise()));
-          values_.insert(newValues);
-          graph_.update(graph, newValues);
         } else {
           std::cout << "TagGraph: ERROR: cam " << cam->name << " already exists!" << std::endl;
         }
@@ -120,7 +127,8 @@ namespace tagslam {
       }
     }
     values_.insert(newValues);
-    graph_.update(graph, newValues);
+    newValues_.insert(newValues);
+    newGraph_.add(graph);
   }
 
   double distance(const gtsam::Point3 &p1, const gtsam::Point3 &p2, gtsam::OptionalJacobian<1, 3> H1 = boost::none,
@@ -167,8 +175,8 @@ namespace tagslam {
     gtsam::Expression<double> dist = gtsam::Expression<double>(&distance, X_w_1, X_w_2);
     gtsam::ExpressionFactorGraph graph;
     graph.addExpressionFactor(dist, dm.distance, gtsam::noiseModel::Isotropic::Sigma(1, dm.noise));
-    
-    graph_.update(graph);
+
+    newGraph_.add(graph);
     return (true);
   }
 
@@ -223,7 +231,7 @@ namespace tagslam {
     gtsam::Expression<double> len = gtsam::Expression<double>(&proj, X_w, n);
     gtsam::ExpressionFactorGraph graph;
     graph.addExpressionFactor(len, m.length, gtsam::noiseModel::Isotropic::Sigma(1, m.noise));
-    graph_.update(graph);
+    newGraph_.add(graph);
     return (true);
   }
 
@@ -327,8 +335,8 @@ namespace tagslam {
         gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
         gtsam::Expression<gtsam::Point2> xp  = gtsam::project(gtsam::transform_to(T_r_c, gtsam::transform_to(T_w_r, X_w)));
         if (cam->radtanModel) {
-          gtsam::Expression<Cal3DS2U> cK(*cam->radtanModel);
-          gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS2U::uncalibrate, xp);
+          gtsam::Expression<Cal3DS3> cK(*cam->radtanModel);
+          gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS3::uncalibrate, xp);
           newGraph_.addExpressionFactor(predict, measured[i], pixelNoise_);
         } else if (cam->equidistantModel) {
           gtsam::Expression<Cal3FS2> cK(*cam->equidistantModel);
@@ -365,7 +373,7 @@ namespace tagslam {
   void TagGraph::computeMarginals() {
     covariances_.clear();
     for (const auto &v: optimizedValues_) {
-      covariances_[v.key] = graph_.marginalCovariance(v.key);
+      covariances_[v.key] = graph_->marginalCovariance(v.key);
     }
   }
 
@@ -373,12 +381,29 @@ namespace tagslam {
                                    const gtsam::ISAM2 &graph,
                                    const gtsam::Values &values,
                                    const std::string &verbosity, int maxIter) {
-    graph_.update(newGraph_, newValues_);
+#ifdef USE_FULL_GRAPH    
+    fullGraph_.add(newGraph_);
+    gtsam::LevenbergMarquardtParams lmp;
+    lmp.setVerbosity("SILENT");
+    lmp.setMaxIterations(100);
+    lmp.setAbsoluteErrorTol(1e-7);
+    lmp.setRelativeErrorTol(0);
+    gtsam::LevenbergMarquardtOptimizer lmo(fullGraph_, values, lmp);
+    *result = lmo.optimize();
+    optimizerError_ = lmo.error();
+#else
+    gtsam::ISAM2Result res = graph_->update(newGraph_, newValues_);
+    // iterate another time for better accuracy..
+    res = graph_->update();
+    if (res.errorAfter) { // optional!
+      optimizerError_ = *res.errorAfter;
+    } else {
+      throw std::runtime_error("no error provided by ISAM2!");
+    }
+    *result = graph.calculateEstimate();
+#endif
     newGraph_.erase(newGraph_.begin(), newGraph_.end());
     newValues_.clear();
-    *result = graph.calculateEstimate();
-    // XXX error calculation is probably incorrect!
-    optimizerError_ = graph.error(graph.getDelta());
     optimizerIterations_ = 1;
     return (optimizerError_);
   }
@@ -492,7 +517,7 @@ namespace tagslam {
         std::cout << "TESTPROJ " << tag->id << " " << measured[i] << " " << X_c << " X_w: " << X_w << " X_r: " << X_r;
         gtsam::Point2 pp;
         if (cam->radtanModel) {
-          const auto cm = gtsam::PinholeCamera<Cal3DS2U>(gtsam::Pose3(), *cam->radtanModel);
+          const auto cm = gtsam::PinholeCamera<Cal3DS3>(gtsam::Pose3(), *cam->radtanModel);
           pp = cm.project(X_c);
         } else if (cam->equidistantModel) {
           const auto cm = gtsam::PinholeCamera<Cal3FS2>(gtsam::Pose3(), *cam->equidistantModel);
@@ -508,7 +533,7 @@ namespace tagslam {
     //graph_.print();
     //values_.print();
     //double err = tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
-    tryOptimization(&optimizedValues_, graph_, values_, "TERMINATION", 100);
+    tryOptimization(&optimizedValues_, *graph_, values_, "TERMINATION", 100);
     values_ = optimizedValues_;
     //optimizedValues_.print();
   }

@@ -55,12 +55,17 @@ namespace tagslam {
                               const cv::Mat &K,
                               const std::string &distModel,
                               const cv::Mat &D);
-
     //
     // returns the shorter side of the square into which
     // all pixels fall.
     //
     double get_pixel_range(const std::vector<gtsam::Point2> &ip);
+
+    //
+    // tests if all world points are in front of the camera
+    //
+    bool has_negative_z(const gtsam::Pose3 &T_c_w,
+                        const std::vector<gtsam::Point3>&wp);
   }
 }
 

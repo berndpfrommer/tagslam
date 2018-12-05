@@ -141,11 +141,12 @@ namespace tagslam {
 
     PoseEstimate estimatePosePNP(int cam_idx,
                                  const std::vector<gtsam::Point3>&wpts,
-                                 const std::vector<gtsam::Point2>&ipts) const;
+                                 const std::vector<gtsam::Point2>&ipts,
+                                 const std::vector<gtsam::Pose3> &T_w_o) const;
     PoseEstimate poseFromPoints(int cam_idx,
                                 const std::vector<gtsam::Point3> &wp,
                                 const std::vector<gtsam::Point2> &ip,
-                                bool pointsArePlanar = false) const;
+                                const std::vector<gtsam::Pose3> &T_w_o) const;
     bool estimateTagPose(int cam_idx,
                          const gtsam::Pose3 &bodyPose,
                          const TagPtr &tag) const;

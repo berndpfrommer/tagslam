@@ -88,7 +88,8 @@ namespace tagslam {
     gtsam::Values                 values_;
     gtsam::Values                 optimizedValues_;
     //gtsam::ExpressionFactorGraph  graph_
-    gtsam::ISAM2                  graph_;
+    std::shared_ptr<gtsam::ISAM2> graph_;
+    gtsam::ExpressionFactorGraph  fullGraph_;
     std::map<std::string, int>    staticObjects_;
     double                        optimizerError_{0};
     int                           optimizerIterations_{0};

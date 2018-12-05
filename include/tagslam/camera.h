@@ -7,9 +7,9 @@
 #include "tagslam/camera_intrinsics.h"
 #include "tagslam/camera_extrinsics.h"
 #include "tagslam/pose_estimate.h"
-#include "gtsam_equidistant/Cal3FS2.h"
+#include "gtsam_distortion/Cal3FS2.h"
+#include "gtsam_distortion/Cal3DS3.h"
 #include <gtsam/geometry/Pose3.h>
-#include <gtsam/geometry/Cal3DS2.h>
 #include <Eigen/Dense>
 #include <ros/ros.h>
 #include <memory>
@@ -35,7 +35,7 @@ namespace tagslam {
     std::string       rig_body; // string with name
     std::shared_ptr<RigidBody>        rig;
     boost::shared_ptr<Cal3FS2>        equidistantModel;
-    boost::shared_ptr<gtsam::Cal3DS2> radtanModel;
+    boost::shared_ptr<Cal3DS3>        radtanModel;
     typedef std::shared_ptr<Camera> CameraPtr;
     typedef std::shared_ptr<const Camera> CameraConstPtr;
     typedef std::vector<CameraPtr> CameraVec;

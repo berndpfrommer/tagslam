@@ -3,6 +3,7 @@
  */
 
 #include "tagslam/tag_slam.h"
+#include "tagslam/init_pose.h"
 #include "tagslam/pose_estimate.h"
 #include "tagslam/tag.h"
 #include "tagslam/yaml_utils.h"
@@ -16,6 +17,7 @@
 #include <tf_conversions/tf_eigen.h>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/core/eigen.hpp>
 #include <eigen_conversions/eigen_msg.h>
 #include <boost/range/irange.hpp>
 #include <math.h>
@@ -27,6 +29,7 @@
 //#define DEBUG_POSE_ESTIMATE
 
 namespace tagslam {
+    
   using boost::irange;
   struct PoseError {
     PoseError(double r = 0, double t = 0) : rot(r), trans(t) {
@@ -315,19 +318,35 @@ namespace tagslam {
       a->emplace_back(p.x(), p.y());
     }
   }
+  static void to_opencv(std::vector<cv::Mat> *a,
+                       const std::vector<gtsam::Pose3> b) {
+    for (const auto &p: b) {
+      cv::Mat tf(4, 4, CV_64F);
+      cv::eigen2cv(p.matrix(), tf);
+      a->push_back(tf);
+    }
+  }
 
   // returns T_world_cam
   PoseEstimate
   TagSlam::estimatePosePNP(int cam_idx,
                            const std::vector<gtsam::Point3>&wpts,
-                           const std::vector<gtsam::Point2>&ipts) const {
+                           const std::vector<gtsam::Point2>&ipts,
+                           const std::vector<gtsam::Pose3>&T_w_o) const {
     PoseEstimate pe;
     if (!ipts.empty()) {
       std::vector<cv::Point3d> wp;
       std::vector<cv::Point2d> ip;
+      std::vector<cv::Mat>     t_w_o;
       to_opencv(&wp, wpts);
       to_opencv(&ip, ipts);
+      to_opencv(&t_w_o, T_w_o);
       const auto   &ci  = cameras_[cam_idx]->intrinsics;
+#define USE_NEW_INIT      
+#ifdef USE_NEW_INIT
+      pe = init_pose::pnp(wp, ip, t_w_o, ci.K, ci.distortion_model,
+                          ci.D);
+#else      
       cv::Mat rvec, tvec;
       bool rc = utils::get_init_pose_pnp(wp, ip, ci.K,
                                          ci.distortion_model,
@@ -356,6 +375,7 @@ namespace tagslam {
                                                 ci.distortion_model, ci.D));
         }
       }
+#endif    
     }
     return (pe);
   }
@@ -464,7 +484,7 @@ namespace tagslam {
   TagSlam::poseFromPoints(int cam_idx,
                           const std::vector<gtsam::Point3> &wp,
                           const std::vector<gtsam::Point2> &ip,
-                          bool pointsArePlanar) const {
+                          const std::vector<gtsam::Pose3>  &T_w_o) const {
 #ifdef DEBUG_POSE_ESTIMATE
     std::cout << "------ points for pose estimate:------" << std::endl;
     for (const auto i: irange(0ul, wp.size())) {
@@ -474,7 +494,7 @@ namespace tagslam {
     std::cout << "------" << std::endl;
 #endif
     // returns T_world_cam
-    PoseEstimate pe = estimatePosePNP(cam_idx, wp, ip);
+    PoseEstimate pe = estimatePosePNP(cam_idx, wp, ip, T_w_o);
     double pixelRange = utils::get_pixel_range(ip);
 #ifdef DEBUG_POSE_ESTIMATE
     std::cout << "pnp pose estimate: " << pe << std::endl;
@@ -514,9 +534,10 @@ namespace tagslam {
                           bool inWorldCoordinates) const {
     std::vector<gtsam::Point3> wp;
     std::vector<gtsam::Point2> ip;
+    std::vector<gtsam::Pose3>  T_w_o;
     for (const auto &rb : rigidBodies) {
       if (!inWorldCoordinates || rb->poseEstimate.isValid()) {
-        rb->getAttachedPoints(cam_idx, &wp, &ip, inWorldCoordinates);
+        rb->getAttachedPoints(cam_idx, &wp, &ip, &T_w_o, inWorldCoordinates);
       }
     }
     if (!wp.empty()) {
@@ -524,7 +545,7 @@ namespace tagslam {
       std::cout << "=============== estimating pose for camera: " << cam_idx << std::endl;
 #endif    
 
-      return (poseFromPoints(cam_idx, wp, ip));
+      return (poseFromPoints(cam_idx, wp, ip, T_w_o));
     }
     return (PoseEstimate()); // invalid pose estimate
   }
@@ -617,7 +638,9 @@ namespace tagslam {
     const auto &wp = tag->getObjectCorners();
     const auto ip = tag->getImageCorners();
     // get T_o_c, the transform from camera to object coordinates
-    PoseEstimate pe = poseFromPoints(cam_idx, wp, ip, false);
+    std::vector<gtsam::Pose3> T_w_o;
+    T_w_o.push_back(gtsam::Pose3());
+    PoseEstimate pe = poseFromPoints(cam_idx, wp, ip, T_w_o);
     const CameraPtr &cam = cameras_[cam_idx];
     if (pe.isValid() && cam->rig->poseEstimate.isValid()) {
       if (isBadViewingAngle(pe.getPose())) {
@@ -803,8 +826,9 @@ namespace tagslam {
         }
         std::vector<gtsam::Point3> wpts;     // world points
         std::vector<gtsam::Point2> ipts;
+        std::vector<gtsam::Pose3>  T_w_o;
         std::vector<int> tagids;
-        rb->getAttachedPoints(cam_idx, &wpts, &ipts,
+        rb->getAttachedPoints(cam_idx, &wpts, &ipts, &T_w_o,
                               true /* in world coords */, &tagids);
         std::vector<cv::Point3d> wp;
         std::vector<cv::Point2d> ip, ipp;
