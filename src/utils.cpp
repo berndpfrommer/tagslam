@@ -85,11 +85,10 @@ namespace utils {
       cv::undistortPoints(ip, ipu, K, D);
       //std::cout << "using radtan!" << std::endl;
     } else {
-      std::cout << "WARNING: unknown distortion model: " << distModel << std::endl;
+      std::cout << "WARNING: unknown distortion model: " << distModel
+                << std::endl;
       ipu = ip;
     }
-    std::cout << "   image undist: " << std::endl;
-    std::cout << ipu << std::endl;
     // Use opencv to calculate the homography matrix.
     cv::Mat H = cv::findHomography(wp, ipu);
 
@@ -125,11 +124,8 @@ namespace utils {
         status = cv::solvePnP(world_points, image_points, K, D,
                               *rvec, *tvec, false, CV_EPNP);
         if (!status) {
-          std::cout << "epnp failed!" << std::endl;
           status = cv::solvePnP(world_points, image_points, K, D,
                               *rvec, *tvec, false, CV_ITERATIVE);  
-        } else {
-          std::cout << "epnp succeeded!" << std::endl;
         }
       }
     } else {
