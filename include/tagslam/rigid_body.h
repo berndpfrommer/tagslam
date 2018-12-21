@@ -39,6 +39,7 @@ namespace tagslam {
     void   setIsDefaultBody(bool b) { isDefaultBody = b; }
     bool   hasTag(int tagId, int bits) const {
       return (findTag(tagId, bits) != NULL); }
+    bool   isCameraRig() const { return (type == "camera_rig"); }
     TagPtr findTag(int tagId, int bits) const;
     TagPtr addDefaultTag(int tagId, int bits);
     void   addTag(const TagPtr &tag);
@@ -58,6 +59,8 @@ namespace tagslam {
     typedef std::map<int, TagVec> CamToTagVec;
     std::string         name;
     std::string         type;
+    std::string         odomFrameId;
+    PoseNoise           odomNoise;
     int                 index{-1};
     PoseEstimate        poseEstimate;
     bool                isStatic{true};
@@ -68,6 +71,7 @@ namespace tagslam {
     double              defaultTagSize{0};
     bool                hasPosePrior{false};
     std::set<int>       ignoreTags;
+    gtsam::Pose3        T_body_odom;
     // -------- static functions
     static RigidBodyPtr parse_body(const std::string &name,
                                    XmlRpc::XmlRpcValue bodyDefaults,

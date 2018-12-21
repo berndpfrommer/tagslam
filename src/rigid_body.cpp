@@ -28,6 +28,7 @@ namespace tagslam {
     } else {
       throw std::runtime_error("invalid rigid body type: " + type);
     }
+    p->type = type;
     return (p);
   }
 
@@ -42,6 +43,23 @@ namespace tagslam {
       if (body.hasMember("max_hamming_distance")) {
         maxHammingDistance = static_cast<int>(body["max_hamming_distance"]);
       }
+      if (body.hasMember("T_body_odom")) {
+        Eigen::Vector3d p = yaml_utils::get_vec("position", body["T_body_odom"]["position"]);
+        Eigen::Vector3d r = yaml_utils::get_vec("rotvec",   body["T_body_odom"]["rotvec"]);
+        T_body_odom = gtsam::Pose3(gtsam::Rot3(utils::rotmat(r)), gtsam::Point3(p));
+      }
+      if (body.hasMember("odom_frame_id")) {
+        odomFrameId = static_cast<std::string>(body["odom_frame_id"]);
+      }
+      double odomRotNoise(1e-2), odomTransNoise(5e-2);
+      if (body.hasMember("odom_rotation_noise")) {
+        odomRotNoise = static_cast<double>(body["odom_rotation_noise"]);
+      }
+      if (body.hasMember("odom_translation_noise")) {
+        odomTransNoise = static_cast<double>(body["odom_translation_noise"]);
+      }
+      odomNoise = makePoseNoise(odomRotNoise, odomTransNoise);
+
       if (body.hasMember("ignore_tags")) {
         auto ignTags = body["ignore_tags"];
         for (const auto i: irange(0, ignTags.size())) {
