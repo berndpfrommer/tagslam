@@ -26,6 +26,7 @@ namespace tagslam {
   }
 
   bool SyncAndDetect::initialize() {
+    nh_.getParam("odometry_topics", odometryTopics_);
     if (!nh_.getParam("image_topics", imageTopics_)) {
       ROS_ERROR("must specify image_topics parameter!");
       return (false);
@@ -73,7 +74,6 @@ namespace tagslam {
     outbag_.close();
     return (true);
   }
-
 
   void SyncAndDetect::processCVMat(const std::vector<std_msgs::Header> &headers,
                                    const std::vector<cv::Mat> &grey,
@@ -126,7 +126,8 @@ namespace tagslam {
     fnum_++;
   }
 
-  void SyncAndDetect::processCompressedImages(const std::vector<CompressedImageConstPtr> &msgvec) {
+  void SyncAndDetect::processCompressedImages(const std::vector<CompressedImageConstPtr> &msgvec,
+                                              const std::vector<OdometryConstPtr> &odom) {
     if (msgvec.empty()) {
       ROS_ERROR("got empty image vector!");
       return;
@@ -145,9 +146,15 @@ namespace tagslam {
       headers.push_back(img->header);
     }
     processCVMat(headers, grey_images, images);
+    for (const auto i: irange(0ul, odom.size())) {
+      outbag_.write<Odometry>(odometryTopics_[i],
+                              odom[i]->header.stamp, odom[i]);
+    }
   }
 
-  void SyncAndDetect::processImages(const std::vector<ImageConstPtr> &msgvec) {
+  void
+  SyncAndDetect::processImages(const std::vector<ImageConstPtr> &msgvec,
+                               const std::vector<OdometryConstPtr> &odom) {
     if (msgvec.empty()) {
       ROS_ERROR("got empty image vector!");
       return;
@@ -163,6 +170,10 @@ namespace tagslam {
       headers.push_back(img->header);
     }
     processCVMat(headers, grey_images, images);
+    for (const auto i: irange(0ul, odom.size())) {
+      outbag_.write<Odometry>(odometryTopics_[i],
+                              odom[i]->header.stamp, odom[i]);
+    }
   }
 
   void SyncAndDetect::processBag(const std::string &fname) {
@@ -174,19 +185,25 @@ namespace tagslam {
     nh_.param<double>("duration", duration, -1);
     ros::Time t_start = rosbag::View(bag).getBeginTime() + ros::Duration(start_time);
     ros::Time t_end   = duration >= 0 ? t_start + ros::Duration(duration) : ros::TIME_MAX;
-    rosbag::View view(bag, rosbag::TopicQuery(imageTopics_), t_start, t_end);
+    std::vector<std::string> allTopics = imageTopics_;
+    allTopics.insert(allTopics.end(),odometryTopics_.begin(), odometryTopics_.end());
+    rosbag::View view(bag, rosbag::TopicQuery(allTopics), t_start, t_end);
     for (const auto i: irange(0ul, tagTopics_.size())) {
       ROS_INFO_STREAM("image topic: "  << imageTopics_[i] << " maps to: " << tagTopics_[i]);
     }
 
     if (imagesAreCompressed_) {
-      iterate_through_bag<CompressedImage>(imageTopics_, &view, &outbag_,
+      iterate_through_bag<CompressedImage>(imageTopics_, odometryTopics_,
+                                           &view, &outbag_,
                                            std::bind(&SyncAndDetect::processCompressedImages,
-                                                     this, std::placeholders::_1));
+                                                     this, std::placeholders::_1,
+                                                     std::placeholders::_2));
     } else {
-      iterate_through_bag<sensor_msgs::Image>(imageTopics_,&view, &outbag_,
+      iterate_through_bag<sensor_msgs::Image>(imageTopics_, odometryTopics_,
+                                              &view, &outbag_,
                                               std::bind(&SyncAndDetect::processImages,
-                                                        this, std::placeholders::_1));
+                                                     this, std::placeholders::_1,
+                                                        std::placeholders::_2));
     }
     bag.close();
     ros::shutdown();
