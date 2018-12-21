@@ -35,6 +35,7 @@ namespace tagslam {
     double getError() { return (optimizerError_); }
     int    getIterations() { return (optimizerIterations_); }
     void   setPixelNoise(double numPix);
+    void   setUseFullGraph(bool b) { useFullGraph_ = b; }
 
     void addTags(const RigidBodyPtr &rb, const TagVec &tags);
     void addCamera(const CameraConstPtr &cam);
@@ -46,6 +47,9 @@ namespace tagslam {
     bool addPositionMeasurement(const RigidBodyPtr &rb,
                                 const TagConstPtr &tag,
                                 const PositionMeasurement &m);
+    void addOdom(const RigidBodyPtr &rb, const gtsam::Pose3 &deltaPose,
+                 const PoseNoise &noise, unsigned int prevFrameNum,
+                 unsigned int currentFrameNum);
 
     void observedTags(const CameraPtr &cam, const RigidBodyPtr &rb,
                       const TagVec &tags,
@@ -80,6 +84,10 @@ namespace tagslam {
   private:
     bool findInitialTagPose(const Tag &tag, gtsam::Pose3 *pose,
                             PoseNoise *noise) const;
+    double optimizeFullGraph(gtsam::Values *result,
+                             const gtsam::Values &values,
+                             int maxIter) const;
+
     double tryOptimization(gtsam::Values *result,
                            const gtsam::ISAM2 &graph,
                            const gtsam::Values &values,
@@ -96,6 +104,7 @@ namespace tagslam {
     std::map<gtsam::Symbol, gtsam::Matrix> covariances_;
     gtsam::ExpressionFactorGraph  newGraph_;
     gtsam::Values                 newValues_;
+    bool                          useFullGraph_{true};
   };
 }
 

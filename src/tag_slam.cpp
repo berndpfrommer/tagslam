@@ -8,7 +8,7 @@
 #include "tagslam/tag.h"
 #include "tagslam/yaml_utils.h"
 #include "tagslam/rigid_body.h"
-#include "tagslam/bag_sync.h"
+#include <flex_sync/sync.h>
 #include <XmlRpcException.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -27,10 +27,13 @@
 #include <rosgraph_msgs/Clock.h>
 
 //#define DEBUG_POSE_ESTIMATE
+#define USE_NEW_INIT      
 
 namespace tagslam {
     
   using boost::irange;
+  using std::vector;
+  using std::string;
   struct PoseError {
     PoseError(double r = 0, double t = 0) : rot(r), trans(t) {
     }
@@ -52,20 +55,23 @@ namespace tagslam {
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
-    nh_.param<std::string>("param_prefix", paramPrefix_, "tagslam_config");
-    nh_.param<std::string>("body_poses_out_file", bodyPosesOutFile_,
+    nh_.param<string>("param_prefix", paramPrefix_, "tagslam_config");
+    nh_.param<string>("body_poses_out_file", bodyPosesOutFile_,
                            "body_poses_out.yaml");
-    nh_.param<std::string>("tag_world_poses_out_file",
+    nh_.param<string>("tag_world_poses_out_file",
                            tagWorldPosesOutFile_,
                            "tag_world_poses_out.yaml");
-    nh_.param<std::string>("measurements_out_file",
+    nh_.param<string>("measurements_out_file",
                            measurementsOutFile_,
                            "measurements.yaml");
-    nh_.param<std::string>("camera_poses_out_file",
+    nh_.param<string>("camera_poses_out_file",
                            cameraPosesOutFile_,
                            "camera_poses.yaml");
+    bool useFullGraph;
+    nh_.param<bool>("use_full_graph", useFullGraph, false);
     ROS_INFO_STREAM("setting pixel noise to: " << pixNoise);
     tagGraph_.setPixelNoise(pixNoise);
+    tagGraph_.setUseFullGraph(useFullGraph);
     cameras_ = Camera::parse_cameras(nh_);
     if (cameras_.empty()) {
       ROS_ERROR("no cameras found!");
@@ -98,13 +104,13 @@ namespace tagslam {
       bodyOdomPub_.push_back(
         nh_.advertise<nav_msgs::Odometry>("odom/body_" + rb->name, 1));
     }
-    nh_.param<std::string>("fixed_frame_id", fixedFrame_, "map");
+    nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     double maxDegree;
     nh_.param<double>("viewing_angle_threshold", maxDegree, 45.0);
     viewingAngleThreshold_ = std::cos(maxDegree/180.0 * M_PI);
     // play from bag file if file name is non-empty
-    std::string bagFile;
-    nh_.param<std::string>("bag_file", bagFile, "");
+    string bagFile;
+    nh_.param<string>("bag_file", bagFile, "");
     if (!bagFile.empty()) {
       playFromBag(bagFile);
       tagGraph_.printDistances();
@@ -146,7 +152,7 @@ namespace tagslam {
     return (true);
   }
   
-  void TagSlam::readMeasurements(const std::string &type) {
+  void TagSlam::readMeasurements(const string &type) {
     // read distance measurements
     XmlRpc::XmlRpcValue meas;
     nh_.getParam(paramPrefix_ + "/" + type + "_measurements", meas);
@@ -192,7 +198,7 @@ namespace tagslam {
     for (auto &rb: rbv) {
       ROS_INFO_STREAM((rb->isStatic ? "static " : "dynamic ") <<
                       "body " << rb->name
-                      << " has tags: " << rb->tags.size());
+                      << " type: " << rb->type << " has tags: " << rb->tags.size());
       TagVec tvec;
       for (auto &t: rb->tags) {
         if (t.second->poseEstimate.isValid()) {
@@ -206,6 +212,11 @@ namespace tagslam {
       allBodies_.push_back(rb);
       if (rb->isDefaultBody) {
         defaultBody_ = rb;
+      }
+      if (rb->isCameraRig()) {
+        if (!rb->odomFrameId.empty()) {
+          frameIdToRig_[rb->odomFrameId] = Rig(rb, rb->odomNoise);
+        }
       }
       (rb->isStatic ? staticBodies_ : dynamicBodies_).push_back(rb);
     }
@@ -285,6 +296,7 @@ namespace tagslam {
     return (t);
   }
 
+#ifdef USE_NEW_INIT
   static gtsam::Pose3
   to_gtsam(const cv::Mat &rvec, const cv::Mat &tvec) {
     gtsam::Vector tvec_gtsam = (gtsam::Vector(3) <<
@@ -297,6 +309,7 @@ namespace tagslam {
                      rvec.at<double>(2)), tvec_gtsam);
     return (p);
   }
+#endif
 
   static void
   from_gtsam(cv::Mat *rvec, cv::Mat *tvec, const gtsam::Pose3 &p) {
@@ -342,7 +355,6 @@ namespace tagslam {
       to_opencv(&ip, ipts);
       to_opencv(&t_w_o, T_w_o);
       const auto   &ci  = cameras_[cam_idx]->intrinsics;
-#define USE_NEW_INIT      
 #ifdef USE_NEW_INIT
       pe = init_pose::pnp(wp, ip, t_w_o, ci.K, ci.distortion_model,
                           ci.D);
@@ -549,7 +561,39 @@ namespace tagslam {
     }
     return (PoseEstimate()); // invalid pose estimate
   }
-                                       
+
+  static gtsam::Pose3 to_pose(const OdometryConstPtr &odom) {
+    const geometry_msgs::Quaternion &q = odom->pose.pose.orientation;
+    const geometry_msgs::Point      &p = odom->pose.pose.position;
+    gtsam::Pose3 pg(gtsam::Rot3::quaternion(q.w, q.x, q.y, q.z),
+                    gtsam::Point3(p.x, p.y, p.z));
+    return (pg);
+  }
+
+  void TagSlam::addOdom(const std::vector<OdometryConstPtr> &odomVec) {
+    for (const auto &odom: odomVec) {
+      std::string frameId = odom->child_frame_id;
+      if (frameId.empty()) continue;
+      const auto it = frameIdToRig_.find(frameId);
+      if (it != frameIdToRig_.end()) {
+        gtsam::Pose3 newPose = to_pose(odom);
+        Rig &rig = it->second;
+        if (rig.poseEstimate.isValid()) {
+          const gtsam::Pose3 oldPose = rig.poseEstimate;
+          const gtsam::Pose3 B = rig.rigidBody->T_body_odom;
+          //std::cout << "T_body_odom: " << std::endl << B << std::endl;
+          const gtsam::Pose3 deltaPose = B * (oldPose.inverse() * newPose) * B.inverse();
+          
+          const PoseNoise noise = rig.poseEstimate.getNoise();
+          tagGraph_.addOdom(rig.rigidBody, deltaPose, noise,
+                            rig.frameNum, frameNum_);
+        }
+        rig.poseEstimate.setPose(newPose);
+        rig.poseEstimate.setError(0.0);
+        rig.frameNum = frameNum_;
+      }
+    }
+  }
 
   void TagSlam::findInitialCameraAndRigPoses() {
     std::vector<PoseEstimate> camPoses;
@@ -588,6 +632,7 @@ namespace tagslam {
           // initialize it here
           if ((!cam->rig->poseEstimate.isValid() || !cam->rig->isStatic) &&
               camPoses[cam_idx].getQuality() > bestEstimateQuality) {
+            const auto oldRigPose = cam->rig->poseEstimate.getPose();
             bestEstimateQuality = camPoses[cam_idx].getQuality();
             cam->rig->poseEstimate = PoseEstimate(T_w_r, 0.0, 0);
 #ifdef DEBUG_POSE_ESTIMATE
@@ -721,8 +766,9 @@ namespace tagslam {
       remapped->push_back(p);
     }
   }
-        
-  void TagSlam::processTags(const std::vector<TagArrayConstPtr> &origMsgVec) {
+
+  void TagSlam::processTagsAndOdom(const std::vector<TagArrayConstPtr> &origMsgVec,
+                                   const std::vector<OdometryConstPtr> &odomVec) {
     profiler_.reset();
     std::vector<TagArrayConstPtr> msgvec;
     remapBadTagIds(&msgvec, origMsgVec);
@@ -735,7 +781,8 @@ namespace tagslam {
     // off of the bodies, to be used subsequently
     const auto nobs = attachObservedTagsToBodies(msgvec);
     profiler_.record("attachObservedTagsToBodies");
-    
+    addOdom(odomVec);
+    profiler_.record("addOdom");
     // Go over all bodies and use tags with
     // established positions to determine camera poses.
     findInitialCameraAndRigPoses();
@@ -869,7 +916,7 @@ namespace tagslam {
       if (img.rows > 0 && writeDebugImages_) {
         std::stringstream ss;
         ss << std::setfill('0') << std::setw(4) << frameNum_;
-        std::string fbase = "image_" + ss.str() + "_";
+        string fbase = "image_" + ss.str() + "_";
         cv::imwrite(fbase + std::to_string(cam_idx) + ".jpg", img);
       }
 
@@ -1068,8 +1115,8 @@ namespace tagslam {
 
   static nav_msgs::Odometry
   make_odom(const ros::Time &t,
-            const std::string &fixed_frame,
-            const std::string &child_frame,
+            const string &fixed_frame,
+            const string &child_frame,
             const gtsam::Pose3 &pose) {
     nav_msgs::Odometry odom;
     odom.header.stamp = t;
@@ -1081,8 +1128,8 @@ namespace tagslam {
     return (odom);
   }
 
-  static std::string body_frame_id(const std::string &name) {
-    return (std::string("body_" + name));
+  static string body_frame_id(const string &name) {
+    return (string("body_" + name));
   }
 
   void TagSlam::broadcastCameraPoses(const ros::Time &t) {
@@ -1105,7 +1152,7 @@ namespace tagslam {
     for (const auto &rb: allBodies_) {
       const PoseEstimate &pe = rb->poseEstimate;
       if (pe.isValid()) {
-        const std::string frame_id = body_frame_id(rb->name);
+        const string frame_id = body_frame_id(rb->name);
         bodyPoseInfo.push_back(PoseInfo(pe, t, fixedFrame_, frame_id));
       }
     }
@@ -1115,7 +1162,7 @@ namespace tagslam {
       const auto rb = dynamicBodies_[body_idx];
       const PoseEstimate &pe = rb->poseEstimate;
       if (pe.isValid()) {
-        const std::string frame_id = body_frame_id(rb->name);
+        const string frame_id = body_frame_id(rb->name);
         bodyOdomPub_[body_idx].publish(
           make_odom(t, fixedFrame_, frame_id, pe.getPose()));
       }
@@ -1129,7 +1176,7 @@ namespace tagslam {
         for (auto &tg: rb->tags) {
           TagPtr tag = tg.second;
           if (tag->poseEstimate.isValid()) {
-            const std::string frame_id = "tag_" + std::to_string(tag->id);
+            const string frame_id = "tag_" + std::to_string(tag->id);
             tagPoseInfo.push_back(PoseInfo(tag->poseEstimate, t,
                                            body_frame_id(rb->name), frame_id));
           }
@@ -1148,7 +1195,7 @@ namespace tagslam {
   }
 
   
-  void TagSlam::writeBodyPoses(const std::string &poseFile) const {
+  void TagSlam::writeBodyPoses(const string &poseFile) const {
     std::ofstream pf(poseFile);
     pf << "bodies:" << std::endl;
     for (const auto &rb : allBodies_) {
@@ -1156,7 +1203,7 @@ namespace tagslam {
     }
   }
 
-  void TagSlam::writeTagWorldPoses(const std::string &poseFile, unsigned int frameNum) const {
+  void TagSlam::writeTagWorldPoses(const string &poseFile, unsigned int frameNum) const {
     std::ofstream pf(poseFile);
     for (const auto &rb : allBodies_) {
       for (const auto &tm: rb->tags) {
@@ -1172,7 +1219,7 @@ namespace tagslam {
   }
 
   
-  void TagSlam::writeMeasurements(const std::string &fname,
+  void TagSlam::writeMeasurements(const string &fname,
                                   const PointVector &dist,
                                   const PointVector &pos) const {
     std::ofstream f(fname);
@@ -1241,7 +1288,7 @@ namespace tagslam {
     return (minMaxIdx);
   }
 
-  static void print_error(const std::string &name, const DistanceMeasurementConstPtr &dm,
+  static void print_error(const string &name, const DistanceMeasurementConstPtr &dm,
                           double meas) {
     const double err     = dm->distance - meas;
     ROS_INFO_STREAM(name << " err: " << dm->name << " meas: " << dm->distance << " optim: " << meas <<
@@ -1277,7 +1324,7 @@ namespace tagslam {
     return (pv);
   }
 
-  static void print_error(const std::string &name, const PositionMeasurementConstPtr &pm,
+  static void print_error(const string &name, const PositionMeasurementConstPtr &pm,
                           double meas) {
     const double err     = pm->length - meas;
     ROS_INFO_STREAM(name << " err: " << pm->name << " meas: " << pm->length << " optim: " << meas <<
@@ -1318,7 +1365,7 @@ namespace tagslam {
     }
   }
 
-  void TagSlam::writeCameraPoses(const std::string &fname) const {
+  void TagSlam::writeCameraPoses(const string &fname) const {
     std::ofstream f(fname);
     for (const auto &cam : cameras_) {
       f << cam->name << ":" << std::endl;
@@ -1332,26 +1379,26 @@ namespace tagslam {
 
   void TagSlam::callback1(TagArrayConstPtr const &tag0) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0};
-    processTags(msg_vec);
+    processTagsAndOdom(msg_vec);
   }
 
   void TagSlam::callback2(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1};
-    processTags(msg_vec);
+    processTagsAndOdom(msg_vec);
   }
   void TagSlam::callback3(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
                           TagArrayConstPtr const &tag2) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2};
-    processTags(msg_vec);
+    processTagsAndOdom(msg_vec);
   }
   void TagSlam::callback4(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
                           TagArrayConstPtr const &tag2,
                           TagArrayConstPtr const &tag3) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3};
-    processTags(msg_vec);
+    processTagsAndOdom(msg_vec);
   }
   void TagSlam::callback5(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
@@ -1359,7 +1406,7 @@ namespace tagslam {
                           TagArrayConstPtr const &tag3,
                           TagArrayConstPtr const &tag4) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4};
-    processTags(msg_vec);
+    processTagsAndOdom(msg_vec);
   }
   void TagSlam::callback6(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
@@ -1368,7 +1415,7 @@ namespace tagslam {
                           TagArrayConstPtr const &tag4,
                           TagArrayConstPtr const &tag5) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5};
-    processTags(msg_vec);
+    processTagsAndOdom(msg_vec);
   }
   void TagSlam::callback7(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
@@ -1378,7 +1425,7 @@ namespace tagslam {
                           TagArrayConstPtr const &tag5,
                           TagArrayConstPtr const &tag6) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5, tag6};
-    processTags(msg_vec);
+    processTagsAndOdom(msg_vec);
   }
   void TagSlam::callback8(TagArrayConstPtr const &tag0,
                           TagArrayConstPtr const &tag1,
@@ -1389,7 +1436,7 @@ namespace tagslam {
                           TagArrayConstPtr const &tag6,
                           TagArrayConstPtr const &tag7) {
     std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7};
-    processTags(msg_vec);
+    processTagsAndOdom(msg_vec);
   }
 
   template <typename T>
@@ -1403,15 +1450,17 @@ namespace tagslam {
   }
 
   void TagSlam::processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
-                                     const std::vector<ImageConstPtr> &msgvec2) {
+                                     const std::vector<ImageConstPtr> &msgvec2,
+                                     const std::vector<OdometryConstPtr> &msgvec3) {
     process_images<ImageConstPtr>(msgvec2, &images_);
-    processTags(msgvec1);
+    processTagsAndOdom(msgvec1, msgvec3);
   }
 
   void TagSlam::processTagsAndCompressedImages(const std::vector<TagArrayConstPtr> &msgvec1,
-                                               const std::vector<CompressedImageConstPtr> &msgvec2) {
+                                               const std::vector<CompressedImageConstPtr> &msgvec2,
+                                               const std::vector<OdometryConstPtr> &msgvec3) {
     process_images<CompressedImageConstPtr>(msgvec2, &images_);
-    processTags(msgvec1);
+    processTagsAndOdom(msgvec1, msgvec3);
   }
 
   void TagSlam::finalize() {
@@ -1461,11 +1510,11 @@ namespace tagslam {
       }
     }
   }
-
-  void TagSlam::playFromBag(const std::string &fname) {
+  void TagSlam::playFromBag(const string &fname) {
     rosbag::Bag bag;
     bag.open(fname, rosbag::bagmode::Read);
-    std::vector<std::string> tagTopics, imageTopics, topics;
+    std::vector<string> tagTopics, imageTopics, topics, odomTopics;
+    
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
       const auto &cam = cameras_[cam_idx];
       tagTopics.push_back(cam->tagtopic);
@@ -1475,7 +1524,8 @@ namespace tagslam {
         topics.push_back(imageTopics.back());
       }
     }
-    std::string all_topics;
+    topics.insert(topics.begin(), odomTopics.begin(), odomTopics.end());
+    string all_topics;
     for (const auto &topic: topics) {
       all_topics += " " + topic;
       rosbag::View cv(bag, rosbag::TopicQuery({topic}));
@@ -1488,26 +1538,36 @@ namespace tagslam {
     double deltaStartTime{0};
     nh_.param<double>("bag_start_time", deltaStartTime, 0.0);
     rosbag::View dummyView(bag, rosbag::TopicQuery(topics));
-    const ros::Time startTime = dummyView.getBeginTime() + ros::Duration(deltaStartTime);
+    const ros::Time startTime =
+      dummyView.getBeginTime() + ros::Duration(deltaStartTime);
     
     rosbag::View view(bag, rosbag::TopicQuery(topics), startTime);
-    BagSync<TagArray> sync(tagTopics, std::bind(&TagSlam::processTags, this, std::placeholders::_1));
-    BagSync2<TagArray, Image> sync2(tagTopics, imageTopics,
-                                    std::bind(&TagSlam::processTagsAndImages, this,
-                                              std::placeholders::_1, std::placeholders::_2));
-    BagSync2<TagArray, CompressedImage> sync2c(tagTopics, imageTopics,
-                                               std::bind(&TagSlam::processTagsAndCompressedImages, this,
-                                                         std::placeholders::_1, std::placeholders::_2));
-
+    std::vector<std::vector<string>> tv;
+    tv.push_back(tagTopics);
+    tv.push_back(imageTopics);
+    tv.push_back(odomTopics);
+    
+    flex_sync::Sync<TagArray, Image, Odometry>
+      sync3(tv, std::bind(&TagSlam::processTagsAndImages, this,
+                          std::placeholders::_1, std::placeholders::_2,
+                          std::placeholders::_3));
+    flex_sync::Sync<TagArray, CompressedImage, Odometry>
+      sync3c(tv, std::bind(&TagSlam::processTagsAndCompressedImages, this,
+                           std::placeholders::_1, std::placeholders::_2,
+                           std::placeholders::_3));
     for (const rosbag::MessageInstance &m: view) {
-      if (writeDebugImages_) {
-        if (hasCompressedImages_) {
-          sync2c.process(m);
-        } else {
-          sync2.process(m);
-        }
+      TagArrayConstPtr        tags = m.instantiate<TagArray>();
+      OdometryConstPtr        odom = m.instantiate<Odometry>();
+      ImageConstPtr           img  = m.instantiate<Image>();
+      CompressedImageConstPtr cimg = m.instantiate<CompressedImage>();
+      if (hasCompressedImages_) {
+        if (tags) sync3c.process(m.getTopic(), tags);
+        if (odom) sync3c.process(m.getTopic(), odom);
+        if (cimg) sync3c.process(m.getTopic(), cimg);
       } else {
-        sync.process(m);
+        if (tags) sync3.process(m.getTopic(), tags);
+        if (odom) sync3.process(m.getTopic(), odom);
+        if (img)  sync3.process(m.getTopic(), img);
       }
       if (frameNum_ > (unsigned int)maxFrameNum_ || !ros::ok()) {
         break;

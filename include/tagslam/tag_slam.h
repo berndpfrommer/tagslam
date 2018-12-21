@@ -16,6 +16,7 @@
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
+#include <nav_msgs/Odometry.h>
 #include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/subscriber.h>
@@ -31,6 +32,8 @@ namespace tagslam {
   using TagArray = apriltag_msgs::ApriltagArrayStamped;
   using TagArrayPtr = TagArray::Ptr;
   using TagArrayConstPtr = TagArray::ConstPtr;
+  using Odometry = nav_msgs::Odometry;
+  using OdometryConstPtr = nav_msgs::OdometryConstPtr;
   using Image = sensor_msgs::Image;
   using ImageConstPtr = sensor_msgs::ImageConstPtr;
   using CompressedImage = sensor_msgs::CompressedImage;
@@ -114,14 +117,27 @@ namespace tagslam {
       ros::Time startTime;
       ros::Time endTime;
     };
+
+    struct Rig {
+      Rig(const RigidBodyPtr &rb = RigidBodyPtr(),
+          const PoseNoise &pn = PoseNoise()) :
+        rigidBody(rb), poseEstimate(gtsam::Pose3(), 1e10, 1000, pn) {}
+      RigidBodyPtr rigidBody;
+      PoseEstimate poseEstimate;
+      unsigned int frameNum{0};
+    };
     void remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
 
-    void processTags(const std::vector<TagArrayConstPtr> &msgvec);
+    void processTagsAndOdom(const std::vector<TagArrayConstPtr> &msgvec,
+                            const std::vector<OdometryConstPtr> &odomvec =
+                            std::vector<OdometryConstPtr>());
     void processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
-                              const std::vector<ImageConstPtr> &msgvec2);
+                              const std::vector<ImageConstPtr> &msgvec2,
+                              const std::vector<OdometryConstPtr> &msgvec3);
     void processTagsAndCompressedImages(const std::vector<TagArrayConstPtr> &msgvec1,
-                                        const std::vector<CompressedImageConstPtr> &msgvec2);
+                                        const std::vector<CompressedImageConstPtr> &msgvec2,
+                                        const std::vector<OdometryConstPtr> &msgvec3);
 
     bool subscribe();
     void broadcastTransforms(const std::vector<PoseInfo> &poses);
@@ -159,6 +175,7 @@ namespace tagslam {
     PoseEstimate guessCameraWorldPose(unsigned int cam_idx) const;
     void findInitialCameraAndRigPoses();
     void findInitialBodyPoses();
+    void addOdom(const std::vector<OdometryConstPtr> &odomVec);
     void findInitialDiscoveredTagPoses();
     std::vector<int> findCamerasWithKnownWorldPose() const;
     void updatePosesFromGraph(unsigned int frame_num);
@@ -227,6 +244,7 @@ namespace tagslam {
     double                                        initBodyPoseMaxError_;
     double                                        maxInitErr_{0.02};
     std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
+    std::unordered_map<std::string, Rig>          frameIdToRig_;
     Profiler                                      profiler_;
   };
 

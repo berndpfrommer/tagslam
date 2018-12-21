@@ -5,6 +5,7 @@
   <arg name="write_debug_images" default="false"/>
   <arg name="has_compressed_images" default="false"/>
   <arg name="bag_start_time" default="0.0"/>
+  <arg name="max_number_of_frames" default="1000000"/>
   
   <arg name="calibration_file" default="$(arg config_dir)/cameras.yaml"/>
   <arg name="tagslam_config_file" default="$(arg config_dir)/tagslam.yaml"/>
@@ -24,7 +25,7 @@
     <param name="write_debug_images" value="$(arg write_debug_images)"/>
     <param name="has_compressed_images" value="$(arg has_compressed_images)"/>
     <param name="initial_maximum_relative_pixel_error" value="0.15"/>
-    <param name="max_number_of_frames" value="1000000"/>
+    <param name="max_number_of_frames" value="$(arg max_number_of_frames)"/>
     <param name="bag_start_time" value="$(arg bag_start_time)"/>
   </node>
 </launch>

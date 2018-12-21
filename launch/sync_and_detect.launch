@@ -12,6 +12,9 @@
     <rosparam param="image_topics"> ["/fla/ovc_node/left/image_raw", "/fla/ovc_node/right/image_raw"]</rosparam>
     <rosparam param="image_output_topics"> ["/fla/ovc_node/left/compressed", "/fla/ovc_node/right/compressed"]</rosparam>
     <rosparam param="tag_topics"> ["/fla/ovc_node/left/tags", "/fla/ovc_node/right/tags"]</rosparam>
+    <!--
+	<rosparam param="odometry_topics"> ["/fla/vio/odom"]</rosparam>
+    -->
     <param name="bag_file" value="$(arg bag)"/>
     <param name="detector_type" value="$(arg detector_type)"/>
     <param name="black_border_width" value="1"/>
@@ -20,6 +23,6 @@
     <param name="start_time" value="$(arg start_time)"/>
     <param name="duration" value="$(arg duration)"/>
     <param name="output_bag_file" value="$(arg bag)_output.bag"/>
-    <param name="max_number_frames" value="500000"/>
+    <param name="max_number_frames" value="1000000"/>
   </node>
 </launch>

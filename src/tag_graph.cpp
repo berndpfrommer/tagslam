@@ -14,7 +14,6 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
 
-// #define USE_FULL_GRAPH
 
 namespace tagslam {
   // you can probably bump MAX_TAG_ID without too much trouble,
@@ -66,7 +65,7 @@ namespace tagslam {
     return (frame_num);
   }
 
-  TagGraph::TagGraph() {
+  static std::shared_ptr<gtsam::ISAM2> make_isam2() {
     gtsam::ISAM2Params p;
     p.setEnableDetailedResults(true);
     p.setEvaluateNonlinearError(true);
@@ -74,7 +73,12 @@ namespace tagslam {
     // make ISAM2 work.
     p.relinearizeThreshold = 0.01;
     p.relinearizeSkip = 1;
-    graph_.reset(new gtsam::ISAM2(p));
+    std::shared_ptr<gtsam::ISAM2> isam2(new gtsam::ISAM2(p));
+    return (isam2);
+  }
+
+  TagGraph::TagGraph() {
+    graph_ = make_isam2();
     pixelNoise_= gtsam::noiseModel::Isotropic::Sigma(2, 1.0);
   }
 
@@ -259,6 +263,32 @@ namespace tagslam {
     return (pe);
   }
 
+  void TagGraph::addOdom(const RigidBodyPtr &rb, const gtsam::Pose3 &deltaPose,
+                         const PoseNoise &noise, unsigned int prevFrameNum,
+                         unsigned int currentFrameNum) {
+    if (rb->isStatic) {
+      std::cout << "TagGraph WARN: got odom for static body!" << std::endl;
+      return;
+    }
+    gtsam::Symbol T_w_b_sym_prev = sym_T_w_b(rb->index, prevFrameNum);
+    if (!values_.exists(T_w_b_sym_prev)) {
+      std::cout << "TagGraph: no previous rig pose found!" << std::endl;
+      return;
+    }
+    gtsam::Pose3 T_w_b_prev = values_.at<gtsam::Pose3>(T_w_b_sym_prev);
+    gtsam::Pose3 T_w_b = deltaPose * T_w_b_prev;
+    
+    gtsam::Symbol T_w_b_sym = sym_T_w_b(rb->index, currentFrameNum);
+    if (!values_.exists(T_w_b_sym)) {
+      values_.insert(T_w_b_sym, T_w_b);
+      newValues_.insert(T_w_b_sym, T_w_b);
+    }
+    gtsam::NonlinearFactor::shared_ptr
+      f(new gtsam::BetweenFactor<gtsam::Pose3>(T_w_b_sym_prev,
+                                               T_w_b_sym, deltaPose, noise));
+    newGraph_.push_back(f);
+  }
+
   void TagGraph::observedTags(const CameraPtr &cam, 
                               const RigidBodyPtr &rb, const TagVec &tags,
                               unsigned int frame_num) {
@@ -372,36 +402,54 @@ namespace tagslam {
 
   void TagGraph::computeMarginals() {
     covariances_.clear();
-    for (const auto &v: optimizedValues_) {
-      covariances_[v.key] = graph_->marginalCovariance(v.key);
+    if (useFullGraph_)  {
+      gtsam::Marginals marginals(fullGraph_, optimizedValues_);
+      for (const auto &v: optimizedValues_) {
+        covariances_[v.key] = marginals.marginalCovariance(v.key);
+      }
+    } else {
+      for (const auto &v: optimizedValues_) {
+        covariances_[v.key] = graph_->marginalCovariance(v.key);
+      }
     }
+  }
+
+
+  double TagGraph::optimizeFullGraph(gtsam::Values *result,
+                                   const gtsam::Values &values,
+                                   int maxIter) const {
+    gtsam::LevenbergMarquardtParams lmp;
+    lmp.setVerbosity("SILENT");
+    lmp.setMaxIterations(maxIter);
+    lmp.setAbsoluteErrorTol(1e-7);
+    lmp.setRelativeErrorTol(0);
+    gtsam::LevenbergMarquardtOptimizer lmo(fullGraph_, values, lmp);
+    *result = lmo.optimize();
+    return (lmo.error());
   }
 
   double TagGraph::tryOptimization(gtsam::Values *result,
                                    const gtsam::ISAM2 &graph,
                                    const gtsam::Values &values,
                                    const std::string &verbosity, int maxIter) {
-#ifdef USE_FULL_GRAPH    
     fullGraph_.add(newGraph_);
-    gtsam::LevenbergMarquardtParams lmp;
-    lmp.setVerbosity("SILENT");
-    lmp.setMaxIterations(100);
-    lmp.setAbsoluteErrorTol(1e-7);
-    lmp.setRelativeErrorTol(0);
-    gtsam::LevenbergMarquardtOptimizer lmo(fullGraph_, values, lmp);
-    *result = lmo.optimize();
-    optimizerError_ = lmo.error();
-#else
-    gtsam::ISAM2Result res = graph_->update(newGraph_, newValues_);
-    // iterate another time for better accuracy..
-    res = graph_->update();
-    if (res.errorAfter) { // optional!
-      optimizerError_ = *res.errorAfter;
+    if (useFullGraph_) {
+      optimizerError_ = optimizeFullGraph(result, values, maxIter);
     } else {
-      throw std::runtime_error("no error provided by ISAM2!");
+      gtsam::ISAM2Result res = graph_->update(newGraph_, newValues_);
+      // iterate another time for better accuracy..
+      res = graph_->update();
+      if (*res.errorAfter > 2 * *res.errorBefore) {
+        ROS_INFO_STREAM("switching to full graph!");
+        optimizeFullGraph(result, values, maxIter);
+        // start a new incremental graph 
+        graph_ = make_isam2();
+        res = graph_->update(fullGraph_, *result);
+      }
+      optimizerError_ = *res.errorAfter;
+      *result = graph_->calculateEstimate();
     }
-    *result = graph.calculateEstimate();
-#endif
+    // clean up new graph and values
     newGraph_.erase(newGraph_.begin(), newGraph_.end());
     newValues_.clear();
     optimizerIterations_ = 1;
