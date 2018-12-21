@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   roscpp
   rosbag
+  flex_sync
   std_msgs
   nav_msgs
   geometry_msgs
@@ -37,7 +38,7 @@ ENDIF()
 
 catkin_package(
 	INCLUDE_DIRS include
-	CATKIN_DEPENDS geometry_msgs rosgraph_msgs roscpp
+	CATKIN_DEPENDS geometry_msgs rosgraph_msgs roscpp flex_sync
 	)
 
 include_directories(

@@ -21,6 +21,7 @@
   <depend>standard_msgs</depend>
   <depend>rosgraph_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>flex_sync</depend>
   <depend>eigen</depend>
   <depend>rosbag</depend>
   <depend>sensor_msgs</depend>
