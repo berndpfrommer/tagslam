@@ -24,6 +24,7 @@ Now the ROS stuff (this assumes you know your way around ROS packages):
 	mkdir src
 	cd src
 	git clone https://github.com/versatran01/apriltag.git
+	git clone https://github.com/daniilidis-group/flex_sync.git
 	git clone https://github.com/berndpfrommer/tagslam.git
 	cd ..
     catkin config -DCMAKE_BUILD_TYPE=Release
