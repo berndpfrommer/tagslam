@@ -296,7 +296,7 @@ namespace tagslam {
     return (t);
   }
 
-#ifdef USE_NEW_INIT
+#ifndef USE_NEW_INIT
   static gtsam::Pose3
   to_gtsam(const cv::Mat &rvec, const cv::Mat &tvec) {
     gtsam::Vector tvec_gtsam = (gtsam::Vector(3) <<
@@ -1513,7 +1513,10 @@ namespace tagslam {
   void TagSlam::playFromBag(const string &fname) {
     rosbag::Bag bag;
     bag.open(fname, rosbag::bagmode::Read);
-    std::vector<string> tagTopics, imageTopics, topics, odomTopics;
+
+    vector<string> tagTopics, imageTopics, topics, odomTopics;
+    nh_.param<std::vector<std::string>>(paramPrefix_ + "/odometry/topics",
+                                        odomTopics, vector<string>());
     
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
       const auto &cam = cameras_[cam_idx];
