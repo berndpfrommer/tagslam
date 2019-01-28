@@ -16,6 +16,7 @@
 namespace tagslam {
   namespace utils {
     gtsam::Matrix3 rotmat(const Eigen::Vector3d &rvec);
+    Eigen::Matrix<double, 3, 3> rotmat_eigen(const Eigen::Vector3d &rvec);
     // computes a pose (rotation vector, translation) via homography
     // from world and image points.
     bool get_init_pose(const std::vector<cv::Point3d> &world_points,

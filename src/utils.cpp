@@ -20,6 +20,18 @@ namespace utils {
     Eigen::Matrix<double, 3, 3> m(Eigen::AngleAxis<double>(angle, axis));
     return (gtsam::Matrix3(m));
   }
+
+  Eigen::Matrix<double, 3, 3> rotmat_eigen(const Eigen::Vector3d &rvec) {
+    Eigen::Matrix<double, 3, 1> axis{1.0, 0, 0};
+    double angle(0);
+    const double n = rvec.norm();
+    if (n > 1e-8) {
+      axis = rvec / n;
+      angle = n;
+    }
+    Eigen::Matrix<double, 3, 3> m(Eigen::AngleAxis<double>(angle, axis));
+    return (m);
+  }
     
   static void decomposeHomography(const cv::Mat &HIN,
                                   cv::Mat *RR, cv::Mat *TT) {

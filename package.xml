@@ -11,6 +11,7 @@
   <exec_depend>message_runtime</exec_depend>
   
   <depend>roscpp</depend>
+  <depend>nodelet</depend>
   <depend>tf</depend>
   <depend>tf_conversions</depend>
   <depend>eigen_conversions</depend>
@@ -27,5 +28,6 @@
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <export>
+    <nodelet plugin="${prefix}/nodelet_plugin.xml"/>
   </export>
 </package>

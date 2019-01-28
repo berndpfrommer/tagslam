@@ -1,0 +1,15 @@
+<launch>
+  <arg name="output" default="screen"/>
+  <!-- point cloud transformation nodelet  -->
+#	launch-prefix="gdb -ex run --args"
+  <arg name="data_dir" default="$(find tagslam)/examples/example_12"/>
+  <arg name="config_dir" default="$(arg data_dir)/config"/>
+  <arg name="tagslam_config_file" default="$(arg config_dir)/tagslam.yaml"/>
+
+  <node pkg="nodelet" type="nodelet" name="tagslam" args="standalone tagslam/TagSlam2"
+	output="$(arg output)">
+        <rosparam param="tagslam_config" command="load" file="$(arg tagslam_config_file)"/>
+
+  </node>
+
+</launch>

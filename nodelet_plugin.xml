@@ -1,0 +1,8 @@
+<library path="lib/libtagslam2">
+  <class name="tagslam/TagSlam2" type="tagslam::TagSlam2"
+         base_class_type="nodelet::Nodelet">
+    <description>
+      tag slam nodelet
+    </description>
+  </class>
+</library>
