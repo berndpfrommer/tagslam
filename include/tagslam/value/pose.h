@@ -17,9 +17,13 @@ namespace tagslam {
            const std::string   &name = "") :
         Value(name), time(t), poseWithNoise(pn) {}
       std::string getLabel() const override;
+      // ---- methods for optimizer adding
+      void addToOptimizer(GTSAMOptimizer *opt,
+                          const BoostGraph::vertex_descriptor &v,
+                          const BoostGraph *g) override;
     private:
       ros::Time       time;
-      PoseWithNoise poseWithNoise;
+      PoseWithNoise   poseWithNoise;
     };
   }
 }

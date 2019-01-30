@@ -10,7 +10,8 @@
 namespace tagslam {
   class PoseWithNoise {
   public:
-    PoseWithNoise(const Transform &tf = Transform(),
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+    PoseWithNoise(const Transform &tf = Transform::Identity(),
                   const PoseNoise2 &n = PoseNoise2(),
                   bool isVal = false) :
       pose(tf), noise(n), valid(isVal) {

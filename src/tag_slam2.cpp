@@ -3,6 +3,8 @@
  */
 
 #include "tagslam/tag_slam2.h"
+#include "tagslam/geometry.h"
+#include "tagslam/pose_with_noise.h"
 #include "tagslam/body_defaults.h"
 #include "tagslam/body.h"
 
@@ -20,23 +22,27 @@ namespace tagslam {
 
   bool TagSlam2::initialize() {
     nh_.param<std::string>("param_prefix", paramPrefix_, "tagslam_config");
+    graph_.startUpdate();
     readBodies();
+    graph_.endUpdate();
+    //
+    optimizer_.add(&graph_.getSubGraph());
+    optimizer_.optimizeFullGraph();
     return (true);
   }
-
   void TagSlam2::readBodies() {
     XmlRpc::XmlRpcValue config;
     nh_.getParam(paramPrefix_, config);
-    // body defaults are required in case bodies do not
-    // provide all parameters
+
+    // read body defaults first in case
+    // in case bodies do not provide all parameters
     BodyDefaults::parse(config);
+
     // now read bodies
     BodyVec bv = Body::parse_bodies(config);
-    graph_.startUpdate();
     for (const auto &body: bv) {
       graph_.addBody(*body);
     }
-    graph_.endUpdate();
   }
 }  // end of namespace
 

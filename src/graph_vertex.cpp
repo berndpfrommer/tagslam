@@ -4,6 +4,8 @@
 
 
 #include "tagslam/graph_vertex.h"
+#include "tagslam/vertex.h"
+
 namespace tagslam {
   std::ostream &operator<<(std::ostream &os, const GraphVertex &v) {
     os << v.vertex->getLabel();

@@ -12,4 +12,5 @@ namespace tagslam {
   Transform make_transform(const Eigen::Matrix3d &rot,  const Point3d &trans);
   Transform make_transform(const Point3d   &rvec, const Point3d &trans);
   typedef Eigen::Vector2d Point2d;
+  std::ostream &operator<<(std::ostream &os, const Transform &tf);
 }

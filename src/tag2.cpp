@@ -11,8 +11,8 @@ using std::cout;
 using std::endl;
 
 namespace tagslam {
-  static std::vector<Point3d> make_object_corners(double s) {
-    const std::vector<Point3d> c =
+  static std::vector<Point3d, Eigen::aligned_allocator<Point3d>> make_object_corners(double s) {
+    const std::vector<Point3d, Eigen::aligned_allocator<Point3d>> c =
       { Point3d(-s/2,-s/2, 0), Point3d( s/2,-s/2, 0),
         Point3d( s/2, s/2, 0), Point3d(-s/2, s/2, 0) };
     return (c);

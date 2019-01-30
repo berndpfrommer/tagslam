@@ -17,6 +17,7 @@ namespace tagslam {
   using TagArrayConstPtr = TagArray::ConstPtr;
   class Body {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     Body(const std::string &n  = std::string(""), bool iS = false) :
       name(n), isStatic(iS) {};
     virtual ~Body() {};

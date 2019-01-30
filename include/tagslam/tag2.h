@@ -16,6 +16,7 @@
 namespace tagslam {
   class Tag2 {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     //
     typedef std::shared_ptr<Tag2>        Tag2Ptr;
     typedef std::shared_ptr<const Tag2>  Tag2ConstPtr;
@@ -42,7 +43,7 @@ namespace tagslam {
     int            bits{6};       // determines tag family
     double         size;          // tag size in meters
     PoseWithNoise  poseWithNoise; // tag pose relative body: T_b_o
-    std::vector<Point3d>  objectCorners;  // 3d object coordinates
+    std::vector<Point3d, Eigen::aligned_allocator<Point3d>>  objectCorners;  // 3d object coordinates
   };
   typedef Tag2::Tag2Ptr Tag2Ptr;
   typedef Tag2::Tag2ConstPtr Tag2ConstPtr;

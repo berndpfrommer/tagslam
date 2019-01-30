@@ -11,6 +11,7 @@ namespace tagslam {
     class Factor: public Vertex {
     public:
       virtual std::string getLabel() const override { return (name); }
+      bool isValue() const override { return (false); }
       Factor(const std::string &s = ""): Vertex(s, "box") {}
     };
   }

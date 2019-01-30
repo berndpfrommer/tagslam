@@ -6,7 +6,8 @@
 
 namespace tagslam {
   std::ostream &operator<<(std::ostream &os, const PoseWithNoise &pe) {
-    os << "pose: " << pe.getPose() << " noise: " << pe.getNoise().getDiagonal().transpose();
+    //os << "pose: " << pe.getPose() << " noise: " << pe.getNoise().getDiagonal().transpose();
+    os << "poSe: " << " noise: " << pe.getNoise().getDiagonal().transpose();
     return (os);
   }
 }  // namespace

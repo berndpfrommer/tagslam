@@ -4,12 +4,13 @@
 
 #pragma once
 
-#include "tagslam/vertex.h"
+//#include "tagslam/vertex.h"
 #include <string>
 #include <memory>
 #include <iostream>
 
 namespace tagslam {
+  class Vertex;
   class GraphVertex {
   public:
     GraphVertex(const std::shared_ptr<Vertex> &v = std::shared_ptr<Vertex>()): vertex(v) {}

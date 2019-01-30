@@ -243,6 +243,7 @@ namespace tagslam {
     double                                        viewingAngleThreshold_;
     double                                        initBodyPoseMaxError_;
     double                                        maxInitErr_{0.02};
+    bool                                          injectOdom_;
     std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
     std::unordered_map<std::string, Rig>          frameIdToRig_;
     Profiler                                      profiler_;

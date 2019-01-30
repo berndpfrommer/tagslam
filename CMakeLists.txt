@@ -90,7 +90,8 @@ src/sync_and_detect.cpp)
 target_link_libraries(sync_and_detect_node ${catkin_LIBRARIES})
 
 
-add_library(tagslam2 src/tag_slam2.cpp src/graph.cpp
+add_library(tagslam2
+src/tag_slam2.cpp src/graph.cpp
 src/body_defaults.cpp src/body.cpp src/simple_body2.cpp src/board2.cpp
 src/pose_noise.cpp src/pose_estimate.cpp src/yaml_utils.cpp
 src/body_defaults.cpp src/utils.cpp src/tag.cpp
@@ -98,6 +99,7 @@ src/geometry.cpp
 src/pose_noise2.cpp
 src/tag2.cpp
 src/pose_with_noise.cpp
+src/gtsam_optimizer.cpp
 src/value/pose.cpp
 src/factor/absolute_pose_prior.cpp
 src/factor/relative_pose_prior.cpp
@@ -105,6 +107,7 @@ src/graph_vertex.cpp
 src/graph_edge.cpp
 src/vertex.cpp
 )
+
 
 target_link_libraries(tagslam2 ${catkin_LIBRARIES}  ${Boost_LIBRARIES}
 ${GTSAM_LIBRARIES})

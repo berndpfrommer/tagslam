@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "tagslam/gtsam_optimizer.h"
 #include "tagslam/graph.h"
 
 #include <ros/ros.h>
@@ -28,6 +29,7 @@ namespace tagslam {
     // ------ variables --------
     ros::NodeHandle nh_;
     Graph           graph_;
+    GTSAMOptimizer  optimizer_;
     std::string     paramPrefix_;
   };
 }

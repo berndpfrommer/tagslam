@@ -8,7 +8,7 @@ namespace tagslam {
   PoseNoise2 PoseNoise2::make(const Point3d &a, const Point3d &p) {
     Matrix6d m;
     m.diagonal() << a(0),a(1),a(2),p(0),p(1),p(2);
-    return (PoseNoise2(m));
+    return (PoseNoise2(m, true));
   }
 
   PoseNoise2 PoseNoise2::make(double a, double p) {

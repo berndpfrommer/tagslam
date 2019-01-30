@@ -158,13 +158,6 @@ namespace tagslam {
   bool
   Graph::findOptimizationCandidates(const BoostGraph &graph, BoostGraph *subGraph,
                                     const std::vector<BoostGraph::vertex_descriptor> &factors) {
-#if 0    
-    UnoptimizedValuesPredicate<BoostGraph> filter(graph);
-    typedef boost::filtered_graph<
-      BoostGraph, boost::keep_all, UnoptimizedValuesPredicate<BoostGraph>> FilteredGraph;
-    FilteredGraph fg(graph, boost::keep_all(), filter);
-    plot<FilteredGraph>("filtered.dot", fg);
-#endif
     SubGraphMaker sgm(graph, subGraph);
     sgm.add(factors);
     return (true);
@@ -192,7 +185,7 @@ namespace tagslam {
     for (const auto &tag: body.getTags()) {
       // add tag vertex
       const std::string name = "tag:" + std::to_string(tag->getId());
-      std::shared_ptr<Vertex> vt(new value::Pose(ros::Time(0), PoseWithNoise(), name));
+      std::shared_ptr<Vertex> vt(new value::Pose(ros::Time(0), tag->getPoseWithNoise(), name));
       BoostGraph::vertex_descriptor tagVertex =
         boost::add_vertex(GraphVertex(vt), graph_);
       
@@ -200,13 +193,12 @@ namespace tagslam {
       if (tag->getPoseWithNoise().isValid()) {
         // first add prior factor
         std::shared_ptr<Vertex> ptv(
-          new factor::RelativePosePrior(ros::Time(0), tag->getPoseWithNoise(),
+          new factor::AbsolutePosePrior(ros::Time(0), tag->getPoseWithNoise(),
                                         "tag:" + std::to_string(tag->getId())));
         BoostGraph::vertex_descriptor tagPriorVertex =
           boost::add_vertex(GraphVertex(ptv), graph_);
         factors.push_back(tagPriorVertex);
-        // then add edges to it
-        boost::add_edge(bodyVertex, tagPriorVertex, GraphEdge(0), graph_);
+        // then add edge to it
         boost::add_edge(tagPriorVertex, tagVertex, GraphEdge(1), graph_);
       }
       
@@ -216,7 +208,6 @@ namespace tagslam {
     findOptimizationCandidates(graph_, &subGraph_, factors);
   }
 
-  
 
   Graph::~Graph() {
   }
