@@ -12,18 +12,23 @@ namespace tagslam {
   namespace value {
     class Pose: public Value {
     public:
-      Pose(const ros::Time     &t   = ros::Time(0),
-           const PoseWithNoise &pn  = PoseWithNoise(),
-           const std::string   &name = "") :
-        Value(name), time(t), poseWithNoise(pn) {}
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+      Pose(const ros::Time    &t    = ros::Time(0),
+           const Transform    &p    = Transform::Identity(),
+           const std::string  &name = "",
+           bool               valid = false) :
+        Value(name, valid), time_(t), pose_(p) {}
       std::string getLabel() const override;
+      const Transform &getPose() const { return (pose_); }
       // ---- methods for optimizer adding
-      void addToOptimizer(GTSAMOptimizer *opt,
+      void addToOptimizer(Optimizer *opt,
                           const BoostGraph::vertex_descriptor &v,
                           const BoostGraph *g) override;
     private:
-      ros::Time       time;
-      PoseWithNoise   poseWithNoise;
+      ros::Time time_;
+      Transform pose_;
     };
   }
+  typedef std::shared_ptr<value::Pose> PoseValuePtr;
+  typedef std::shared_ptr<const value::Pose> PoseValueConstPtr;
 }

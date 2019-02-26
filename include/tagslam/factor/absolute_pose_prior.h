@@ -15,15 +15,15 @@ namespace tagslam {
       AbsolutePosePrior(const ros::Time     &t  = ros::Time(0),
                         const PoseWithNoise &p  = PoseWithNoise(),
                         const std::string   &name = "") :
-        Factor(name), time(t), poseWithNoise(p) {}
+        Factor(name), time_(t), poseWithNoise_(p) {}
       std::string getLabel() const override;
       // ---- methods for optimizer adding
-      void addToOptimizer(GTSAMOptimizer *opt,
+      void addToOptimizer(Optimizer *opt,
                           const BoostGraph::vertex_descriptor &v,
                           const BoostGraph *g) override;
     private:
-      ros::Time     time;
-      PoseWithNoise poseWithNoise;
+      ros::Time     time_;
+      PoseWithNoise poseWithNoise_;
     };
   }
 }

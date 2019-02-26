@@ -7,7 +7,7 @@
 #include "tagslam/factor/absolute_pose_prior.h"
 #include "tagslam/factor/relative_pose_prior.h"
 #include "tagslam/value/pose.h"
-
+#include "tagslam/optimizer.h"
 
 #include <boost/range/irange.hpp>
 #include <boost/graph/breadth_first_search.hpp>
@@ -17,6 +17,8 @@
 #include <fstream>
 #include <queue>
 #include <map>
+#include <sstream>
+
 
 namespace tagslam {
 
@@ -40,7 +42,7 @@ namespace tagslam {
     std::ofstream ofile(fname);
     boost::write_graphviz(ofile, graph, LabelWriter<G>(graph));
   }
-
+/*
   class demo_visitor : public boost::default_bfs_visitor {
   public:
     template <typename Vertex, typename Graph>
@@ -48,12 +50,12 @@ namespace tagslam {
       printf("Visited vertex %lu with name %s\n",   u, g[u].name.c_str());
     };
   };
-
+*/
   Graph::Graph() {
 #if 0    
-    std::vector<BoostGraph::vertex_descriptor> vertices;
+    std::vector<BoostGraphVertex> vertices;
     for (const int i: irange(0, 10)) {
-      BoostGraph::vertex_descriptor v =
+      BoostGraphVertex v =
         boost::add_vertex(Vertex("name_" + std::to_string(i)), graph_);
       vertices.push_back(v);
     }
@@ -69,6 +71,7 @@ namespace tagslam {
 #endif
   }
 
+/*
   template <class G>
   struct UnoptimizedValuesPredicate {
     UnoptimizedValuesPredicate() : graph(NULL) {}
@@ -83,13 +86,14 @@ namespace tagslam {
 
   class SubGraphMaker {
   public:
-    typedef std::pair<BoostGraph::vertex_descriptor, BoostGraph::vertex_descriptor> QueueEntry;
+    typedef std::pair<BoostGraphVertex,
+                      BoostGraphVertex> QueueEntry;
     typedef std::queue<QueueEntry> Queue;
     typedef BoostGraph::out_edge_iterator OutEdgeIterator;
     SubGraphMaker(const BoostGraph &graph, BoostGraph *sg) :
       graph_(graph), subGraph_(sg) {}
 
-    void add(const std::vector<BoostGraph::vertex_descriptor> &startVertices) {
+    void add(const std::vector<BoostGraphVertex> &startVertices) {
       Queue().swap(openQueue_); // clears queue
       foundVertices_.clear();
       foundEdges_.clear();
@@ -98,12 +102,12 @@ namespace tagslam {
       }
     }
 
-    void add(const BoostGraph::vertex_descriptor &start) {
+    void add(const BoostGraphVertex &start) {
       if (foundVertices_.count(start) != 0) {
         return; // already in graph, we're done
       }
       // add start vertex to subgraph and push it into the queue
-      BoostGraph::vertex_descriptor u = boost::add_vertex(graph_[start], *subGraph_);
+      BoostGraphVertex u = boost::add_vertex(graph_[start], *subGraph_);
       vertexMap_[start] = u;
       // have to remember vertices in both graphs to be
       // able to later make the edges
@@ -116,11 +120,11 @@ namespace tagslam {
         std::tie(it, itEnd) = boost::out_edges(q.first, graph_);
         for (; it != itEnd; ++it) {
           // can do more filtering here if desired
-          BoostGraph::vertex_descriptor src(boost::source(*it, graph_)),
+          BoostGraphVertex src(boost::source(*it, graph_)),
             targ(boost::target(*it, graph_));
           
           if (foundVertices_.count(targ) == 0) {
-            BoostGraph::vertex_descriptor v = boost::add_vertex(graph_[targ], *subGraph_);
+            BoostGraphVertex v = boost::add_vertex(graph_[targ], *subGraph_);
             vertexMap_[targ] = v;
             openQueue_.push(QueueEntry(src, targ));
             foundVertices_.insert(targ);
@@ -139,78 +143,229 @@ namespace tagslam {
     const BoostGraph                       &graph_;
     BoostGraph                             *subGraph_;
     Queue                                   openQueue_;
-    std::set<BoostGraph::vertex_descriptor> foundVertices_;
-    std::map<BoostGraph::vertex_descriptor, BoostGraph::vertex_descriptor> vertexMap_;
+    std::set<BoostGraphVertex> foundVertices_;
+    std::map<BoostGraphVertex, BoostGraphVertex> vertexMap_;
     std::set<BoostGraph::edge_descriptor>   foundEdges_;
 
   };
 
+*/  
 
-  void Graph::startUpdate() {
-    subGraph_ = BoostGraph(); // clear graph
-  }
-
-  void Graph::endUpdate() {
-    plot<BoostGraph>("full.dot", graph_);
-    plot<BoostGraph>("subgraph.dot", subGraph_);
-  }
-
-  bool
-  Graph::findOptimizationCandidates(const BoostGraph &graph, BoostGraph *subGraph,
-                                    const std::vector<BoostGraph::vertex_descriptor> &factors) {
-    SubGraphMaker sgm(graph, subGraph);
-    sgm.add(factors);
-    return (true);
+  void Graph::optimize() {
+    if (optimizer_) {
+      optimizer_->optimize();
+    }
   }
 
   void Graph::addBody(const Body &body) {
+    while ((int) bodyLookupTable_.size() <= body.getId()) {
+      bodyLookupTable_.push_back(Entry());
+    }
+    std::list<BoostGraphVertex> optValues, optFactors;
     // add body pose as vertex
-    std::shared_ptr<Vertex> bv(new value::Pose(ros::Time(0), body.getPoseWithNoise(),
-                                               "body:" + body.getName()));
-    BoostGraph::vertex_descriptor bodyVertex =
+    std::shared_ptr<value::Pose>
+      bv(new value::Pose(ros::Time(0), body.getPoseWithNoise().getPose(),
+                         "body:" + body.getName()));
+    BoostGraphVertex bodyVertex =
       boost::add_vertex(GraphVertex(bv), graph_);
-
-    std::vector<BoostGraph::vertex_descriptor> factors;
-    if (body.getIsStatic()) {
+    bodyLookupTable_[body.getId()] = Entry(ros::Time(0), bodyVertex, bv);
+    if (body.isStatic()) {
       std::shared_ptr<Vertex> pv(
         new factor::AbsolutePosePrior(ros::Time(0), body.getPoseWithNoise(),
                                       "body:" + body.getName()));
-      BoostGraph::vertex_descriptor priorVertex =  boost::add_vertex(GraphVertex(pv), graph_);
-      factors.push_back(priorVertex);
+      BoostGraphVertex priorVertex =
+        boost::add_vertex(GraphVertex(pv), graph_);
       boost::add_edge(bodyVertex, priorVertex, GraphEdge(0), graph_);
+      // if we have a pose prior, we can throw it into the optimzer
+      // right away
+      optValues.push_back(bodyVertex);
+      optFactors.push_back(priorVertex);
     }
 
     // add associated tags as vertices, also create
     // edges if pose estimate is available
     for (const auto &tag: body.getTags()) {
-      // add tag vertex
-      const std::string name = "tag:" + std::to_string(tag->getId());
-      std::shared_ptr<Vertex> vt(new value::Pose(ros::Time(0), tag->getPoseWithNoise(), name));
-      BoostGraph::vertex_descriptor tagVertex =
-        boost::add_vertex(GraphVertex(vt), graph_);
+      // add tag vertex to the graph
+      BoostGraphVertex tagVertex = addTag(*tag);
       
       // add tag prior edge if known
       if (tag->getPoseWithNoise().isValid()) {
         // first add prior factor
         std::shared_ptr<Vertex> ptv(
           new factor::AbsolutePosePrior(ros::Time(0), tag->getPoseWithNoise(),
-                                        "tag:" + std::to_string(tag->getId())));
-        BoostGraph::vertex_descriptor tagPriorVertex =
+                                        "tag:"+std::to_string(tag->getId())));
+        BoostGraphVertex tagPriorVertex =
           boost::add_vertex(GraphVertex(ptv), graph_);
-        factors.push_back(tagPriorVertex);
         // then add edge to it
         boost::add_edge(tagPriorVertex, tagVertex, GraphEdge(1), graph_);
+        optValues.push_back(tagVertex);
+        optFactors.push_back(tagPriorVertex);
       }
       
     }
     ROS_INFO_STREAM("added body " << body.getName() << " with "
                     << body.getTags().size() << " tags");
-    findOptimizationCandidates(graph_, &subGraph_, factors);
+
+    // must first add values so keys are available!
+    for (const auto &v: optValues) {
+      graph_[v].vertex->addToOptimizer(optimizer_, v, &graph_);
+    }
+    for (const auto &v: optFactors) {
+      graph_[v].vertex->addToOptimizer(optimizer_, v, &graph_);
+    }
+  }
+
+  BoostGraphVertex
+  Graph::addTag(const Tag2 &tag) {
+    if (tagIdToPoseVertex_.count(tag.getId()) != 0) {
+      ROS_ERROR_STREAM("duplicate tag id: " << tag.getId());
+      throw std::runtime_error("duplicate tag id!");
+    }
+    const std::string nm = "tag:" + std::to_string(tag.getId());
+    std::shared_ptr<Vertex>
+      vt(new value::Pose(ros::Time(0), tag.getPoseWithNoise().getPose(), nm));
+    BoostGraphVertex tagVertex =
+      boost::add_vertex(GraphVertex(vt), graph_);
+    tagIdToPoseVertex_[tag.getId()] = tagVertex;
+    return (tagVertex);
+  }
+
+  bool
+  Graph::getBodyPose(const ros::Time &t,
+                     const BodyConstPtr &body, Transform *tf) const {
+    const auto &entry = bodyLookupTable_[body->getId()];
+    if (entry.time != t && entry.time != ros::Time(0)) {
+      ROS_INFO_STREAM(body->getName() << " no valid time entry for " << t);
+      return (false);
+    }
+    if (entry.pose->getKey() == 0) {
+      ROS_INFO_STREAM(body->getName() << " no valid pose for " << t);
+      return (false);
+    }
+    *tf = optimizer_->getPose(entry.pose->getKey());
+    return (true);
+  }
+
+  bool Graph::getTagPose(const ros::Time &t,
+                         const Tag2ConstPtr &tag, Transform *tf) const {
+    const auto it = tagIdToPoseVertex_.find(tag->getId());
+    if (it == tagIdToPoseVertex_.end()) {
+      return (false);
+    }
+    // find vertex and convert it to pose
+    const GraphVertex &v = graph_[it->second];
+    std::shared_ptr<value::Pose> p =
+      std::dynamic_pointer_cast<value::Pose>(v.vertex);
+    if (!p) {
+      ROS_ERROR_STREAM("vertex for tag " << tag->getId() << " no pose!");
+      return (false);
+    }
+    if (!p->isOptimized()) {
+      return (false);
+    }
+    *tf = optimizer_->getPose(p->getKey());
+    return (true);
+  }
+
+  void
+  Graph::test() {
+  }
+
+
+  PoseValuePtr
+  Graph::addPoseWithPrior(const ros::Time &t, const std::string &name,
+                          const PoseWithNoise &pn,
+                          BoostGraphVertex *vd) {
+    // new pose value
+    PoseValuePtr pvp(new value::Pose(t, pn.getPose(), name, true));
+    // add new pose value to the optimizer
+    pvp->setKey(optimizer_->addPose(pvp->getPose()));
+    // add new pose value into the boost graph
+    *vd = boost::add_vertex(GraphVertex(pvp), graph_);
+
+    // 
+    std::shared_ptr<factor::AbsolutePosePrior>
+      fac(new factor::AbsolutePosePrior(t, pn, name));
+    // add factor to optimizer
+    fac->setKey(optimizer_->addAbsolutePosePrior(pvp->getKey(), pn));
+    // add factor vertex to boost graph
+    BoostGraphVertex fv = boost::add_vertex(GraphVertex(fac), graph_);
+      
+    // now add edge between factor and value
+    boost::add_edge(fv, *vd, GraphEdge(0), graph_);
+    return (pvp);
+  }
+
+  void
+  Graph::addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
+                          const BodyConstPtr &body,
+                          const PoseWithNoise &deltaPose) {
+    auto &entry = bodyLookupTable_[body->getId()];
+    if (entry.time == tCurr) {
+      ROS_ERROR_STREAM("ign dup pose " << tCurr  << " " << body->getName());
+      return;
+    }
+    if (entry.time == ros::Time(0)) {
+#define INIT_POSE_WITH_IDENTITY     
+#ifdef INIT_POSE_WITH_IDENTITY
+      // -------- update entry
+      PoseWithNoise pn(Transform::Identity(), PoseNoise2::make(0.1, 0.1), true);
+      entry.time   = tPrev;
+      entry.pose   = addPoseWithPrior(tPrev, "body:" +
+                                      body->getName(), pn, &entry.vertex);
+
+      ROS_INFO_STREAM("added initial pose for t: " << entry.time << " valid: " << entry.pose->isValid());
+#else
+      PoseValuePtr pvp(new value::Pose(tPrev, Transform::Identity(),
+                                       "body:" + body->getName(), false));
+      entry.time   = tPrev;
+      entry.vertex = boost::add_vertex(GraphVertex(pvp), graph_);
+      entry.pose   = pvp;
+#endif
+    }
+    PoseValuePtr pp = entry.pose;
+ 
+    const Transform newPose = deltaPose.getPose() * pp->getPose();
+    // note that the new pose is set to invalid if the previous one is
+    PoseValuePtr np(new value::Pose(tCurr, newPose,
+                                    "body:" + body->getName(), pp->isValid()));
+    // add new pose value to graph
+    const BoostGraphVertex npv = boost::add_vertex(GraphVertex(np), graph_);
+
+    // add new factor and its edges to graph
+    VertexPtr fvv(new factor::RelativePosePrior(tCurr, deltaPose,
+                                               "body:" + body->getName()));
+    const BoostGraphVertex fv = boost::add_vertex(GraphVertex(fvv), graph_);
+    boost::add_edge(fv, entry.vertex, GraphEdge(0), graph_);
+    boost::add_edge(fv, npv, GraphEdge(1), graph_);
+    
+    // if poses are valid, add to optimizer
+    if (pp->isValid()) {
+      ROS_INFO_STREAM("previous pose is valid!");
+      if (pp->getKey() == 0) {
+        ROS_INFO_STREAM("adding original pose!");
+        // no valid optimizer key -> pose value not entered yet!
+        pp->setKey(optimizer_->addPose(pp->getPose()));
+      }
+      const ValueKey key1  = pp->getKey();
+      ROS_INFO_STREAM("adding new pose!");
+      np->setKey(optimizer_->addPose(newPose));
+      optimizer_->addRelativePosePrior(key1, np->getKey(), deltaPose);
+    } else {
+      ROS_INFO_STREAM("previous pose is invalid!");
+    }
+    entry.time   = tCurr;
+    entry.vertex = npv; // new pose value becomes previous...
+    entry.pose   = np;
   }
 
 
   Graph::~Graph() {
   }
 
-
+  void Graph::plotDebug(const ros::Time &t, const std::string &tag) {
+    std::stringstream ss;
+    ss << tag << "_" <<  t.toNSec() << ".dot";
+    plot(ss.str(), graph_);
+  }
 }  // end of namespace

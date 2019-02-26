@@ -5,6 +5,8 @@
 #pragma once
 
 #include "tagslam/geometry.h"
+#include "tagslam/pose_noise2.h"
+
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/linear/NoiseModel.h>
 
@@ -13,11 +15,9 @@ namespace tagslam {
     inline gtsam::Pose3 to_gtsam(const Transform &t) {
       return (gtsam::Pose3(t.matrix()));
     }
-    inline boost::shared_ptr<gtsam::noiseModel::Gaussian> to_gtsam(const PoseNoise2 &pn) {
-      if (pn.getIsDiagonal()) {
-        return (gtsam::noiseModel::Diagonal::Sigmas(pn.getDiagonal()));
-      }
-      return (gtsam::noiseModel::Gaussian::Covariance(pn.getSigmaMatrix()));
+    inline Transform from_gtsam(const gtsam::Pose3 &p) {
+      return (Transform(p.matrix()));
     }
+    boost::shared_ptr<gtsam::noiseModel::Gaussian> to_gtsam(const PoseNoise2 &pn);
   }
 }

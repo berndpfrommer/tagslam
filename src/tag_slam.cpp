@@ -26,7 +26,7 @@
 #include <functional>
 #include <rosgraph_msgs/Clock.h>
 
-//#define DEBUG_POSE_ESTIMATE
+#define DEBUG_POSE_ESTIMATE
 #define USE_NEW_INIT      
 
 namespace tagslam {
@@ -55,6 +55,7 @@ namespace tagslam {
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
+    nh_.param<bool>("inject_odom", injectOdom_, false);
     nh_.param<string>("param_prefix", paramPrefix_, "tagslam_config");
     nh_.param<string>("body_poses_out_file", bodyPosesOutFile_,
                            "body_poses_out.yaml");
@@ -581,11 +582,9 @@ namespace tagslam {
         if (rig.poseEstimate.isValid()) {
           const gtsam::Pose3 oldPose = rig.poseEstimate;
           const gtsam::Pose3 B = rig.rigidBody->T_body_odom;
-          //std::cout << "T_body_odom: " << std::endl << B << std::endl;
           const gtsam::Pose3 deltaPose = B * (oldPose.inverse() * newPose) * B.inverse();
-          
-          const PoseNoise noise = rig.poseEstimate.getNoise();
-          tagGraph_.addOdom(rig.rigidBody, deltaPose, noise,
+          //std::cout << "delta pose: " << std::endl << deltaPose << std::endl;
+          tagGraph_.addOdom(rig.rigidBody, deltaPose, rig.rigidBody->odomNoise,
                             rig.frameNum, frameNum_);
         }
         rig.poseEstimate.setPose(newPose);
@@ -599,7 +598,8 @@ namespace tagslam {
     std::vector<PoseEstimate> camPoses;
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
       const auto &cam = cameras_[cam_idx];
-      if (cam->hasPosePrior && cam->rig->isStatic && cam->rig->poseEstimate.isValid()) {
+      //if (cam->hasPosePrior && cam->rig->isStatic && cam->rig->poseEstimate.isValid()) {
+      if (cam->hasPosePrior && cam->rig->poseEstimate.isValid()) {
         // already know camera world pose
         camPoses.push_back(PoseEstimate(cam->rig->poseEstimate * cam->poseEstimate, 0, 0));
       } else {
@@ -1510,6 +1510,21 @@ namespace tagslam {
       }
     }
   }
+
+  static nav_msgs::OdometryConstPtr make_fake_odom(const std_msgs::Header &hdr) {
+    nav_msgs::OdometryPtr iodom(new Odometry());
+    iodom->header = hdr;
+    iodom->child_frame_id = "fake";
+    iodom->pose.pose.orientation.x = 0;
+    iodom->pose.pose.orientation.y = 0;
+    iodom->pose.pose.orientation.z = 0;
+    iodom->pose.pose.orientation.w = 1.0;
+    iodom->pose.pose.position.x = 0;
+    iodom->pose.pose.position.y = 0;
+    iodom->pose.pose.position.z = 0;
+    return (iodom);
+  }
+
   void TagSlam::playFromBag(const string &fname) {
     rosbag::Bag bag;
     bag.open(fname, rosbag::bagmode::Read);
@@ -1517,7 +1532,7 @@ namespace tagslam {
     vector<string> tagTopics, imageTopics, topics, odomTopics;
     nh_.param<std::vector<std::string>>(paramPrefix_ + "/odometry/topics",
                                         odomTopics, vector<string>());
-    
+
     for (const auto cam_idx: irange(0ul, cameras_.size())) {
       const auto &cam = cameras_[cam_idx];
       tagTopics.push_back(cam->tagtopic);
@@ -1549,7 +1564,6 @@ namespace tagslam {
     tv.push_back(tagTopics);
     tv.push_back(imageTopics);
     tv.push_back(odomTopics);
-    
     flex_sync::Sync<TagArray, Image, Odometry>
       sync3(tv, std::bind(&TagSlam::processTagsAndImages, this,
                           std::placeholders::_1, std::placeholders::_2,
@@ -1563,6 +1577,15 @@ namespace tagslam {
       OdometryConstPtr        odom = m.instantiate<Odometry>();
       ImageConstPtr           img  = m.instantiate<Image>();
       CompressedImageConstPtr cimg = m.instantiate<CompressedImage>();
+      // inject fake odom if requested
+      if (!odomTopics.empty() && odomTopics[0] == "fake"
+          && m.getTopic() == tagTopics[0]) {
+        if (hasCompressedImages_) {
+          sync3c.process(odomTopics[0], make_fake_odom(tags->header));
+        } else {
+          sync3.process(odomTopics[0], make_fake_odom(tags->header));
+        }
+      }
       if (hasCompressedImages_) {
         if (tags) sync3c.process(m.getTopic(), tags);
         if (odom) sync3c.process(m.getTopic(), odom);

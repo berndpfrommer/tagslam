@@ -24,6 +24,10 @@ namespace tagslam {
     return (make_transform(rot, trans));
   }
 
+  Transform make_transform(const Eigen::Quaterniond &q, const Point3d &trans) {
+    return (make_transform(q.toRotationMatrix(), trans));
+  }
+  
   std::ostream &operator<<(std::ostream &os, const Transform &tf) {
     os << "[" << tf.linear() << "]," << std::endl << "[" << tf.translation().transpose() << "]";
     return (os);

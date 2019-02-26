@@ -4,7 +4,7 @@
 
 #include "tagslam/factor/relative_pose_prior.h"
 #include "tagslam/value/value.h"
-#include "tagslam/gtsam_optimizer.h"
+#include "tagslam/optimizer.h"
 #include <memory>
 #include <sstream>
 
@@ -12,13 +12,12 @@ namespace tagslam {
   namespace factor {
     std::string RelativePosePrior::getLabel() const {
       std::stringstream ss;
-      ss << "rpp:" << name << ",t:" << time.toSec();
+      ss << "rpp:" << name_ << ",t:" << format_time(time_);
       return (ss.str());
     }
 
     // ---- methods for optimizer
 
-#if 0    
     static void get_values(const value::Value **v1,
                            const value::Value **v2,
                            const BoostGraph::vertex_descriptor &f,
@@ -46,21 +45,16 @@ namespace tagslam {
         throw std::runtime_error("has > 2 edges: " + g[f].vertex->getLabel());
       }
     }
-#endif
 
     void
-    RelativePosePrior::addToOptimizer(GTSAMOptimizer *opt,
+    RelativePosePrior::addToOptimizer(Optimizer *opt,
                                       const BoostGraph::vertex_descriptor &v,
                                       const BoostGraph *g) {
-#if 0      
-      // XXX complete here!!!
       const value::Value *v1, *v2;
       get_values(&v1, &v2, v, *g);
       ValueKey key1 = v1->getKey();
       ValueKey key2 = v2->getKey();
-      auto &graph = opt->getNewGraph();
-      //
-#endif      
+      opt->addRelativePosePrior(key1, key2, poseWithNoise_);
     }
 
   }

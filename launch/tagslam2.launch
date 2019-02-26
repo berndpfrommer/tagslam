@@ -4,12 +4,29 @@
 #	launch-prefix="gdb -ex run --args"
   <arg name="data_dir" default="$(find tagslam)/examples/example_12"/>
   <arg name="config_dir" default="$(arg data_dir)/config"/>
+  
   <arg name="tagslam_config_file" default="$(arg config_dir)/tagslam.yaml"/>
+  <arg name="calibration_file" default="$(arg config_dir)/cameras.yaml"/>
+  <arg name="bag" default="$(arg data_dir)/tag_detections.bag"/>
 
-  <node pkg="nodelet" type="nodelet" name="tagslam" args="standalone tagslam/TagSlam2"
+  <!--
+  <node pkg="nodelet" type="nodelet" name="tagslam2" args="standalone tagslam/TagSlam2"
 	output="$(arg output)">
+        <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
         <rosparam param="tagslam_config" command="load" file="$(arg tagslam_config_file)"/>
-
+	<param name="bag_file" value="$(arg bag)"/>
+	<param name="has_compressed_images" value="true"/>
+	<param name="max_number_of_frames" value="6"/>
+	</node>
+  -->
+#	launch-prefix="gdb -ex run --args"
+  <node pkg="tagslam" type="tagslam2_node" name="tagslam2"
+	output="$(arg output)">
+        <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
+        <rosparam param="tagslam_config" command="load" file="$(arg tagslam_config_file)"/>
+	<param name="bag_file" value="$(arg bag)"/>
+	<param name="has_compressed_images" value="true"/>
+	<param name="max_number_of_frames" value="600000"/>
   </node>
 
 </launch>

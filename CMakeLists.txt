@@ -95,9 +95,11 @@ src/tag_slam2.cpp src/graph.cpp
 src/body_defaults.cpp src/body.cpp src/simple_body2.cpp src/board2.cpp
 src/pose_noise.cpp src/pose_estimate.cpp src/yaml_utils.cpp
 src/body_defaults.cpp src/utils.cpp src/tag.cpp
+src/gtsam_utils.cpp
 src/geometry.cpp
 src/pose_noise2.cpp
 src/tag2.cpp
+src/camera2.cpp
 src/pose_with_noise.cpp
 src/gtsam_optimizer.cpp
 src/value/pose.cpp
@@ -106,12 +108,21 @@ src/factor/relative_pose_prior.cpp
 src/graph_vertex.cpp
 src/graph_edge.cpp
 src/vertex.cpp
+src/camera_intrinsics2.cpp
+src/odometry_processor.cpp
 )
-
-
 target_link_libraries(tagslam2 ${catkin_LIBRARIES}  ${Boost_LIBRARIES}
 ${GTSAM_LIBRARIES})
-add_dependencies(tagslam2 ${catkin_EXPORTED_TARGETS})
+
+# -- nodelet ---
+add_library(tagslam2_nodelet src/tagslam2_nodelet.cpp)
+target_link_libraries(tagslam2_nodelet tagslam2 ${catkin_LIBRARIES})
+add_dependencies(tagslam2_nodelet ${catkin_EXPORTED_TARGETS})
+
+# -- node ---
+add_executable(tagslam2_node src/tagslam2_node.cpp)
+target_link_libraries(tagslam2_node tagslam2 ${catkin_LIBRARIES})
+
 
 install(FILES nodelet_plugins.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}

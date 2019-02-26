@@ -4,22 +4,20 @@
 
 #include "tagslam/factor/absolute_pose_prior.h"
 #include "tagslam/value/value.h"
-#include "tagslam/gtsam_optimizer.h"
-#include "tagslam/gtsam_utils.h"
-#include <gtsam/slam/PriorFactor.h>
+#include "tagslam/optimizer.h"
 #include <sstream>
 
 namespace tagslam {
   namespace factor {
     std::string AbsolutePosePrior::getLabel() const {
       std::stringstream ss;
-      ss << "app:" << name << ",t:" << time.toSec();
+      ss << "app:" << name_ << ",t:" << format_time(time_);
       return (ss.str());
     }
 
     // ---- methods for optimizer adding
     void
-    AbsolutePosePrior::addToOptimizer(GTSAMOptimizer *opt,
+    AbsolutePosePrior::addToOptimizer(Optimizer *opt,
                                       const BoostGraph::vertex_descriptor &v,
                                       const BoostGraph *g) {
       typedef BoostGraph::out_edge_iterator OutEdgeIterator;
@@ -33,21 +31,21 @@ namespace tagslam {
         targ(boost::target(*it, *g));
       const std::shared_ptr<Vertex> vtx = (*g)[targ].vertex;
       if (!vtx->isValue()) {
-        std::cout << "ERROR: AbsolutePosePrior has invalid value!" << std::endl;
+        std::cout << "ERROR: AbsolutePosePrior has invalid value!"
+                  << std::endl;
         return;
       }
       const value::Value *val = dynamic_cast<value::Value const *>(vtx.get());
       if (val == NULL) {
-        std::cout << "ERROR: AbsolutePosePrior has invalid value type!" << std::endl;
+        std::cout << "ERROR: AbsolutePosePrior has invalid value type!"
+                  << std::endl;
         return;
       }
       ValueKey key = val->getKey();
-      auto &graph = opt->getNewGraph();
-      graph.push_back(gtsam::PriorFactor<gtsam::Pose3>
-                      (key, gtsam_utils::to_gtsam(poseWithNoise.getPose()),
-                       gtsam_utils::to_gtsam(poseWithNoise.getNoise())));
+      opt->addAbsolutePosePrior(key, poseWithNoise_);
       if (++it != itEnd) {
-        std::cout << "ERROR: AbsolutePosePrior " << (*g)[targ].vertex->getLabel()
+        std::cout << "ERROR: AbsolutePosePrior "
+                  << (*g)[targ].vertex->getLabel()
                   << " has too many edges!" << std::endl;
         throw (std::runtime_error("too many edges: " + (*g)[targ].vertex->getLabel()));
       }

@@ -16,11 +16,9 @@ namespace tagslam {
   using TagArray = apriltag_msgs::ApriltagArrayStamped;
   using TagArrayConstPtr = TagArray::ConstPtr;
   class Body {
+    using string = std::string;
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    Body(const std::string &n  = std::string(""), bool iS = false) :
-      name(n), isStatic(iS) {};
-    virtual ~Body() {};
 
     typedef std::shared_ptr<Body>       BodyPtr;
     typedef std::shared_ptr<const Body> BodyConstPtr;
@@ -30,12 +28,17 @@ namespace tagslam {
 
     // virtual methods to be implemented by derived classes
     virtual bool write(std::ostream &os,
-                       const std::string &prefix) const = 0;
+                       const string &prefix) const = 0;
     virtual bool parse(XmlRpc::XmlRpcValue body) = 0;
     // public methods
-    const std::string &getName() const { return(name); }
-    bool   getIsStatic() const { return (isStatic); }
-    void   setType(const std::string &t) { type = t; }
+    const string &getName() const { return (name); }
+    const string &getFrameId() const { return (frameId_); }
+    int           getId() const { return (id_); }
+    const string &getOdomTopic() const { return (odomTopic_); }
+    const string &getOdomFrameId() const { return (odomFrameId_); }
+    bool   isStatic() const { return (isStatic_); }
+    void   setType(const string &t) { type = t; }
+    void   setId(int id) { id_ = id; }
     void   setPoseWithNoise(const PoseWithNoise &p) { poseWithNoise = p; }
     const PoseWithNoise getPoseWithNoise() const { return (poseWithNoise); }
  
@@ -46,14 +49,18 @@ namespace tagslam {
     static BodyVec parse_bodies(XmlRpc::XmlRpcValue config);
 
   protected:
+    Body(const string &n  = string(""), bool iS = false) :
+      name(n), frameId_(n), isStatic_(iS) {};
+    virtual ~Body() {};
     bool   parseCommon(XmlRpc::XmlRpcValue body);
     bool   writeCommon(std::ostream &os,
-                     const std::string &prefix) const;
+                     const string &prefix) const;
     // -------------------------
-    std::string         name;
-    bool                isStatic{true};
-    std::string         type;
-    //
+    string              name;
+    string              frameId_;
+    int                 id_{-1};
+    bool                isStatic_{true};
+    string              type;
     int                 maxHammingDistance{2};
     // tags that are hanging off of it
     Tag2Map             tags;
@@ -64,11 +71,12 @@ namespace tagslam {
     // any initial pose prior
     PoseWithNoise       poseWithNoise;
     // variables used in case odometry data is available
-    std::string         odomFrameId;
+    string              odomTopic_;
+    string              odomFrameId_;
     PoseNoise2          odomNoise;
     Transform           T_body_odom;
     // -------- static functions
-    static BodyPtr parse_body(const std::string &name,
+    static BodyPtr parse_body(const string &name,
                               XmlRpc::XmlRpcValue config);
   };
   using BodyPtr = Body::BodyPtr;

@@ -14,6 +14,8 @@
 namespace tagslam {
   using boost::irange;
 
+  static int body_id = 0;
+
   static BodyPtr make_type(const std::string &name,
                                 const std::string &type) {
     BodyPtr p;
@@ -27,6 +29,7 @@ namespace tagslam {
       throw std::runtime_error("invalid rigid body type: " + type);
     }
     p->setType(type);
+    p->setId(body_id++);
     return (p);
   }
 
@@ -36,17 +39,22 @@ namespace tagslam {
       double def_pos_noise = BodyDefaults::instance()->positionNoise;
       double def_rot_noise = BodyDefaults::instance()->rotationNoise;
       defaultTagSize = static_cast<double>(body["default_tag_size"]);
-      isStatic       = static_cast<bool>(body["is_static"]);
+      isStatic_      = static_cast<bool>(body["is_static"]);
       if (body.hasMember("max_hamming_distance")) {
         maxHammingDistance = static_cast<int>(body["max_hamming_distance"]);
       }
       if (body.hasMember("T_body_odom")) {
-        Eigen::Vector3d p = yaml_utils::get_vec("position", body["T_body_odom"]["position"]);
-        Eigen::Vector3d r = yaml_utils::get_vec("rotvec",   body["T_body_odom"]["rotvec"]);
+        Eigen::Vector3d p =
+          yaml_utils::get_vec("position",body["T_body_odom"]["position"]);
+        Eigen::Vector3d r =
+          yaml_utils::get_vec("rotvec",   body["T_body_odom"]["rotvec"]);
         T_body_odom = make_transform(r, p);
       }
       if (body.hasMember("odom_frame_id")) {
-        odomFrameId = static_cast<std::string>(body["odom_frame_id"]);
+        odomFrameId_ = static_cast<std::string>(body["odom_frame_id"]);
+      }
+      if (body.hasMember("odom_topic")) {
+        odomTopic_ = static_cast<std::string>(body["odom_topic"]);
       }
       double odomRotNoise(1e-2), odomTransNoise(5e-2);
       if (body.hasMember("odom_rotation_noise")) {
@@ -79,7 +87,7 @@ namespace tagslam {
     } catch (const XmlRpc::XmlRpcException &e) {
       throw std::runtime_error("error parsing body:" + name);
     }
-    if (!isStatic && hasPosePrior) {
+    if (!isStatic_ && hasPosePrior) {
       throw std::runtime_error("dynamic body has prior pose: " + name);
     }
     return (true);
@@ -99,7 +107,8 @@ namespace tagslam {
 
   Tag2Ptr Body::findTag(int tagId, int bits) const {
     const auto it = tags.find(tagId);
-    return ((it == tags.end() || it->second->getBits() != bits)? NULL: it->second);
+    return ((it == tags.end() || it->second->getBits() != bits)?
+            NULL: it->second);
   }
 
   void Body::addTag(const Tag2Ptr &tag) {
@@ -148,9 +157,9 @@ namespace tagslam {
     std::string pfix = prefix + "    ";
     os << pfix << "type: " << type << std::endl;
     os << pfix << "is_static: " <<
-      (isStatic ? "true" : "false") << std::endl;
+      (isStatic_ ? "true" : "false") << std::endl;
     os << pfix << "default_tag_size: " << defaultTagSize << std::endl;
-    if (isStatic) {
+    if (isStatic_) {
       os << pfix << "pose:" << std::endl;;
       PoseNoise2 smallNoise = PoseNoise2::make(0.001, 0.001);
       yaml_utils::write_pose(os, pfix + "  ", poseWithNoise.getPose(),
