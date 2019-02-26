@@ -38,6 +38,7 @@ namespace tagslam {
     void addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
                           const BodyConstPtr &body,
                           const PoseWithNoise &deltaPose);
+    void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void plotDebug(const ros::Time &t, const std::string &tag);
     void optimize();
     void test();
@@ -58,6 +59,7 @@ namespace tagslam {
     // ------ variables --------------
     typedef std::unordered_map<int, BoostGraphVertex> IntToVertexMap;
     BoostGraph         graph_;
+    bool               optimizeFullGraph_;
     Optimizer         *optimizer_;
     std::vector<Entry> bodyLookupTable_;
     IntToVertexMap     tagIdToPoseVertex_;

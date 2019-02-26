@@ -35,7 +35,8 @@ namespace tagslam {
     Transform deltaPose = pose_.inverse() * newPose;
     PoseNoise2 dpn = PoseNoise2::make(0.01 /*angle*/, 0.01 /*position*/);
     const PoseWithNoise pn(deltaPose, dpn, true);
-    ROS_INFO_STREAM("odom adding body pose: " << time_ << " -> " << msg->header.stamp);
+    ROS_INFO_STREAM("odom adding body pose: " << time_ << " -> "
+                    << msg->header.stamp);
     graph_->addBodyPoseDelta(time_, msg->header.stamp, body_, pn);
     
     pose_ = newPose;

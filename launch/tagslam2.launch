@@ -25,8 +25,9 @@
         <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
         <rosparam param="tagslam_config" command="load" file="$(arg tagslam_config_file)"/>
 	<param name="bag_file" value="$(arg bag)"/>
+	<param name="optimize_full_graph" value="true"/>
 	<param name="has_compressed_images" value="true"/>
-	<param name="max_number_of_frames" value="600000"/>
+	<param name="max_number_of_frames" value="3000"/>
   </node>
 
 </launch>

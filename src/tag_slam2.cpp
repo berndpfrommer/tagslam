@@ -19,6 +19,7 @@
 
 #include <boost/range/irange.hpp>
 
+const int QSZ = 1000;
 namespace tagslam {
   using Odometry = nav_msgs::Odometry;
   using OdometryConstPtr = nav_msgs::OdometryConstPtr;
@@ -60,12 +61,24 @@ namespace tagslam {
   }
   */
 
-  
+
+  void TagSlam2::sleep(double dt) const {
+    ros::Rate r(10); // 10 hz
+    ros::WallTime tw0 = ros::WallTime::now();
+    while (ros::WallTime::now() - tw0 < ros::WallDuration(0.2)) {
+      ros::spinOnce();
+      ros::WallTime::sleepUntil(ros::WallTime::now() + ros::WallDuration(0.01));
+    }
+    ROS_INFO_STREAM("done sleeping!");
+  }
 
   bool TagSlam2::initialize() {
     cameras_ = Camera2::parse_cameras("cameras", nh_);
+    bool optFullGraph;
+    nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graph_.setOptimizer(&optimizer_);
+    graph_.setOptimizeFullGraph(optFullGraph);
     readBodies();
     //
     //optimizer_.optimizeFullGraph();
@@ -74,9 +87,11 @@ namespace tagslam {
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
+    
     string bagFile;
     nh_.param<string>("bag_file", bagFile, "");
-    clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", 1);
+    clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
+    sleep(1.0);
     playFromBag(bagFile);
     return (true);
   }
@@ -96,7 +111,7 @@ namespace tagslam {
       if (!body->isStatic()) {
         nonstaticBodies_.push_back(body);
         odomPub_.push_back(
-          nh_.advertise<nav_msgs::Odometry>("odom/body_" + body->getName(), 1));
+          nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(), QSZ));
       }
     }
   }
@@ -244,7 +259,7 @@ namespace tagslam {
       graph_.plotDebug(msgvec3[0]->header.stamp, "odom");
     }
 #endif
-    graph_.optimize();  // XXX
+    graph_.optimize();
     if (!tagmsgs.empty() || !odommsgs.empty()) {
       const std_msgs::Header &header = tagmsgs.empty() ?
         odommsgs[0]->header : tagmsgs[0]->header;
@@ -252,7 +267,8 @@ namespace tagslam {
         const auto body = nonstaticBodies_[body_idx];
         Transform pose;
         if (graph_.getBodyPose(header.stamp, body, &pose)) {
-          ROS_INFO_STREAM("publishing pose: " << body->getName() << " " << pose);
+          ROS_INFO_STREAM("publishing pose: " << body->getName());
+          std::cout << pose << std::endl;
           odomPub_[body_idx].publish(
             make_odom(header.stamp, fixedFrame_, body->getOdomFrameId(), pose));
         }

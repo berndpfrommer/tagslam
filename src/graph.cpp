@@ -153,7 +153,11 @@ namespace tagslam {
 
   void Graph::optimize() {
     if (optimizer_) {
-      optimizer_->optimize();
+      if (optimizeFullGraph_) {
+        optimizer_->optimizeFullGraph();
+      } else {
+        optimizer_->optimize();
+      }
     }
   }
 

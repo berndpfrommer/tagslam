@@ -82,11 +82,11 @@ namespace tagslam {
   FactorKey
   GTSAMOptimizer::addRelativePosePrior(ValueKey key1, ValueKey key2,
                                        const PoseWithNoise &deltaPose) {
-    ROS_INFO_STREAM("optimizer: adding relposeprior: " << key1 << " - " << key2);
+    // ROS_INFO_STREAM("opt: add relposeprior: " << key1 << " - " << key2);
     newGraph_.push_back(
-      gtsam::BetweenFactor<gtsam::Pose3>(key1, key2,
-                                         gtsam_utils::to_gtsam(deltaPose.getPose()),
-                                         gtsam_utils::to_gtsam(deltaPose.getNoise())));
+      gtsam::BetweenFactor<gtsam::Pose3>(
+        key1, key2, gtsam_utils::to_gtsam(deltaPose.getPose()),
+        gtsam_utils::to_gtsam(deltaPose.getNoise())));
     return (fullGraph_.size() + newGraph_.size() - 1);
   }
 
@@ -100,7 +100,8 @@ namespace tagslam {
   }
 
   void GTSAMOptimizer::optimize() {
-    ROS_INFO_STREAM("adding values: " << newValues_.size() << " factors: " << newGraph_.size());
+    ROS_INFO_STREAM("adding values: " << newValues_.size()
+                    << " factors: " << newGraph_.size());
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
       gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
@@ -117,9 +118,7 @@ namespace tagslam {
   }
 
   void GTSAMOptimizer::optimizeFullGraph() {
-    std::cout << "adding new graph of size: " << newGraph_.size() << std::endl;
     fullGraph_ += newGraph_;
-    std::cout << "adding new values of size: " << newValues_.size() << std::endl;
     values_.insert(newValues_);
     gtsam::LevenbergMarquardtParams lmp;
     lmp.setVerbosity("SILENT");

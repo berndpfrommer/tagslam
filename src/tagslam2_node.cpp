@@ -12,8 +12,7 @@ int main(int argc, char** argv) {
   try {
     tagslam::TagSlam2 node(pnh);
     node.initialize();
-    ros::shutdown();
-      //ros::spin();
+    ros::spin();
   } catch (const std::exception& e) {
     ROS_ERROR("%s: %s", pnh.getNamespace().c_str(), e.what());
   }
