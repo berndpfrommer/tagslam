@@ -73,6 +73,7 @@ namespace tagslam {
                             const std::vector<OdometryConstPtr> &odommsgs);
     void publishTransforms(const ros::Time &t);
     void sleep(double dt) const;
+    void processTags(const std::vector<TagArrayConstPtr> &tagMsgs);
     // ------ variables --------
     ros::NodeHandle      nh_;
     Graph                graph_;

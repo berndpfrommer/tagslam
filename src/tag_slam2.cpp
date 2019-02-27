@@ -250,16 +250,20 @@ namespace tagslam {
   void TagSlam2::processTagsAndOdom(
     const std::vector<TagArrayConstPtr> &tagmsgs,
     const std::vector<OdometryConstPtr> &odommsgs) {
+#define USE_ODOM    
+#ifdef USE_ODOM
     processOdom(odommsgs);
     if (odommsgs.size() == 0) {
       return;
     }
+    graph_.optimize();
+#endif    
 #if 0    
     if (!msgvec3.empty()) {
       graph_.plotDebug(msgvec3[0]->header.stamp, "odom");
     }
 #endif
-    graph_.optimize();
+    processTags(tagmsgs);
     if (!tagmsgs.empty() || !odommsgs.empty()) {
       const std_msgs::Header &header = tagmsgs.empty() ?
         odommsgs[0]->header : tagmsgs[0]->header;
@@ -268,7 +272,6 @@ namespace tagslam {
         Transform pose;
         if (graph_.getBodyPose(header.stamp, body, &pose)) {
           ROS_INFO_STREAM("publishing pose: " << body->getName());
-          std::cout << pose << std::endl;
           odomPub_[body_idx].publish(
             make_odom(header.stamp, fixedFrame_, body->getOdomFrameId(), pose));
         }
@@ -316,6 +319,12 @@ namespace tagslam {
     }
   }
 
+  void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs) {
+    if (tagMsgs.size() != cameras_.size()) {
+      ROS_ERROR_STREAM("tag msgs size mismatch!");
+      return;
+    }
+  }
 
 }  // end of namespace
 

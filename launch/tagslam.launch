@@ -27,5 +27,7 @@
     <param name="initial_maximum_relative_pixel_error" value="0.15"/>
     <param name="max_number_of_frames" value="$(arg max_number_of_frames)"/>
     <param name="bag_start_time" value="$(arg bag_start_time)"/>
+    <param name="viewing_angle_threshold" value="45.0"/>
+    <param name="inject_odom" value="false"/>
   </node>
 </launch>

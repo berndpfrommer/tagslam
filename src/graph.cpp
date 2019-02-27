@@ -225,7 +225,7 @@ namespace tagslam {
       ROS_ERROR_STREAM("duplicate tag id: " << tag.getId());
       throw std::runtime_error("duplicate tag id!");
     }
-    const std::string nm = "tag:" + std::to_string(tag.getId());
+    const string nm = "tag:" + std::to_string(tag.getId());
     std::shared_ptr<Vertex>
       vt(new value::Pose(ros::Time(0), tag.getPoseWithNoise().getPose(), nm));
     BoostGraphVertex tagVertex =
@@ -242,11 +242,11 @@ namespace tagslam {
       ROS_INFO_STREAM(body->getName() << " no valid time entry for " << t);
       return (false);
     }
-    if (entry.pose->getKey() == 0) {
+    if (entry.vertexPose.pose->getKey() == 0) {
       ROS_INFO_STREAM(body->getName() << " no valid pose for " << t);
       return (false);
     }
-    *tf = optimizer_->getPose(entry.pose->getKey());
+    *tf = optimizer_->getPose(entry.vertexPose.pose->getKey());
     return (true);
   }
 
@@ -276,28 +276,33 @@ namespace tagslam {
   }
 
 
-  PoseValuePtr
-  Graph::addPoseWithPrior(const ros::Time &t, const std::string &name,
-                          const PoseWithNoise &pn,
-                          BoostGraphVertex *vd) {
-    // new pose value
-    PoseValuePtr pvp(new value::Pose(t, pn.getPose(), name, true));
-    // add new pose value to the optimizer
-    pvp->setKey(optimizer_->addPose(pvp->getPose()));
-    // add new pose value into the boost graph
-    *vd = boost::add_vertex(GraphVertex(pvp), graph_);
-
-    // 
+  
+  Graph::VertexPose
+  Graph::addPoseWithPrior(const ros::Time &t, const string &name,
+                          const PoseWithNoise &pn) {
+    // add pose into boost graph, and into optimizer
+    VertexPose vp = addPose(t, name, pn.getPose(), true);
+    vp.pose->setKey(optimizer_->addPose(vp.pose->getPose()));
+   
     std::shared_ptr<factor::AbsolutePosePrior>
       fac(new factor::AbsolutePosePrior(t, pn, name));
     // add factor to optimizer
-    fac->setKey(optimizer_->addAbsolutePosePrior(pvp->getKey(), pn));
+    fac->setKey(optimizer_->addAbsolutePosePrior(vp.pose->getKey(), pn));
     // add factor vertex to boost graph
     BoostGraphVertex fv = boost::add_vertex(GraphVertex(fac), graph_);
       
     // now add edge between factor and value
-    boost::add_edge(fv, *vd, GraphEdge(0), graph_);
-    return (pvp);
+    boost::add_edge(fv, vp.vertex, GraphEdge(0), graph_);
+    return (vp);
+  }
+
+  Graph::VertexPose
+  Graph::addPose(const ros::Time &t, const string &name,
+                 const Transform &pose, bool poseIsValid) {
+    PoseValuePtr np(new value::Pose(t, pose, name, poseIsValid));
+    // add new pose value to graph
+    const BoostGraphVertex npv = boost::add_vertex(GraphVertex(np), graph_);
+    return (VertexPose(npv, np));
   }
 
   void
@@ -310,42 +315,35 @@ namespace tagslam {
       return;
     }
     if (entry.time == ros::Time(0)) {
+      entry.time   = tPrev;
 #define INIT_POSE_WITH_IDENTITY     
 #ifdef INIT_POSE_WITH_IDENTITY
-      // -------- update entry
       PoseWithNoise pn(Transform::Identity(), PoseNoise2::make(0.1, 0.1), true);
-      entry.time   = tPrev;
-      entry.pose   = addPoseWithPrior(tPrev, "body:" +
-                                      body->getName(), pn, &entry.vertex);
+      entry.vertexPose = addPoseWithPrior(tPrev, "body:" + body->getName(), pn);
 
-      ROS_INFO_STREAM("added initial pose for t: " << entry.time << " valid: " << entry.pose->isValid());
+      ROS_INFO_STREAM("added initial pose for t: " << entry.time <<
+                      " valid: " << entry.vertexPose.pose->isValid());
 #else
-      PoseValuePtr pvp(new value::Pose(tPrev, Transform::Identity(),
-                                       "body:" + body->getName(), false));
-      entry.time   = tPrev;
-      entry.vertex = boost::add_vertex(GraphVertex(pvp), graph_);
-      entry.pose   = pvp;
+      entry.vertexPose = addPose(tPrev, "body:" + body->getName(),
+                                 Transform::Identity(), false);
 #endif
     }
-    PoseValuePtr pp = entry.pose;
+    PoseValuePtr pp = entry.vertexPose.pose;
  
+    // add new body pose to graph
     const Transform newPose = deltaPose.getPose() * pp->getPose();
-    // note that the new pose is set to invalid if the previous one is
-    PoseValuePtr np(new value::Pose(tCurr, newPose,
-                                    "body:" + body->getName(), pp->isValid()));
-    // add new pose value to graph
-    const BoostGraphVertex npv = boost::add_vertex(GraphVertex(np), graph_);
-
+    VertexPose nvp = addPose(tCurr, "body:" + body->getName(), newPose,
+        pp->isValid());
+  
     // add new factor and its edges to graph
     VertexPtr fvv(new factor::RelativePosePrior(tCurr, deltaPose,
                                                "body:" + body->getName()));
     const BoostGraphVertex fv = boost::add_vertex(GraphVertex(fvv), graph_);
-    boost::add_edge(fv, entry.vertex, GraphEdge(0), graph_);
-    boost::add_edge(fv, npv, GraphEdge(1), graph_);
+    boost::add_edge(fv, entry.vertexPose.vertex, GraphEdge(0), graph_);
+    boost::add_edge(fv, nvp.vertex, GraphEdge(1), graph_);
     
     // if poses are valid, add to optimizer
     if (pp->isValid()) {
-      ROS_INFO_STREAM("previous pose is valid!");
       if (pp->getKey() == 0) {
         ROS_INFO_STREAM("adding original pose!");
         // no valid optimizer key -> pose value not entered yet!
@@ -353,21 +351,32 @@ namespace tagslam {
       }
       const ValueKey key1  = pp->getKey();
       ROS_INFO_STREAM("adding new pose!");
-      np->setKey(optimizer_->addPose(newPose));
-      optimizer_->addRelativePosePrior(key1, np->getKey(), deltaPose);
+      nvp.pose->setKey(optimizer_->addPose(newPose));
+      optimizer_->addRelativePosePrior(key1, nvp.pose->getKey(), deltaPose);
     } else {
       ROS_INFO_STREAM("previous pose is invalid!");
     }
-    entry.time   = tCurr;
-    entry.vertex = npv; // new pose value becomes previous...
-    entry.pose   = np;
+    entry.time       = tCurr;
+    entry.vertexPose = nvp; // new vertex/pose becomes previous...
+  }
+
+  void Graph::addTagMeasurements(
+    const BodyVec &bodies,
+    const BodyVec &nonstaticBodies,
+    const std::vector<TagArrayConstPtr> &tagMsgs,
+    const Camera2Vec &cameras) {
+#if 0    
+    for (const auto &b: nonstaticBodies) {
+      // add empty position here
+    }
+    for (const auto i: irange(0ul, cameras_.size())) {
+      graph_.addTagMeasurements(tagMsgs[i], cameras_[i]);
+    }
+#endif    
   }
 
 
-  Graph::~Graph() {
-  }
-
-  void Graph::plotDebug(const ros::Time &t, const std::string &tag) {
+  void Graph::plotDebug(const ros::Time &t, const string &tag) {
     std::stringstream ss;
     ss << tag << "_" <<  t.toNSec() << ".dot";
     plot(ss.str(), graph_);

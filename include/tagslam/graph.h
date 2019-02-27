@@ -6,6 +6,7 @@
 #include "tagslam/body.h"
 #include "tagslam/pose_with_noise.h"
 #include "tagslam/value_key.h"
+#include "tagslam/camera2.h"
 
 #include <ros/ros.h>
 
@@ -22,14 +23,12 @@ namespace tagslam {
     class Pose;
   }
   class Graph {
+    using string = std::string;
   public:
     Graph();
-    ~Graph();
+    ~Graph() {};
     void setOptimizer(Optimizer *opt) { optimizer_ = opt; }
-    std::shared_ptr<value::Pose>
-    addPoseWithPrior(const ros::Time &t, const std::string &name,
-                     const PoseWithNoise &pn,
-                     BoostGraphVertex *vd);
+    
     bool getBodyPose(const ros::Time &t,
                      const BodyConstPtr &body, Transform *tf) const;
     bool getTagPose(const ros::Time &t,
@@ -39,21 +38,37 @@ namespace tagslam {
                           const BodyConstPtr &body,
                           const PoseWithNoise &deltaPose);
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
-    void plotDebug(const ros::Time &t, const std::string &tag);
+    void plotDebug(const ros::Time &t, const string &tag);
     void optimize();
     void test();
+    void addTagMeasurements(
+      const BodyVec &bodies,
+      const BodyVec &nonstaticBodies,
+      const std::vector<TagArrayConstPtr> &tagMsgs,
+      const Camera2Vec &cameras);
 
   private:
+    struct VertexPose {
+      VertexPose(const BoostGraphVertex &v = BoostGraphVertex(),
+                 const std::shared_ptr<value::Pose> &p =
+                 std::shared_ptr<value::Pose>()) : vertex(v), pose(p) {}
+      BoostGraphVertex             vertex;
+      std::shared_ptr<value::Pose> pose;
+    };
     // lookup table entry
     struct Entry {
       Entry(const ros::Time &t = ros::Time(0),
             const BoostGraphVertex &v = BoostGraphVertex(),
             const std::shared_ptr<value::Pose> &p =
-            std::shared_ptr<value::Pose>()) : time(t), vertex(v), pose(p) {}
+            std::shared_ptr<value::Pose>()) : time(t), vertexPose(v,p) {}
       ros::Time         time{0};  // last body pose update entered
-      BoostGraphVertex  vertex;   // last pose value vertex
-      std::shared_ptr<value::Pose> pose;     // also has optimizer key
+      VertexPose        vertexPose; //
     };
+    VertexPose addPose(const ros::Time &t, const string &name,
+                           const Transform &pose, bool poseIsValid);
+    VertexPose addPoseWithPrior(const ros::Time &t, const string &name,
+                                const PoseWithNoise &pn);
+
     BoostGraphVertex addTag(const Tag2 &tag);
 
     // ------ variables --------------
