@@ -72,6 +72,7 @@ namespace tagslam {
     void processTagsAndOdom(const std::vector<TagArrayConstPtr> &tagmsgs,
                             const std::vector<OdometryConstPtr> &odommsgs);
     void publishTransforms(const ros::Time &t);
+    void publishBodyOdom(const ros::Time &t);
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs);
     // ------ variables --------

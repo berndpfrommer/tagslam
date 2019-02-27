@@ -22,9 +22,10 @@ namespace tagslam {
       bool     isOptimized() const { return (key_ != 0); }
       
       void     setKey(ValueKey k) { key_ = k; }
+    protected:
+      bool     isValid_{false};
     private:
       ValueKey key_{0}; // zero is invalid!
-      bool     isValid_{false};
     };
   }
 }

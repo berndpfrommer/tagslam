@@ -29,14 +29,22 @@ namespace tagslam {
     if (time_ == ros::Time(0)) {
       pose_ = newPose;
       time_ = msg->header.stamp;
-      ROS_INFO_STREAM("odom first time called, no body pose delta yet!");
-      return;
+#define INIT_POSE_WITH_IDENTITY
+#ifdef INIT_POSE_WITH_IDENTITY
+      std::string name = "body:" + body_->getName();
+      Graph::VertexPose vp = graph_->findPose(time_, name);
+      PoseWithNoise pn(Transform::Identity(),
+                       PoseNoise2::make(0.1, 0.1), true);
+      if (!vp.pose) {
+        graph_->addPoseWithPrior(time_, name, pn);
+      } else {
+        graph_->addPrior(time_, vp, name,pn);
+      }
+#endif      
     }
     Transform deltaPose = pose_.inverse() * newPose;
     PoseNoise2 dpn = PoseNoise2::make(0.01 /*angle*/, 0.01 /*position*/);
     const PoseWithNoise pn(deltaPose, dpn, true);
-    ROS_INFO_STREAM("odom adding body pose: " << time_ << " -> "
-                    << msg->header.stamp);
     graph_->addBodyPoseDelta(time_, msg->header.stamp, body_, pn);
     
     pose_ = newPose;

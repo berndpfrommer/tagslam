@@ -247,40 +247,50 @@ namespace tagslam {
     return (odom);
   }
 
+  void TagSlam2::publishBodyOdom(const ros::Time &t) {
+    for (const auto body_idx: irange(0ul, nonstaticBodies_.size())) {
+      const auto body = nonstaticBodies_[body_idx];
+      Transform pose;
+      if (graph_.getPose(t, "body:" + body->getName(), &pose)) {
+        ROS_INFO_STREAM("publishing pose: " << body->getName());
+        odomPub_[body_idx].publish(
+          make_odom(t, fixedFrame_, body->getOdomFrameId(), pose));
+      }
+    }
+  }
+
   void TagSlam2::processTagsAndOdom(
     const std::vector<TagArrayConstPtr> &tagmsgs,
     const std::vector<OdometryConstPtr> &odommsgs) {
-#define USE_ODOM    
+    if (tagmsgs.empty() && odommsgs.empty()) {
+      ROS_ERROR_STREAM("neither tags nor odom!");
+      return;
+    }
+
+    const ros::Time t = tagmsgs.empty() ?
+      odommsgs[0]->header.stamp : tagmsgs[0]->header.stamp;
+
+    for (const auto &body: nonstaticBodies_) {
+      graph_.addPose(t, "body:"+body->getName(), Transform::Identity(), false);
+    }
+#define USE_ODOM
 #ifdef USE_ODOM
-    processOdom(odommsgs);
     if (odommsgs.size() == 0) {
       return;
     }
+    processOdom(odommsgs);
     graph_.optimize();
+    //if (!msgvec3.empty()) {
+    //graph_.plotDebug(msgvec3[0]->header.stamp, "odom");
+    //}
 #endif    
-#if 0    
-    if (!msgvec3.empty()) {
-      graph_.plotDebug(msgvec3[0]->header.stamp, "odom");
-    }
-#endif
     processTags(tagmsgs);
-    if (!tagmsgs.empty() || !odommsgs.empty()) {
-      const std_msgs::Header &header = tagmsgs.empty() ?
-        odommsgs[0]->header : tagmsgs[0]->header;
-      for (const auto body_idx: irange(0ul, nonstaticBodies_.size())) {
-        const auto body = nonstaticBodies_[body_idx];
-        Transform pose;
-        if (graph_.getPose(header.stamp, "body:" + body->getName(), &pose)) {
-          ROS_INFO_STREAM("publishing pose: " << body->getName());
-          odomPub_[body_idx].publish(
-            make_odom(header.stamp, fixedFrame_, body->getOdomFrameId(), pose));
-        }
-      }
-      rosgraph_msgs::Clock clockMsg;
-      clockMsg.clock = header.stamp;
-      clockPub_.publish(clockMsg);
-      publishTransforms(header.stamp);
-    }
+    publishBodyOdom(t);
+    rosgraph_msgs::Clock clockMsg;
+    clockMsg.clock = t;
+    clockPub_.publish(clockMsg);
+    publishTransforms(t);
+
     frameNum_++;
   }
   
@@ -324,6 +334,7 @@ namespace tagslam {
       ROS_ERROR_STREAM("tag msgs size mismatch!");
       return;
     }
+    graph_.addTagMeasurements(bodies_, tagMsgs, cameras_);
   }
 
 }  // end of namespace

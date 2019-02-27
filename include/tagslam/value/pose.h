@@ -20,6 +20,10 @@ namespace tagslam {
         Value(name, valid), time_(t), pose_(p) {}
       std::string getLabel() const override;
       const Transform &getPose() const { return (pose_); }
+      void setPose(const Transform &pose) {
+        pose_  = pose;
+        isValid_ = true;
+      }
       // ---- methods for optimizer adding
       void addToOptimizer(Optimizer *opt,
                           const BoostGraph::vertex_descriptor &v,
