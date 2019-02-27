@@ -169,12 +169,12 @@ namespace tagslam {
     for (const auto &body: bodies_) {
       Transform bodyTF;
       const string &bodyFrameId = body->getFrameId();
-      if (graph_.getBodyPose(t, body, &bodyTF)) {
+      if (graph_.getPose(t, "body:" + body->getName(), &bodyTF)) {
         tfBroadcaster_.sendTransform(
           tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId));
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
-          if (graph_.getTagPose(t, tag, &tagTF)) {
+          if (graph_.getPose(t, "tag:" + tag->getId(), &tagTF)) {
             const std::string frameId = "tag_" + std::to_string(tag->getId());
             tfBroadcaster_.sendTransform(
               tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId));
@@ -270,7 +270,7 @@ namespace tagslam {
       for (const auto body_idx: irange(0ul, nonstaticBodies_.size())) {
         const auto body = nonstaticBodies_[body_idx];
         Transform pose;
-        if (graph_.getBodyPose(header.stamp, body, &pose)) {
+        if (graph_.getPose(header.stamp, "body:" + body->getName(), &pose)) {
           ROS_INFO_STREAM("publishing pose: " << body->getName());
           odomPub_[body_idx].publish(
             make_odom(header.stamp, fixedFrame_, body->getOdomFrameId(), pose));

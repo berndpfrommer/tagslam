@@ -24,6 +24,10 @@ namespace tagslam {
 
   using boost::irange;
 
+  static Graph::Id make_id(const ros::Time &t, const std::string &name) {
+    return (name + "_" + std::to_string(t.toNSec()));
+  }
+
   template <class G>
   class LabelWriter {
   public:
@@ -165,95 +169,38 @@ namespace tagslam {
     while ((int) bodyLookupTable_.size() <= body.getId()) {
       bodyLookupTable_.push_back(Entry());
     }
-    std::list<BoostGraphVertex> optValues, optFactors;
     // add body pose as vertex
-    std::shared_ptr<value::Pose>
-      bv(new value::Pose(ros::Time(0), body.getPoseWithNoise().getPose(),
-                         "body:" + body.getName()));
-    BoostGraphVertex bodyVertex =
-      boost::add_vertex(GraphVertex(bv), graph_);
-    bodyLookupTable_[body.getId()] = Entry(ros::Time(0), bodyVertex, bv);
     if (body.isStatic()) {
-      std::shared_ptr<Vertex> pv(
-        new factor::AbsolutePosePrior(ros::Time(0), body.getPoseWithNoise(),
-                                      "body:" + body.getName()));
-      BoostGraphVertex priorVertex =
-        boost::add_vertex(GraphVertex(pv), graph_);
-      boost::add_edge(bodyVertex, priorVertex, GraphEdge(0), graph_);
-      // if we have a pose prior, we can throw it into the optimzer
-      // right away
-      optValues.push_back(bodyVertex);
-      optFactors.push_back(priorVertex);
-    }
-
-    // add associated tags as vertices, also create
-    // edges if pose estimate is available
-    for (const auto &tag: body.getTags()) {
-      // add tag vertex to the graph
-      BoostGraphVertex tagVertex = addTag(*tag);
-      
-      // add tag prior edge if known
-      if (tag->getPoseWithNoise().isValid()) {
-        // first add prior factor
-        std::shared_ptr<Vertex> ptv(
-          new factor::AbsolutePosePrior(ros::Time(0), tag->getPoseWithNoise(),
-                                        "tag:"+std::to_string(tag->getId())));
-        BoostGraphVertex tagPriorVertex =
-          boost::add_vertex(GraphVertex(ptv), graph_);
-        // then add edge to it
-        boost::add_edge(tagPriorVertex, tagVertex, GraphEdge(1), graph_);
-        optValues.push_back(tagVertex);
-        optFactors.push_back(tagPriorVertex);
+      const ros::Time t0(0);
+      if (body.getPoseWithNoise().isValid()) {
+        Graph::VertexPose vp = 
+          addPoseWithPrior(t0, "body:"+body.getName(), body.getPoseWithNoise());
+        bodyLookupTable_[body.getId()] = Entry(ros::Time(0), vp.vertex,vp.pose);
       }
-      
+    } 
+    // add associated tags as vertices
+    for (const auto &tag: body.getTags()) {
+      addTag(*tag);
     }
     ROS_INFO_STREAM("added body " << body.getName() << " with "
                     << body.getTags().size() << " tags");
-
-    // must first add values so keys are available!
-    for (const auto &v: optValues) {
-      graph_[v].vertex->addToOptimizer(optimizer_, v, &graph_);
-    }
-    for (const auto &v: optFactors) {
-      graph_[v].vertex->addToOptimizer(optimizer_, v, &graph_);
-    }
   }
 
-  BoostGraphVertex
+  Graph::VertexPose
   Graph::addTag(const Tag2 &tag) {
-    if (tagIdToPoseVertex_.count(tag.getId()) != 0) {
-      ROS_ERROR_STREAM("duplicate tag id: " << tag.getId());
-      throw std::runtime_error("duplicate tag id!");
+    const string name = "tag:" + std::to_string(tag.getId());
+    const ros::Time t0(0);
+    if (tag.getPoseWithNoise().isValid()) {
+      return (addPoseWithPrior(t0, name, tag.getPoseWithNoise()));
+    } else {
+      return (addPose(t0, name, tag.getPoseWithNoise().getPose(), false));
     }
-    const string nm = "tag:" + std::to_string(tag.getId());
-    std::shared_ptr<Vertex>
-      vt(new value::Pose(ros::Time(0), tag.getPoseWithNoise().getPose(), nm));
-    BoostGraphVertex tagVertex =
-      boost::add_vertex(GraphVertex(vt), graph_);
-    tagIdToPoseVertex_[tag.getId()] = tagVertex;
-    return (tagVertex);
   }
 
-  bool
-  Graph::getBodyPose(const ros::Time &t,
-                     const BodyConstPtr &body, Transform *tf) const {
-    const auto &entry = bodyLookupTable_[body->getId()];
-    if (entry.time != t && entry.time != ros::Time(0)) {
-      ROS_INFO_STREAM(body->getName() << " no valid time entry for " << t);
-      return (false);
-    }
-    if (entry.vertexPose.pose->getKey() == 0) {
-      ROS_INFO_STREAM(body->getName() << " no valid pose for " << t);
-      return (false);
-    }
-    *tf = optimizer_->getPose(entry.vertexPose.pose->getKey());
-    return (true);
-  }
-
-  bool Graph::getTagPose(const ros::Time &t,
-                         const Tag2ConstPtr &tag, Transform *tf) const {
-    const auto it = tagIdToPoseVertex_.find(tag->getId());
-    if (it == tagIdToPoseVertex_.end()) {
+  bool Graph::getPose(const ros::Time &t, const string &name,
+                      Transform *tf) const {
+    const auto it = idToVertex_.find(make_id(t, name));
+    if (it == idToVertex_.end()) {
       return (false);
     }
     // find vertex and convert it to pose
@@ -261,7 +208,7 @@ namespace tagslam {
     std::shared_ptr<value::Pose> p =
       std::dynamic_pointer_cast<value::Pose>(v.vertex);
     if (!p) {
-      ROS_ERROR_STREAM("vertex for tag " << tag->getId() << " no pose!");
+      ROS_ERROR_STREAM("vertex for id " << name << " is no pose!");
       return (false);
     }
     if (!p->isOptimized()) {
@@ -280,8 +227,9 @@ namespace tagslam {
   Graph::VertexPose
   Graph::addPoseWithPrior(const ros::Time &t, const string &name,
                           const PoseWithNoise &pn) {
-    // add pose into boost graph, and into optimizer
+    // add pose into boost graph
     VertexPose vp = addPose(t, name, pn.getPose(), true);
+    // add pose value to optimizer
     vp.pose->setKey(optimizer_->addPose(vp.pose->getPose()));
    
     std::shared_ptr<factor::AbsolutePosePrior>
@@ -299,9 +247,16 @@ namespace tagslam {
   Graph::VertexPose
   Graph::addPose(const ros::Time &t, const string &name,
                  const Transform &pose, bool poseIsValid) {
+    Id id = make_id(t, name);
+    if (hasId(id)) {
+      ROS_ERROR_STREAM("duplicate pose added, id: " << id);
+      throw std::runtime_error("duplicate pose added!");
+    }
+
     PoseValuePtr np(new value::Pose(t, pose, name, poseIsValid));
     // add new pose value to graph
     const BoostGraphVertex npv = boost::add_vertex(GraphVertex(np), graph_);
+    idToVertex_.insert(IdToVertexMap::value_type(id, npv));
     return (VertexPose(npv, np));
   }
 

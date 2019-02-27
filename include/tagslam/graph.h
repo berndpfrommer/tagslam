@@ -25,14 +25,12 @@ namespace tagslam {
   class Graph {
     using string = std::string;
   public:
+    typedef std::string Id;
     Graph();
     ~Graph() {};
     void setOptimizer(Optimizer *opt) { optimizer_ = opt; }
     
-    bool getBodyPose(const ros::Time &t,
-                     const BodyConstPtr &body, Transform *tf) const;
-    bool getTagPose(const ros::Time &t,
-                    const Tag2ConstPtr &tag, Transform *tf) const;
+    bool getPose(const ros::Time &t, const string &id, Transform *tf) const;
     void addBody(const Body &body);
     void addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
                           const BodyConstPtr &body,
@@ -46,8 +44,13 @@ namespace tagslam {
       const BodyVec &nonstaticBodies,
       const std::vector<TagArrayConstPtr> &tagMsgs,
       const Camera2Vec &cameras);
+    inline bool hasId(const Id &id) const {
+      return (idToVertex_.count(id) != 0);
+    }
+
 
   private:
+    typedef std::unordered_map<Id, BoostGraphVertex> IdToVertexMap;
     struct VertexPose {
       VertexPose(const BoostGraphVertex &v = BoostGraphVertex(),
                  const std::shared_ptr<value::Pose> &p =
@@ -69,14 +72,13 @@ namespace tagslam {
     VertexPose addPoseWithPrior(const ros::Time &t, const string &name,
                                 const PoseWithNoise &pn);
 
-    BoostGraphVertex addTag(const Tag2 &tag);
+    VertexPose addTag(const Tag2 &tag);
 
     // ------ variables --------------
-    typedef std::unordered_map<int, BoostGraphVertex> IntToVertexMap;
     BoostGraph         graph_;
     bool               optimizeFullGraph_;
     Optimizer         *optimizer_;
     std::vector<Entry> bodyLookupTable_;
-    IntToVertexMap     tagIdToPoseVertex_;
+    IdToVertexMap      idToVertex_;
   };
 }
