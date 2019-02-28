@@ -6,6 +6,7 @@
 
 #include "tagslam/geometry.h"
 #include "tagslam/pose_noise2.h"
+#include <ros/ros.h>
 
 namespace tagslam {
   class PoseWithNoise {
@@ -19,6 +20,8 @@ namespace tagslam {
     const Transform  &getPose()  const { return (pose); }
     const PoseNoise2 &getNoise() const { return (noise); }
     bool              isValid()  const { return (valid); }
+    static PoseWithNoise parse(const std::string &name,
+                               const ros::NodeHandle &nh);
   private:
     Transform  pose;
     PoseNoise2 noise;

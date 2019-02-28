@@ -7,6 +7,7 @@
   
   <arg name="tagslam_config_file" default="$(arg config_dir)/tagslam.yaml"/>
   <arg name="calibration_file" default="$(arg config_dir)/cameras.yaml"/>
+  <arg name="camera_poses_file" default="$(arg config_dir)/camera_poses.yaml"/>
   <arg name="bag" default="$(arg data_dir)/tag_detections.bag"/>
 
   <!--
@@ -24,6 +25,7 @@
 	output="$(arg output)">
         <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
         <rosparam param="tagslam_config" command="load" file="$(arg tagslam_config_file)"/>
+	<rosparam command="load" file="$(arg camera_poses_file)"/>
 	<param name="bag_file" value="$(arg bag)"/>
 	<param name="optimize_full_graph" value="true"/>
 	<param name="has_compressed_images" value="true"/>

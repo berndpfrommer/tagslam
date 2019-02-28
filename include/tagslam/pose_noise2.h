@@ -20,6 +20,7 @@ namespace tagslam {
     bool                       getIsDiagonal() const { return (isDiagonal); }
     static PoseNoise2 make(const Point3d &angle,  const Point3d &pos);
     static PoseNoise2 make(double a, double p);
+    static PoseNoise2 makeFromR(const Matrix6d &r);
     friend std::ostream &operator<<(std::ostream &os, const PoseNoise2 &pn);
 
   private:

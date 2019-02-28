@@ -84,6 +84,33 @@ namespace tagslam {
     graph_.setOptimizer(&optimizer_);
     graph_.setOptimizeFullGraph(optFullGraph);
     readBodies();
+    bool camHasKnownPose(false);
+    for (auto &cam: cameras_) {
+      for (const auto &body: bodies_) {
+        if (body->getName() == cam->getRigName()) {
+          cam->setRig(body);
+        }
+      }
+      if (!cam->getRig()) {
+        ROS_ERROR_STREAM("rig body not found: " << cam->getRigName());
+        throw (std::runtime_error("rig body not found!"));
+      }
+      PoseWithNoise pwn = PoseWithNoise::parse(cam->getName(), nh_);
+      if (!pwn.isValid()) {
+        camHasKnownPose = true;
+        ROS_INFO_STREAM("camera " << cam->getName() << " has no pose!");
+        graph_.addPose(ros::Time(0), Graph::cam_name(cam->getName()),
+                       Transform::Identity(), false);
+      } else {
+        ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
+        graph_.addPoseWithPrior(ros::Time(0),
+                                Graph::cam_name(cam->getName()), pwn);
+      }
+    }
+    if (!camHasKnownPose) {
+      ROS_ERROR("at least one camera must have known pose!");
+      return (false);
+    }
     //
     //optimizer_.optimizeFullGraph();
     optimizer_.optimize();
@@ -112,6 +139,11 @@ namespace tagslam {
     bodies_ = Body::parse_bodies(config);
     for (const auto &body: bodies_) {
       graph_.addBody(*body);
+      // add associated tags as vertices
+      for (const auto &tag: body->getTags()) {
+        tagMap_.insert(TagMap::value_type(tag->getId(), tag));
+      }
+
       if (!body->isStatic()) {
         nonstaticBodies_.push_back(body);
         odomPub_.push_back(
@@ -188,12 +220,12 @@ namespace tagslam {
     for (const auto &body: bodies_) {
       Transform bodyTF;
       const string &bodyFrameId = body->getFrameId();
-      if (graph_.getPose(t, "body:" + body->getName(), &bodyTF)) {
+      if (graph_.getPose(t, Graph::body_name(body->getName()), &bodyTF)) {
         tfBroadcaster_.sendTransform(
           tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId));
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
-          if (graph_.getPose(t, "tag:" + tag->getId(), &tagTF)) {
+          if (graph_.getPose(t, Graph::tag_name(tag->getId()), &tagTF)) {
             const std::string frameId = "tag_" + std::to_string(tag->getId());
             tfBroadcaster_.sendTransform(
               tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId));
@@ -270,7 +302,7 @@ namespace tagslam {
     for (const auto body_idx: irange(0ul, nonstaticBodies_.size())) {
       const auto body = nonstaticBodies_[body_idx];
       Transform pose;
-      if (graph_.getPose(t, "body:" + body->getName(), &pose)) {
+      if (graph_.getPose(t, Graph::body_name(body->getName()), &pose)) {
         //ROS_INFO_STREAM("publishing pose: " << body->getName());
         odomPub_[body_idx].publish(
           make_odom(t, fixedFrame_, body->getOdomFrameId(), pose));
@@ -291,7 +323,8 @@ namespace tagslam {
 
     // add unknown poses for all non-static bodies
     for (const auto &body: nonstaticBodies_) {
-      graph_.addPose(t, "body:"+body->getName(), Transform::Identity(), false);
+      graph_.addPose(t, Graph::body_name(body->getName()),
+                     Transform::Identity(), false);
     }
 //#define USE_ODOM
 #ifdef USE_ODOM
@@ -363,6 +396,7 @@ namespace tagslam {
         defaultBody_->addTag(p);
         ROS_INFO_STREAM("new tag " << tagId << " attached to " <<
                         defaultBody_->getName());
+        graph_.addTag(*p);
         auto iit = tagMap_.insert(TagMap::value_type(tagId, p));
         it = iit.first;
       }
@@ -371,13 +405,40 @@ namespace tagslam {
   }
 
   BoostGraphVertex
-  TagSlam2::makeProjectionFactor(const Tag2ConstPtr &tag,
+  TagSlam2::makeProjectionFactor(const ros::Time &t,
+                                 const Tag2ConstPtr &tag,
                                  const Camera2ConstPtr &cam,
                                  const geometry_msgs::Point *imgCorners) {
     BoostGraphVertex v;
+    // connect: tag_body_pose, tag_pose, cam_pose, rig_pose
+    VertexPose tagvp = graph_.findPose(ros::Time(0),
+                                        Graph::tag_name(tag->getId()));
+    if (tagvp.pose == NULL) {
+      ROS_ERROR_STREAM("no pose found for tag: " << tag->getId());
+      throw std::runtime_error("no tag pose found!");
+    }
+    BodyConstPtr body = tag->getBody();
+    VertexPose bodyvp = graph_.findPose(body->isStatic() ? ros::Time(0) : t,
+                                         Graph::body_name(body->getName()));
+    if (bodyvp.pose == NULL) {
+      ROS_ERROR_STREAM("no pose found for body: " << body->getName());
+      throw std::runtime_error("no body pose found!");
+    }
+    BodyConstPtr rig = cam->getRig();
+    VertexPose rigvp = graph_.findPose(rig->isStatic() ? ros::Time(0) : t,
+                                        Graph::body_name(rig->getName()));
+    if (rigvp.pose == NULL) {
+      ROS_ERROR_STREAM("no pose found for rig: " << rig->getName());
+      throw std::runtime_error("no rig pose found!");
+    }
+    VertexPose camvp =
+      graph_.findPose(ros::Time(0), Graph::cam_name(cam->getName()));
+    if (camvp.pose == NULL) {
+      ROS_ERROR_STREAM("no pose found for cam: " << cam->getName());
+      throw std::runtime_error("no cam pose found!");
+    }
     return (v);
   }
-                                                  
 
   void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs) {
     if (tagMsgs.size() != cameras_.size()) {
@@ -386,12 +447,13 @@ namespace tagslam {
     }
     std::vector<BoostGraphVertex> factors;
     for (const auto i: irange(0ul, cameras_.size())) {
+      const ros::Time &t = tagMsgs[i]->header.stamp;
       for (const auto &tag: tagMsgs[i]->apriltags) {
         Tag2ConstPtr tagPtr = findTag(tag.id);
         if (tagPtr) {
           const geometry_msgs::Point *img_corners = &(tag.corners[0]);
-          factors.push_back(
-            makeProjectionFactor(tagPtr, cameras_[i], img_corners));
+          auto fac = makeProjectionFactor(t, tagPtr, cameras_[i], img_corners);
+          factors.push_back(fac);
         }
       }
       std::stringstream ss;

@@ -31,7 +31,7 @@ namespace tagslam {
       time_ = msg->header.stamp;
 #define INIT_POSE_WITH_IDENTITY
 #ifdef INIT_POSE_WITH_IDENTITY
-      std::string name = "body:" + body_->getName();
+      std::string name = Graph::body_name(body_->getName());
       Graph::VertexPose vp = graph_->findPose(time_, name);
       PoseWithNoise pn(Transform::Identity(),
                        PoseNoise2::make(0.1, 0.1), true);

@@ -26,7 +26,7 @@ namespace tagslam {
     int    getId()   const { return (id_); }
     int    getBits() const { return (bits_); }
     double getSize() const { return (size_); }
-    
+    const std::shared_ptr<Body> getBody() const { return (body_); }
     const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
 
     Point3d getObjectCorner(int i) const;

@@ -28,6 +28,8 @@ namespace tagslam {
     const string &getTagTopic()   const { return (tagTopic_); }
     const string &getFrameId()    const { return (frameId_); }
     const string &getRigName()    const { return (rigName_); }
+    const std::shared_ptr<Body> getRig() const { return (rig_); }
+    void setRig(const std::shared_ptr<Body> &rig) { rig_ = rig; }
     
     // --- static methods
     static Camera2 parse_camera(const string &prefix, const string &name,

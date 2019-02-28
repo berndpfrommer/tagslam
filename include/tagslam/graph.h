@@ -55,6 +55,7 @@ namespace tagslam {
                          const PoseWithNoise &deltaPose,
                          bool addToOptimizer);
 
+    VertexPose addTag(const Tag2 &tag);
     void addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
                           const BodyConstPtr &body,
                           const PoseWithNoise &deltaPose);
@@ -69,24 +70,15 @@ namespace tagslam {
       return (idToVertex_.count(id) != 0);
     }
 
-
+    static string tag_name(int tagid);
+    static string body_name(const string &body);
+    static string cam_name(const string &cam);
   private:
     typedef std::unordered_map<Id, BoostGraphVertex> IdToVertexMap;
-    // lookup table entry
-    struct Entry {
-      Entry(const ros::Time &t = ros::Time(0),
-            const BoostGraphVertex &v = BoostGraphVertex(),
-            const std::shared_ptr<value::Pose> &p =
-            std::shared_ptr<value::Pose>()) : time(t), vertexPose(v,p) {}
-      ros::Time         time{0};  // last body pose update entered
-      VertexPose        vertexPose; //
-    };
-    VertexPose addTag(const Tag2 &tag);
     // ------ variables --------------
     BoostGraph         graph_;
     bool               optimizeFullGraph_;
     Optimizer         *optimizer_;
-    std::vector<Entry> bodyLookupTable_;
     IdToVertexMap      idToVertex_;
   };
 }

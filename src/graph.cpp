@@ -166,16 +166,13 @@ namespace tagslam {
   }
 
   void Graph::addBody(const Body &body) {
-    while ((int) bodyLookupTable_.size() <= body.getId()) {
-      bodyLookupTable_.push_back(Entry());
-    }
     // add body pose as vertex
     if (body.isStatic()) {
       const ros::Time t0(0);
       if (body.getPoseWithNoise().isValid()) {
         Graph::VertexPose vp = 
-          addPoseWithPrior(t0, "body:"+body.getName(), body.getPoseWithNoise());
-        bodyLookupTable_[body.getId()] = Entry(ros::Time(0), vp.vertex,vp.pose);
+          addPoseWithPrior(t0, body_name(body.getName()),
+                           body.getPoseWithNoise());
       }
     } 
     // add associated tags as vertices
@@ -188,7 +185,7 @@ namespace tagslam {
 
   Graph::VertexPose
   Graph::addTag(const Tag2 &tag) {
-    const string name = "tag:" + std::to_string(tag.getId());
+    const string name = tag_name(tag.getId());
     const ros::Time t0(0);
     if (tag.getPoseWithNoise().isValid()) {
       return (addPoseWithPrior(t0, name, tag.getPoseWithNoise()));
@@ -280,7 +277,7 @@ namespace tagslam {
                           const BodyConstPtr &body,
                           const PoseWithNoise &deltaPose) {
     Transform prevPose;
-    string name   = "body:" + body->getName();
+    string name   = body_name(body->getName());
     VertexPose pp = findPose(tPrev, name);
     VertexPose cp = findPose(tCurr, name);
     if (!pp.pose) {
@@ -334,5 +331,18 @@ namespace tagslam {
     std::stringstream ss;
     ss << tag << "_" <<  t.toNSec() << ".dot";
     plot(ss.str(), graph_);
+  }
+
+  // static method!
+  std::string Graph::tag_name(int tagid) {
+    return (string("tag:") + std::to_string(tagid));
+  }
+  // static method!
+  std::string Graph::body_name(const string &body) {
+    return ("body:" + body);
+  }
+  // static method!
+  std::string Graph::cam_name(const string &cam) {
+    return ("cam:" + cam);
   }
 }  // end of namespace

@@ -35,6 +35,7 @@ namespace tagslam {
     using CompressedImage = sensor_msgs::CompressedImage;
     using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
     using string = std::string;
+    using VertexPose = Graph::VertexPose;
   public:
     TagSlam2(const ros::NodeHandle &nh);
     TagSlam2(const TagSlam2&) = delete;
@@ -82,7 +83,8 @@ namespace tagslam {
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs);
     Tag2ConstPtr findTag(int tagId);
-    BoostGraphVertex  makeProjectionFactor(const Tag2ConstPtr &tag,
+    BoostGraphVertex  makeProjectionFactor(const ros::Time &t,
+                                           const Tag2ConstPtr &tag,
                                            const Camera2ConstPtr &cam,
                                            const geometry_msgs::Point *ic);
 
