@@ -29,13 +29,14 @@ namespace tagslam {
     // virtual methods to be implemented by derived classes
     virtual bool write(std::ostream &os,
                        const string &prefix) const = 0;
-    virtual bool parse(XmlRpc::XmlRpcValue body) = 0;
+    virtual bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) = 0;
     // public methods
     const string &getName() const { return (name); }
     const string &getFrameId() const { return (frameId_); }
     int           getId() const { return (id_); }
     const string &getOdomTopic() const { return (odomTopic_); }
     const string &getOdomFrameId() const { return (odomFrameId_); }
+    double        getDefaultTagSize() const { return (defaultTagSize_); }
     bool   isStatic() const { return (isStatic_); }
     void   setType(const string &t) { type = t; }
     void   setId(int id) { id_ = id; }
@@ -67,7 +68,7 @@ namespace tagslam {
     // tags that cannot be attached to this body
     std::set<int>       ignoreTags;
     // default tag size for discovered, unknown tags
-    double              defaultTagSize{0};
+    double              defaultTagSize_{0};
     // any initial pose prior
     PoseWithNoise       poseWithNoise;
     // variables used in case odometry data is available

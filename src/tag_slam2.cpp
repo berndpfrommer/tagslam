@@ -16,8 +16,12 @@
 #include <rosgraph_msgs/Clock.h>
 #include <tf_conversions/tf_eigen.h>
 #include <eigen_conversions/eigen_msg.h>
+#include <geometry_msgs/Point.h>
+#include <XmlRpcException.h>
 
 #include <boost/range/irange.hpp>
+
+#include <sstream>
 
 const int QSZ = 1000;
 namespace tagslam {
@@ -113,6 +117,21 @@ namespace tagslam {
         odomPub_.push_back(
           nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(), QSZ));
       }
+    }
+    nh_.getParam("tagslam_config", config);
+    try {
+      const string defbody = config["default_body"];
+      for (auto &body: bodies_) {
+        if (body->getName() == defbody) {
+          ROS_INFO_STREAM("default body: " << defbody);
+          defaultBody_ = body;
+        }
+      }
+      if (!defaultBody_) {
+        ROS_WARN_STREAM("cannot find default body: " << defbody);
+      }
+    } catch (const XmlRpc::XmlRpcException &e) {
+      ROS_WARN("no default body!");
     }
   }
 
@@ -252,7 +271,7 @@ namespace tagslam {
       const auto body = nonstaticBodies_[body_idx];
       Transform pose;
       if (graph_.getPose(t, "body:" + body->getName(), &pose)) {
-        ROS_INFO_STREAM("publishing pose: " << body->getName());
+        //ROS_INFO_STREAM("publishing pose: " << body->getName());
         odomPub_[body_idx].publish(
           make_odom(t, fixedFrame_, body->getOdomFrameId(), pose));
       }
@@ -270,10 +289,11 @@ namespace tagslam {
     const ros::Time t = tagmsgs.empty() ?
       odommsgs[0]->header.stamp : tagmsgs[0]->header.stamp;
 
+    // add unknown poses for all non-static bodies
     for (const auto &body: nonstaticBodies_) {
       graph_.addPose(t, "body:"+body->getName(), Transform::Identity(), false);
     }
-#define USE_ODOM
+//#define USE_ODOM
 #ifdef USE_ODOM
     if (odommsgs.size() == 0) {
       return;
@@ -329,12 +349,58 @@ namespace tagslam {
     }
   }
 
+  Tag2ConstPtr TagSlam2::findTag(int tagId) {
+    auto it = tagMap_.find(tagId);
+    Tag2Ptr p;
+    if (it == tagMap_.end()) {
+      if (!defaultBody_) {
+        ROS_WARN_STREAM("no default body, ignoring tag: " << tagId);
+        return (p);
+      } else {
+        p = Tag2::make(tagId, 6 /*num bits = tag family */,
+                       defaultBody_->getDefaultTagSize(),
+                       PoseWithNoise() /* invalid pose */, defaultBody_);
+        defaultBody_->addTag(p);
+        ROS_INFO_STREAM("new tag " << tagId << " attached to " <<
+                        defaultBody_->getName());
+        auto iit = tagMap_.insert(TagMap::value_type(tagId, p));
+        it = iit.first;
+      }
+    }
+    return (it->second);
+  }
+
+  BoostGraphVertex
+  TagSlam2::makeProjectionFactor(const Tag2ConstPtr &tag,
+                                 const Camera2ConstPtr &cam,
+                                 const geometry_msgs::Point *imgCorners) {
+    BoostGraphVertex v;
+    return (v);
+  }
+                                                  
+
   void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs) {
     if (tagMsgs.size() != cameras_.size()) {
       ROS_ERROR_STREAM("tag msgs size mismatch!");
       return;
     }
-    graph_.addTagMeasurements(bodies_, tagMsgs, cameras_);
+    std::vector<BoostGraphVertex> factors;
+    for (const auto i: irange(0ul, cameras_.size())) {
+      for (const auto &tag: tagMsgs[i]->apriltags) {
+        Tag2ConstPtr tagPtr = findTag(tag.id);
+        if (tagPtr) {
+          const geometry_msgs::Point *img_corners = &(tag.corners[0]);
+          factors.push_back(
+            makeProjectionFactor(tagPtr, cameras_[i], img_corners));
+        }
+      }
+      std::stringstream ss;
+      for (const auto &tag: tagMsgs[i]->apriltags) {
+        ss << " " << tag.id;
+      }
+      ROS_INFO_STREAM("frame " << frameNum_ << " " << cameras_[i]->getName()
+                      << " sees tags: " << ss.str());
+    }
   }
 
 }  // end of namespace

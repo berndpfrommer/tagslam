@@ -38,8 +38,8 @@ namespace tagslam {
     try {
       double def_pos_noise = BodyDefaults::instance()->positionNoise;
       double def_rot_noise = BodyDefaults::instance()->rotationNoise;
-      defaultTagSize = static_cast<double>(body["default_tag_size"]);
-      isStatic_      = static_cast<bool>(body["is_static"]);
+      defaultTagSize_ = static_cast<double>(body["default_tag_size"]);
+      isStatic_       = static_cast<bool>(body["is_static"]);
       if (body.hasMember("max_hamming_distance")) {
         maxHammingDistance = static_cast<int>(body["max_hamming_distance"]);
       }
@@ -101,7 +101,7 @@ namespace tagslam {
     std::string type = static_cast<std::string>(body["type"]);
     BodyPtr rb = make_type(name, type);
     rb->parseCommon(body);
-    rb->parse(body);
+    rb->parse(body, rb);
     return (rb);
   }
 
@@ -158,7 +158,7 @@ namespace tagslam {
     os << pfix << "type: " << type << std::endl;
     os << pfix << "is_static: " <<
       (isStatic_ ? "true" : "false") << std::endl;
-    os << pfix << "default_tag_size: " << defaultTagSize << std::endl;
+    os << pfix << "default_tag_size: " << defaultTagSize_ << std::endl;
     if (isStatic_) {
       os << pfix << "pose:" << std::endl;;
       PoseNoise2 smallNoise = PoseNoise2::make(0.001, 0.001);

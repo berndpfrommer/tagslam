@@ -12,12 +12,16 @@
 #include <flex_sync/sync.h>
 #include <tf/transform_broadcaster.h>
 #include <ros/ros.h>
-#include <string>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <nav_msgs/Odometry.h>
+
+
+#include <string>
+#include <unordered_map>
+
 
 namespace tagslam {
   class TagSlam2 {
@@ -63,6 +67,8 @@ namespace tagslam {
       const std::vector<OdometryConstPtr> &msgvec3);
 
   private:
+    typedef std::unordered_map<int, Tag2ConstPtr> TagMap;
+
     void makeGraph();
     void readBodies();
     void playFromBag(const std::string &fname);
@@ -75,6 +81,11 @@ namespace tagslam {
     void publishBodyOdom(const ros::Time &t);
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs);
+    Tag2ConstPtr findTag(int tagId);
+    BoostGraphVertex  makeProjectionFactor(const Tag2ConstPtr &tag,
+                                           const Camera2ConstPtr &cam,
+                                           const geometry_msgs::Point *ic);
+
     // ------ variables --------
     ros::NodeHandle      nh_;
     Graph                graph_;
@@ -82,6 +93,7 @@ namespace tagslam {
     Camera2Vec           cameras_;
     BodyVec              bodies_;
     BodyVec              nonstaticBodies_;
+    BodyPtr              defaultBody_;
     ros::Publisher       clockPub_;
     std::vector<ros::Publisher> odomPub_;
     string               fixedFrame_;
@@ -92,5 +104,6 @@ namespace tagslam {
     std::vector<cv::Mat> images_;
     std::vector<OdometryProcessor> odomProcessors_;
     tf::TransformBroadcaster tfBroadcaster_;
+    TagMap               tagMap_;
   };
 }

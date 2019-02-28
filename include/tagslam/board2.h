@@ -13,7 +13,7 @@ namespace tagslam {
       Body(n, iS) {
       type = "board";
     }
-    bool parse(XmlRpc::XmlRpcValue body) override;
+    bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) override;
     bool write(std::ostream &os, const std::string &prefix) const override;
     int     tagStartId{-1};
     double  tagSize{-1.0};

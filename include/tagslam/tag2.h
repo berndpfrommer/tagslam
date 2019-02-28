@@ -14,6 +14,7 @@
 #include <ros/ros.h>
 
 namespace tagslam {
+  class Body;
   class Tag2 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -22,28 +23,32 @@ namespace tagslam {
     typedef std::shared_ptr<const Tag2>  Tag2ConstPtr;
     typedef std::vector<Tag2Ptr>         Tag2Vec;
 
-    int    getId()   const { return (id); }
-    int    getBits() const { return (bits); }
-    double getSize() const { return (size); }
+    int    getId()   const { return (id_); }
+    int    getBits() const { return (bits_); }
+    double getSize() const { return (size_); }
     
-    const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise); }
+    const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
 
     Point3d getObjectCorner(int i) const;
 
     friend std::ostream &operator<<(std::ostream &os, const Tag2 &tag);
     // ----------- static methods
-    static Tag2Vec parseTags(XmlRpc::XmlRpcValue xmltags, double sz);
-    static Tag2Ptr  make(int ida, int bits, double sz,
-                         const PoseWithNoise &pe = PoseWithNoise());
+    static Tag2Vec parseTags(XmlRpc::XmlRpcValue xmltags, double sz,
+                             const std::shared_ptr<Body> &body);
+    static Tag2Ptr make(int ida, int bits, double sz, const PoseWithNoise &pe,
+                        const std::shared_ptr<Body> &body);
   private:
-    Tag2(int ida, int bits, double sz, const PoseWithNoise &pe);
+    Tag2(int ida, int bits, double sz, const PoseWithNoise &pe,
+         const std::shared_ptr<Body> &body);
 
     // ------- variables --------------
-    int            id;            // tag id
-    int            bits{6};       // determines tag family
-    double         size;          // tag size in meters
-    PoseWithNoise  poseWithNoise; // tag pose relative body: T_b_o
-    std::vector<Point3d, Eigen::aligned_allocator<Point3d>>  objectCorners;  // 3d object coordinates
+    int            id_;            // tag id
+    int            bits_{6};       // determines tag family
+    double         size_;          // tag size in meters
+    PoseWithNoise  poseWithNoise_; // tag pose relative body: T_b_o
+    std::shared_ptr<Body> body_;   // body to which this tag belongs
+    std::vector<Point3d, Eigen::aligned_allocator<Point3d>>
+                                   objectCorners_;  // 3d object coordinates
   };
   typedef Tag2::Tag2Ptr Tag2Ptr;
   typedef Tag2::Tag2ConstPtr Tag2ConstPtr;

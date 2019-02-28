@@ -329,20 +329,6 @@ namespace tagslam {
     return (fv);
   }
 
-  void Graph::addTagMeasurements(
-    const BodyVec &bodies,
-    const std::vector<TagArrayConstPtr> &tagMsgs,
-    const Camera2Vec &cameras) {
-#if 0    
-    for (const auto &b: nonstaticBodies) {
-      // add empty position here
-    }
-    for (const auto i: irange(0ul, cameras_.size())) {
-      graph_.addTagMeasurements(tagMsgs[i], cameras_[i]);
-    }
-#endif    
-  }
-
 
   void Graph::plotDebug(const ros::Time &t, const string &tag) {
     std::stringstream ss;

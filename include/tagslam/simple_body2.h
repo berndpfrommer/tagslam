@@ -16,7 +16,7 @@ namespace tagslam {
     typedef std::shared_ptr<SimpleBody2>       SimpleBody2Ptr;
     typedef std::shared_ptr<const SimpleBody2> SimpleBody2ConstPtr;
 
-    bool parse(XmlRpc::XmlRpcValue body) override;
+    bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) override;
     bool write(std::ostream &os, const std::string &prefix) const override;
   };
   using SimpleBody2Ptr      = SimpleBody2::SimpleBody2Ptr;

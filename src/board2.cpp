@@ -10,7 +10,7 @@
 namespace tagslam {
   using boost::irange;
   using yaml_utils::parse;
-  bool Board2::parse(XmlRpc::XmlRpcValue body) {
+  bool Board2::parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) {
     try {
       XmlRpc::XmlRpcValue board = body[type];
       tagStartId = yaml_utils::parse<int>(board, "tag_start_id", -1);
@@ -37,7 +37,7 @@ namespace tagslam {
         Transform pose = make_transform(Point3d(0,0,0), center);
         PoseNoise2 noise = PoseNoise2::make(tagRotationNoise, tagPositionNoise);
         PoseWithNoise pn(pose, noise, true);
-        addTag(Tag2::make(tagid++, tagBits, tagSize, pn));
+        addTag(Tag2::make(tagid++, tagBits, tagSize, pn, bp));
       }
     }
     return (true);

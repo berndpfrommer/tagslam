@@ -10,9 +10,9 @@
 namespace tagslam {
   using boost::irange;
 
-  bool SimpleBody2::parse(XmlRpc::XmlRpcValue body) {
+  bool SimpleBody2::parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) {
     if (body.hasMember("tags")) {
-      Tag2Vec tv = Tag2::parseTags(body["tags"], defaultTagSize);
+      Tag2Vec tv = Tag2::parseTags(body["tags"], defaultTagSize_, bp);
       addTags(tv);
     }
     return (true);
@@ -31,7 +31,8 @@ namespace tagslam {
       os << ind << "- id: "   << tag->getId() << std::endl;
       os << ind << "  size: " << tag->getSize() << std::endl;
       if (tag->getPoseWithNoise().isValid()) {
-        yaml_utils::write_pose(os, ind + "  ", tag->getPoseWithNoise().getPose(),
+        yaml_utils::write_pose(os, ind + "  ",
+                               tag->getPoseWithNoise().getPose(),
                                smallNoise, true);
         //TODO: tag->poseEstimate.getNoise());
       }
