@@ -9,6 +9,7 @@
 #include "tagslam/camera2.h"
 
 #include <ros/ros.h>
+#include <geometry_msgs/Point.h>
 
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
@@ -36,6 +37,9 @@ namespace tagslam {
     Graph();
     ~Graph() {};
     void setOptimizer(Optimizer *opt) { optimizer_ = opt; }
+    inline bool hasId(const Id &id) const {
+      return (idToVertex_.count(id) != 0);
+    }
     
     VertexPose findPose(const ros::Time &t, const string &name) const;
     VertexPose addPose(const ros::Time &t, const string &name,
@@ -66,9 +70,11 @@ namespace tagslam {
     void addTagMeasurements(const BodyVec &bodies,
                             const std::vector<TagArrayConstPtr> &tagMsgs,
                             const Camera2Vec &cameras);
-    inline bool hasId(const Id &id) const {
-      return (idToVertex_.count(id) != 0);
-    }
+    BoostGraphVertex
+    addProjectionFactor(const ros::Time &t,
+                        const Tag2ConstPtr &tag,
+                        const Camera2ConstPtr &cam,
+                        const geometry_msgs::Point *imgCorners);
 
     static string tag_name(int tagid);
     static string body_name(const string &body);

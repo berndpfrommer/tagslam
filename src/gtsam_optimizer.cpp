@@ -43,28 +43,6 @@ namespace tagslam {
     const G *graph;
     bool     isValue;
   };
-#if 0
-  void GTSAMOptimizer::add(BoostGraph *graph) {
-    BoostGraph &g = *graph;
-    ValuesPredicate<BoostGraph> valueFilter(g, true);
-    ValuesPredicate<BoostGraph> factorFilter(g, false);
-    typedef boost::filtered_graph<
-      BoostGraph, boost::keep_all, ValuesPredicate<BoostGraph>> FilteredGraph;
-    FilteredGraph values(g, boost::keep_all(), valueFilter);
-    FilteredGraph factors(g, boost::keep_all(), factorFilter);
-
-    typedef FilteredGraph::vertex_iterator vertex_iter;
-    std::pair<vertex_iter, vertex_iter> vp;
-    // first add values (must come first!)
-    for (vp = vertices(values); vp.first != vp.second; ++vp.first) {
-      g[*vp.first].vertex->addToOptimizer(this, *vp.first, &g);
-    }
-    // then add factors
-    for (vp = vertices(factors); vp.first != vp.second; ++vp.first) {
-      g[*vp.first].vertex->addToOptimizer(this, *vp.first, &g);
-    }
-  }
-#endif
   
   ValueKey GTSAMOptimizer::addPose(const Transform &p) {
     ValueKey key = generateKey();

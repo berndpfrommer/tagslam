@@ -12,16 +12,11 @@
 
 namespace tagslam {
   // need forward declaration here
-  class Optimizer;
   class Vertex {
   public:
     Vertex(const std::string &n = "", const std::string &s = ""):
       name_(n), shape_(s) {}
     virtual ~Vertex() {};
-    // this virtual function needs to be implemented by all vertices
-    virtual void addToOptimizer(Optimizer *opt,
-                                const BoostGraph::vertex_descriptor &v,
-                                const BoostGraph *g) = 0;
     virtual bool isValue() const = 0;
     virtual std::string getLabel() const { return (name_); }
     virtual std::string getShape() const { return (shape_); }

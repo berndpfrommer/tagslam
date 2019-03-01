@@ -83,10 +83,6 @@ namespace tagslam {
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs);
     Tag2ConstPtr findTag(int tagId);
-    BoostGraphVertex  makeProjectionFactor(const ros::Time &t,
-                                           const Tag2ConstPtr &tag,
-                                           const Camera2ConstPtr &cam,
-                                           const geometry_msgs::Point *ic);
 
     // ------ variables --------
     ros::NodeHandle      nh_;

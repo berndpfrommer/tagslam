@@ -105,6 +105,7 @@ src/gtsam_optimizer.cpp
 src/value/pose.cpp
 src/factor/absolute_pose_prior.cpp
 src/factor/relative_pose_prior.cpp
+src/factor/tag_projection.cpp
 src/graph_vertex.cpp
 src/graph_edge.cpp
 src/vertex.cpp

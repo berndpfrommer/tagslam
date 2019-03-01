@@ -6,6 +6,7 @@
 #include "tagslam/pose_with_noise.h"
 #include "tagslam/factor/absolute_pose_prior.h"
 #include "tagslam/factor/relative_pose_prior.h"
+#include "tagslam/factor/tag_projection.h"
 #include "tagslam/value/pose.h"
 #include "tagslam/optimizer.h"
 
@@ -324,6 +325,51 @@ namespace tagslam {
                                        deltaPose);
     }
     return (fv);
+  }
+
+  BoostGraphVertex
+  Graph::addProjectionFactor(const ros::Time &t,
+                             const Tag2ConstPtr &tag,
+                             const Camera2ConstPtr &cam,
+                             const geometry_msgs::Point *imgCorners) {
+    BoostGraphVertex v;
+    // connect: tag_body_pose, tag_pose, cam_pose, rig_pose
+    VertexPose tagvp = findPose(ros::Time(0),
+                                Graph::tag_name(tag->getId()));
+    if (tagvp.pose == NULL) {
+      ROS_ERROR_STREAM("no pose found for tag: " << tag->getId());
+      throw std::runtime_error("no tag pose found!");
+    }
+    BodyConstPtr body = tag->getBody();
+    VertexPose bodyvp = findPose(body->isStatic() ? ros::Time(0) : t,
+                                 Graph::body_name(body->getName()));
+    if (bodyvp.pose == NULL) {
+      ROS_ERROR_STREAM("no pose found for body: " << body->getName());
+      throw std::runtime_error("no body pose found!");
+    }
+    BodyConstPtr rig = cam->getRig();
+    VertexPose rigvp = findPose(rig->isStatic() ? ros::Time(0) : t,
+                                Graph::body_name(rig->getName()));
+    if (rigvp.pose == NULL) {
+      ROS_ERROR_STREAM("no pose found for rig: " << rig->getName());
+      throw std::runtime_error("no rig pose found!");
+    }
+    VertexPose camvp = findPose(ros::Time(0), Graph::cam_name(cam->getName()));
+    if (camvp.pose == NULL) {
+      ROS_ERROR_STREAM("no pose found for cam: " << cam->getName());
+      throw std::runtime_error("no cam pose found!");
+    }
+
+    VertexPtr pjfac(
+      new factor::TagProjection(t, cam, tag, imgCorners, cam->getName() +
+                                "-" + std::to_string(tag->getId())));
+    v = boost::add_vertex(GraphVertex(pjfac), graph_);
+    boost::add_edge(v, tagvp.vertex,  GraphEdge(0), graph_);
+    boost::add_edge(v, bodyvp.vertex, GraphEdge(1), graph_);
+    boost::add_edge(v, rigvp.vertex,  GraphEdge(2), graph_);
+    boost::add_edge(v, camvp.vertex,  GraphEdge(3), graph_);
+    
+    return (v);
   }
 
 

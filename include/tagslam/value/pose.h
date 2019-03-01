@@ -24,10 +24,6 @@ namespace tagslam {
         pose_  = pose;
         isValid_ = true;
       }
-      // ---- methods for optimizer adding
-      void addToOptimizer(Optimizer *opt,
-                          const BoostGraph::vertex_descriptor &v,
-                          const BoostGraph *g) override;
     private:
       ros::Time time_;
       Transform pose_;

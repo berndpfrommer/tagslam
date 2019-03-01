@@ -42,30 +42,6 @@ namespace tagslam {
   TagSlam2::TagSlam2(const ros::NodeHandle &nh) : nh_(nh) {
   }
 
-  /*
-  void TagSlam2::addGraphToOptimizer(BoostGraph *graph) {
-    BoostGraph &g = *graph;
-    ValuesPredicate<BoostGraph> valueFilter(g, true);
-    ValuesPredicate<BoostGraph> factorFilter(g, false);
-    typedef boost::filtered_graph<
-      BoostGraph, boost::keep_all, ValuesPredicate<BoostGraph>> FilteredGraph;
-    FilteredGraph values(g, boost::keep_all(), valueFilter);
-    FilteredGraph factors(g, boost::keep_all(), factorFilter);
-
-    typedef FilteredGraph::vertex_iterator vertex_iter;
-    std::pair<vertex_iter, vertex_iter> vp;
-    // first add values (must come first!)
-    for (vp = vertices(values); vp.first != vp.second; ++vp.first) {
-      g[*vp.first].vertex->addToOptimizer(this, *vp.first, &g);
-    }
-    // then add factors
-    for (vp = vertices(factors); vp.first != vp.second; ++vp.first) {
-      g[*vp.first].vertex->addToOptimizer(this, *vp.first, &g);
-    }
-  }
-  */
-
-
   void TagSlam2::sleep(double dt) const {
     ros::Rate r(10); // 10 hz
     ros::WallTime tw0 = ros::WallTime::now();
@@ -97,11 +73,11 @@ namespace tagslam {
       }
       PoseWithNoise pwn = PoseWithNoise::parse(cam->getName(), nh_);
       if (!pwn.isValid()) {
-        camHasKnownPose = true;
         ROS_INFO_STREAM("camera " << cam->getName() << " has no pose!");
         graph_.addPose(ros::Time(0), Graph::cam_name(cam->getName()),
                        Transform::Identity(), false);
       } else {
+        camHasKnownPose = true;
         ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
         graph_.addPoseWithPrior(ros::Time(0),
                                 Graph::cam_name(cam->getName()), pwn);
@@ -124,6 +100,7 @@ namespace tagslam {
     clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
     sleep(1.0);
     playFromBag(bagFile);
+    graph_.plotDebug(ros::Time(0), "final");
     return (true);
   }
 
@@ -404,42 +381,6 @@ namespace tagslam {
     return (it->second);
   }
 
-  BoostGraphVertex
-  TagSlam2::makeProjectionFactor(const ros::Time &t,
-                                 const Tag2ConstPtr &tag,
-                                 const Camera2ConstPtr &cam,
-                                 const geometry_msgs::Point *imgCorners) {
-    BoostGraphVertex v;
-    // connect: tag_body_pose, tag_pose, cam_pose, rig_pose
-    VertexPose tagvp = graph_.findPose(ros::Time(0),
-                                        Graph::tag_name(tag->getId()));
-    if (tagvp.pose == NULL) {
-      ROS_ERROR_STREAM("no pose found for tag: " << tag->getId());
-      throw std::runtime_error("no tag pose found!");
-    }
-    BodyConstPtr body = tag->getBody();
-    VertexPose bodyvp = graph_.findPose(body->isStatic() ? ros::Time(0) : t,
-                                         Graph::body_name(body->getName()));
-    if (bodyvp.pose == NULL) {
-      ROS_ERROR_STREAM("no pose found for body: " << body->getName());
-      throw std::runtime_error("no body pose found!");
-    }
-    BodyConstPtr rig = cam->getRig();
-    VertexPose rigvp = graph_.findPose(rig->isStatic() ? ros::Time(0) : t,
-                                        Graph::body_name(rig->getName()));
-    if (rigvp.pose == NULL) {
-      ROS_ERROR_STREAM("no pose found for rig: " << rig->getName());
-      throw std::runtime_error("no rig pose found!");
-    }
-    VertexPose camvp =
-      graph_.findPose(ros::Time(0), Graph::cam_name(cam->getName()));
-    if (camvp.pose == NULL) {
-      ROS_ERROR_STREAM("no pose found for cam: " << cam->getName());
-      throw std::runtime_error("no cam pose found!");
-    }
-    return (v);
-  }
-
   void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs) {
     if (tagMsgs.size() != cameras_.size()) {
       ROS_ERROR_STREAM("tag msgs size mismatch!");
@@ -452,7 +393,8 @@ namespace tagslam {
         Tag2ConstPtr tagPtr = findTag(tag.id);
         if (tagPtr) {
           const geometry_msgs::Point *img_corners = &(tag.corners[0]);
-          auto fac = makeProjectionFactor(t, tagPtr, cameras_[i], img_corners);
+          auto fac = graph_.addProjectionFactor(t, tagPtr, cameras_[i],
+                                                img_corners);
           factors.push_back(fac);
         }
       }

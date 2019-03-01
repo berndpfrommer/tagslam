@@ -13,11 +13,5 @@ namespace tagslam {
       ss << "p:" << name_ << ",t:" << format_time(time_);
       return (ss.str());
     }
-    void Pose::addToOptimizer(Optimizer *opt,
-                              const BoostGraph::vertex_descriptor &v,
-                              const BoostGraph *g) {
-      ValueKey k = opt->addPose(pose_);
-      setKey(k); // remember
-    };
   }
 }  // namespace

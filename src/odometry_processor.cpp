@@ -5,6 +5,8 @@
 #include "tagslam/odometry_processor.h"
 #include "tagslam/geometry.h"
 #include "tagslam/graph.h"
+#include <geometry_msgs/Quaternion.h>
+#include <geometry_msgs/Point.h>
 
 namespace tagslam {
   using Odometry = nav_msgs::Odometry;
