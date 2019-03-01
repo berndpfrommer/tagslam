@@ -47,15 +47,6 @@ namespace tagslam {
     std::ofstream ofile(fname);
     boost::write_graphviz(ofile, graph, LabelWriter<G>(graph));
   }
-/*
-  class demo_visitor : public boost::default_bfs_visitor {
-  public:
-    template <typename Vertex, typename Graph>
-    void discover_vertex(Vertex u, Graph &g) {
-      printf("Visited vertex %lu with name %s\n",   u, g[u].name.c_str());
-    };
-  };
-*/
   Graph::Graph() {
 #if 0    
     std::vector<BoostGraphVertex> vertices;
@@ -371,7 +362,109 @@ namespace tagslam {
     
     return (v);
   }
+#if 0 
+  class demo_visitor : public boost::default_bfs_visitor {
+  public:
+    template <typename V, typename Graph>
+    void discover_vertex(V u, Graph &g) {
+      VertexConstPtr vt = g[u].vertex;
+      ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
+      bool isValid = vp && vp->isValid();
+      if (!vp) {
+        ROS_INFO_STREAM(" factor: " << u << " - " << vt->getLabel());
+        // iterate through all edges
+        // - if sufficient number of values of edges are known (ESTABLISHED, VALID, OPTIMIZED),
+        //   add factor and values to subgraph.
+        //   (unless there). Mark the newly established value vertex as ESTABLISHED
+        //   (use property map for that?) and visit
+        //   all the newly established value vertex'es factors
+        // - if insufficient number of values are known, don't pursue any of the edges further
 
+      } else {
+        ROS_INFO_STREAM("  value: " << u << " - " << vt->getLabel() << (isValid ? " VALID" : " UNKNOWN"));
+      }
+    };
+  };
+#endif
+
+
+  void
+  Graph::examine(BoostGraphVertex fac,
+                 std::list<BoostGraphVertex> *factorsToExamine,
+                 std::set<BoostGraphVertex> *valuesEstablished,
+                 std::set<BoostGraphVertex> *sv) {
+    // This is the factor vertex we are checking
+    VertexConstPtr fv = graph_[fac].vertex;
+    ROS_INFO_STREAM("examining factor: " << fv->getLabel());
+    // find out if this factor allows us to determine a new value
+    auto edges = boost::out_edges(fac, graph_);
+    int numEdges(0), numValid(0);
+    BoostGraphVertex valueVertex;
+    std::list<BoostGraphVertex> values;
+    for (auto edgeIt = edges.first; edgeIt != edges.second; ++edgeIt) {
+      BoostGraphVertex vv  = boost::target(*edgeIt, graph_); // value vertex
+      VertexConstPtr   vvp = graph_[vv].vertex; // pointer to value
+      ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vvp);
+      numEdges++;
+      if ((vp && vp->isValid()) || valuesEstablished->count(vv) != 0) {
+        ROS_INFO_STREAM(" has valid value: " << vp->getLabel());
+        numValid++;
+      } else {
+        valueVertex = vv;
+      }
+      values.push_back(vv);
+    }
+    if (numValid == numEdges - 1) {
+      VertexConstPtr vt = graph_[valueVertex].vertex;
+      ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
+      ROS_INFO_STREAM(" adding new factor to graph: " << vp->getLabel());
+      sv->insert(fac);
+      for (const auto vv: values) {
+        sv->insert(vv);
+        ROS_INFO_STREAM(" adding new corresponding values: " << vv);
+      }
+      
+      valuesEstablished->insert(numValid);
+      auto edges = boost::out_edges(valueVertex, graph_);
+      for (auto edgeIt = edges.first; edgeIt != edges.second; ++edgeIt) {
+        BoostGraphVertex fv = boost::target(*edgeIt, graph_); // factor vertex
+        VertexConstPtr  fvp = graph_[fv].vertex; // pointer to factor
+        FactorConstPtr   fp = std::dynamic_pointer_cast<const factor::Factor>(fvp);
+        if (fp) {
+          if (fv != fac) { // no connections back
+            ROS_INFO_STREAM("adding new factor: " << fp->getLabel());
+            factorsToExamine->push_front(fv);
+          }
+        }
+      }
+    } else {
+      ROS_INFO_STREAM(" factor does not establish new values!");
+    }
+  }
+  
+  std::vector<std::shared_ptr<BoostGraph>>
+  Graph::findSubgraphs(const std::vector<BoostGraphVertex> &facs) {
+    std::vector<std::set<BoostGraphVertex>> sv;
+    sv.push_back(std::set<BoostGraphVertex>()); // empty set
+    std::cout << "===================================================" << std::endl;
+    std::set<BoostGraphVertex>   examinedFactors;
+    std::set<BoostGraphVertex>   valuesEstablished;
+    std::list<BoostGraphVertex> factorsToExamine(facs.begin(), facs.end());
+    while (!factorsToExamine.empty()) {
+      BoostGraphVertex exFac = factorsToExamine.front();
+      factorsToExamine.pop_front();
+      if (examinedFactors.count(exFac) == 0) {
+        examinedFactors.insert(exFac);
+        if (sv.back().count(exFac) == 0) {
+          // don't have this vertex yet
+          sv.push_back(std::set<BoostGraphVertex>()); // empty set
+        }
+        examine(exFac, &factorsToExamine, &valuesEstablished, &sv.back());
+      }
+    }
+    std::vector<std::shared_ptr<BoostGraph>> sg;
+    return (sg);
+  }
 
   void Graph::plotDebug(const ros::Time &t, const string &tag) {
     std::stringstream ss;

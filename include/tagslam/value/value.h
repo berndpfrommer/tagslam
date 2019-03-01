@@ -28,4 +28,7 @@ namespace tagslam {
       ValueKey key_{0}; // zero is invalid!
     };
   }
+  typedef std::shared_ptr<value::Value> ValuePtr;
+  typedef std::shared_ptr<const value::Value> ValueConstPtr;
+
 }

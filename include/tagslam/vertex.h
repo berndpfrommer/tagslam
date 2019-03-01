@@ -31,5 +31,6 @@ namespace tagslam {
     bool        isOptimized_{false};
   };
   typedef std::shared_ptr<Vertex> VertexPtr;
+  typedef std::shared_ptr<const Vertex> VertexConstPtr;
   std::ostream &operator<<(std::ostream &os, const Vertex &v);
 }

@@ -405,6 +405,7 @@ namespace tagslam {
       ROS_INFO_STREAM("frame " << frameNum_ << " " << cameras_[i]->getName()
                       << " sees tags: " << ss.str());
     }
+    auto subGraphs = graph_.findSubgraphs(factors);
   }
 
 }  // end of namespace

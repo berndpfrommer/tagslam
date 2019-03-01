@@ -20,4 +20,6 @@ namespace tagslam {
       FactorKey key_{0}; // zero is invalid!
     };
   }
+  typedef std::shared_ptr<factor::Factor> FactorPtr;
+  typedef std::shared_ptr<const factor::Factor> FactorConstPtr;
 }

@@ -20,16 +20,21 @@
 	<param name="max_number_of_frames" value="6"/>
 	</node>
   -->
+  <!--
+      visualize dot files:
+      dot -Kfdp -Tpng ~/.ros/final_0.dot > bar.png ; eog bar.png
+      -->
 #	launch-prefix="gdb -ex run --args"
   <node pkg="tagslam" type="tagslam2_node" name="tagslam2"
 	output="$(arg output)">
         <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
         <rosparam param="tagslam_config" command="load" file="$(arg tagslam_config_file)"/>
 	<rosparam command="load" file="$(arg camera_poses_file)"/>
+	<param name="bag_start_time" value="190.0"/>
 	<param name="bag_file" value="$(arg bag)"/>
 	<param name="optimize_full_graph" value="true"/>
 	<param name="has_compressed_images" value="true"/>
-	<param name="max_number_of_frames" value="1"/>
+	<param name="max_number_of_frames" value="20"/>
   </node>
 
 </launch>

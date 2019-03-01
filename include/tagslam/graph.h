@@ -76,10 +76,17 @@ namespace tagslam {
                         const Camera2ConstPtr &cam,
                         const geometry_msgs::Point *imgCorners);
 
+    std::vector<std::shared_ptr<BoostGraph>>
+    findSubgraphs(const std::vector<BoostGraphVertex> &fac);
+
     static string tag_name(int tagid);
     static string body_name(const string &body);
     static string cam_name(const string &cam);
   private:
+    void examine(BoostGraphVertex fac,
+                 std::list<BoostGraphVertex> *factorsToExamine,
+                 std::set<BoostGraphVertex> *valuesEstablished,
+                 std::set<BoostGraphVertex> *sv);
     typedef std::unordered_map<Id, BoostGraphVertex> IdToVertexMap;
     // ------ variables --------------
     BoostGraph         graph_;
