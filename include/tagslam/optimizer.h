@@ -28,6 +28,19 @@ namespace tagslam {
     // absolute pose prior, i.e. err = ||Pose(key) - pose||
     virtual FactorKey addAbsolutePosePrior(ValueKey key,
                                            const PoseWithNoise &pose) = 0;
+    // tag projection factor:
+    //    T_c_o   = T_c_r * T_r_w * T_w_b * T_b_o;
+    //    u_proj_i = K * rad_dist(T_c_o * X_i)   where i = 1..4 (corners)
+    //    err = sum_i  ||u_proj_i - u||
+    virtual FactorKey addTagProjectionFactor(
+      // u = image points  (2d)
+      const Eigen::Matrix<double, 4, 2> &u,
+      // X = object points (3d, but in plane with z = 0)
+      const Eigen::Matrix<double, 4, 3> &X,
+      const std::string &cameraName,
+      const CameraIntrinsics2 &ci,
+      double pixelNoise,
+      ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) = 0;
   private:
   };
 }

@@ -28,8 +28,8 @@ namespace tagslam {
     double getSize() const { return (size_); }
     const std::shared_ptr<Body> getBody() const { return (body_); }
     const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
-
-    Point3d getObjectCorner(int i) const;
+    const Eigen::Matrix<double, 4, 3> &getObjectCorners()
+      const { return (objectCorners_); }
 
     friend std::ostream &operator<<(std::ostream &os, const Tag2 &tag);
     // ----------- static methods
@@ -47,8 +47,7 @@ namespace tagslam {
     double         size_;          // tag size in meters
     PoseWithNoise  poseWithNoise_; // tag pose relative body: T_b_o
     std::shared_ptr<Body> body_;   // body to which this tag belongs
-    std::vector<Point3d, Eigen::aligned_allocator<Point3d>>
-                                   objectCorners_;  // 3d object coordinates
+    Eigen::Matrix<double, 4, 3> objectCorners_;
   };
   typedef Tag2::Tag2Ptr Tag2Ptr;
   typedef Tag2::Tag2ConstPtr Tag2ConstPtr;

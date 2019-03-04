@@ -42,6 +42,7 @@ namespace tagslam {
   TagSlam2::TagSlam2(const ros::NodeHandle &nh) : nh_(nh) {
   }
 
+
   void TagSlam2::sleep(double dt) const {
     ros::Rate r(10); // 10 hz
     ros::WallTime tw0 = ros::WallTime::now();
@@ -56,6 +57,9 @@ namespace tagslam {
     cameras_ = Camera2::parse_cameras("cameras", nh_);
     bool optFullGraph;
     nh_.param<bool>("optimize_full_graph", optFullGraph, false);
+    double pixelNoise;
+    nh_.param<double>("pixel_noise", pixelNoise, 1.0);
+    graph_.setPixelNoise(pixelNoise);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graph_.setOptimizer(&optimizer_);
     graph_.setOptimizeFullGraph(optFullGraph);
@@ -315,6 +319,7 @@ namespace tagslam {
     //}
 #endif    
     processTags(tagmsgs);
+    graph_.optimize();
     publishBodyOdom(t);
     rosgraph_msgs::Clock clockMsg;
     clockMsg.clock = t;
@@ -406,6 +411,7 @@ namespace tagslam {
                       << " sees tags: " << ss.str());
     }
     auto subGraphs = graph_.findSubgraphs(factors);
+    graph_.initializeSubgraphs(subGraphs);
   }
 
 }  // end of namespace

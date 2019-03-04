@@ -43,6 +43,16 @@ namespace tagslam {
       bombout("intrinsics", prefix); }
     if (!nh.getParam(prefix + "resolution",  ci.resolution_)) {
       bombout("resolution", prefix); }
+    // precompute K and D
+    ci.cvK_ = (cv::Mat_<double>(3,3) <<
+               ci.K_[0], 0.0,  ci.K_[2],
+               0.0,  ci.K_[1], ci.K_[3],
+               0.0,   0.0,  1.0);
+    const auto &D = ci.distortionCoeffs_;
+    ci.cvD_ = cv::Mat_<double>(1, D.size());
+    for (unsigned int i = 0; i < D.size(); i++) {
+      ci.cvD_.at<double>(i) = D[i];
+    }
     return (ci);
   }
 }

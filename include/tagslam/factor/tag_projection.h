@@ -16,6 +16,7 @@ namespace tagslam {
   namespace factor {
     class TagProjection: public Factor {
     public:
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       TagProjection(const ros::Time     &t  = ros::Time(0),
                     const std::shared_ptr<const Camera2> &cam =
                     std::shared_ptr<Camera2>(),
@@ -24,11 +25,16 @@ namespace tagslam {
                     const geometry_msgs::Point *imgCorn = NULL,
                     const std::string   &name = "");
       std::string getLabel() const override;
+      const Eigen::Matrix<double, 4,2> &getImageCorners() const { return (imgCorners_); }
+      const std::shared_ptr<const Camera2> getCamera() const { return (cam_); }
+      const std::shared_ptr<const Tag2> getTag() const { return (tag_); }
     private:
       ros::Time                            time_;
       const std::shared_ptr<const Camera2> cam_;
       const std::shared_ptr<const Tag2>    tag_;
-      Point2d                              imgCorners_[4];
+      Eigen::Matrix<double, 4, 2>          imgCorners_;
     };
   }
+  typedef std::shared_ptr<factor::TagProjection> TagProjectionFactorPtr;
+  typedef std::shared_ptr<const factor::TagProjection> TagProjectionFactorConstPtr;
 }

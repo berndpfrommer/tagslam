@@ -29,6 +29,7 @@ namespace tagslam {
     const string &getFrameId()    const { return (frameId_); }
     const string &getRigName()    const { return (rigName_); }
     const std::shared_ptr<Body> getRig() const { return (rig_); }
+    const CameraIntrinsics2& getIntrinsics() const { return (intrinsics_); }
     void setRig(const std::shared_ptr<Body> &rig) { rig_ = rig; }
     
     // --- static methods

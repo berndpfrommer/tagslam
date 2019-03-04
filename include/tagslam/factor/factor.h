@@ -16,6 +16,7 @@ namespace tagslam {
       Factor(const std::string &s = ""): Vertex(s, "box") {}
       FactorKey getKey()  const { return (key_); }
       void     setKey(FactorKey k) { key_ = k; }
+      bool     isOptimized() const { return (key_ != 0); }
     private:
       FactorKey key_{0}; // zero is invalid!
     };

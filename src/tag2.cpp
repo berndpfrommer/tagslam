@@ -12,22 +12,14 @@ using std::cout;
 using std::endl;
 
 namespace tagslam {
-  static std::vector<Point3d, Eigen::aligned_allocator<Point3d>>
-    make_object_corners(double s) {
-    const std::vector<Point3d, Eigen::aligned_allocator<Point3d>> c =
-      { Point3d(-s/2,-s/2, 0), Point3d( s/2,-s/2, 0),
-        Point3d( s/2, s/2, 0), Point3d(-s/2, s/2, 0) };
-    return (c);
-  }
-
   Tag2::Tag2(int ida, int bts, double s, const PoseWithNoise &pn,
              const std::shared_ptr<Body> &body) :
     id_(ida), bits_(bts), size_(s), poseWithNoise_(pn), body_(body)  {
-    objectCorners_ = make_object_corners(size_);
-  }
-
-  Point3d Tag2::getObjectCorner(int i) const {
-    return objectCorners_[i];
+    objectCorners_ <<
+      -s/2, -s/2, 0,
+       s/2, -s/2, 0,
+       s/2,  s/2, 0,
+      -s/2,  s/2, 0;
   }
 
   Tag2Vec Tag2::parseTags(XmlRpc::XmlRpcValue xmltags, double size,

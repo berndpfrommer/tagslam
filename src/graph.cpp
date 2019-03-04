@@ -9,6 +9,7 @@
 #include "tagslam/factor/tag_projection.h"
 #include "tagslam/value/pose.h"
 #include "tagslam/optimizer.h"
+#include "tagslam/pnp.h"
 
 #include <boost/range/irange.hpp>
 #include <boost/graph/breadth_first_search.hpp>
@@ -355,11 +356,10 @@ namespace tagslam {
       new factor::TagProjection(t, cam, tag, imgCorners, cam->getName() +
                                 "-" + std::to_string(tag->getId())));
     v = boost::add_vertex(GraphVertex(pjfac), graph_);
-    boost::add_edge(v, tagvp.vertex,  GraphEdge(0), graph_);
-    boost::add_edge(v, bodyvp.vertex, GraphEdge(1), graph_);
-    boost::add_edge(v, rigvp.vertex,  GraphEdge(2), graph_);
-    boost::add_edge(v, camvp.vertex,  GraphEdge(3), graph_);
-    
+    boost::add_edge(v, camvp.vertex,  GraphEdge(0), graph_); // T_r_c
+    boost::add_edge(v, rigvp.vertex,  GraphEdge(1), graph_); // T_w_r
+    boost::add_edge(v, bodyvp.vertex, GraphEdge(2), graph_); // T_w_b
+    boost::add_edge(v, tagvp.vertex,  GraphEdge(3), graph_); // T_b_o
     return (v);
   }
 #if 0 
@@ -421,7 +421,7 @@ namespace tagslam {
       sv->insert(fac);
       for (const auto vv: values) {
         sv->insert(vv);
-        ROS_INFO_STREAM(" adding new corresponding values: " << vv);
+        ROS_INFO_STREAM("  adding new corresponding values: " << vv);
       }
       
       valuesEstablished->insert(numValid);
@@ -442,7 +442,7 @@ namespace tagslam {
     }
   }
   
-  std::vector<std::shared_ptr<BoostGraph>>
+  std::vector<std::set<BoostGraphVertex>>
   Graph::findSubgraphs(const std::vector<BoostGraphVertex> &facs) {
     std::vector<std::set<BoostGraphVertex>> sv;
     sv.push_back(std::set<BoostGraphVertex>()); // empty set
@@ -462,8 +462,127 @@ namespace tagslam {
         examine(exFac, &factorsToExamine, &valuesEstablished, &sv.back());
       }
     }
-    std::vector<std::shared_ptr<BoostGraph>> sg;
-    return (sg);
+    ROS_INFO_STREAM("created " << sv.size() << " subgraphs");
+    return (sv);
+  }
+
+  void Graph::addProjectionFactorToOptimizer(const BoostGraphVertex v) {
+    auto edges = boost::out_edges(v, graph_);
+    std::vector<ValueKey> optKeys;
+    for (auto edgeIt = edges.first; edgeIt != edges.second; ++edgeIt) {
+      BoostGraphVertex vv  = boost::target(*edgeIt, graph_); // value vertex
+      VertexPtr        vvp = graph_[vv].vertex; // pointer to value
+      PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>(vvp);
+      if (!pp) {
+        ROS_ERROR_STREAM("vertex is no pose: " << vv);
+        throw std::runtime_error("vertex is no pose");
+      }
+      if (!pp->isValid()) {
+        ROS_ERROR_STREAM("vertex is no pose!" << vv);
+        throw std::runtime_error("vertex is no pose");
+      }
+      if (!pp->isOptimized()) {
+        ROS_INFO_STREAM("adding pose to optimizer: " << pp->getLabel());
+        pp->setKey(optimizer_->addPose(pp->getPose()));
+      }
+      optKeys.push_back(pp->getKey());
+    }
+    BoostGraphVertex fv = boost::vertex(v, graph_); // factor vertex
+    VertexPtr  fvp = graph_[fv].vertex; // pointer to factor
+    TagProjectionFactorPtr fp =
+      std::dynamic_pointer_cast<factor::TagProjection>(fvp);
+    if (fp->isOptimized()) {
+      ROS_ERROR_STREAM("factor already optimized: " << fp->getLabel());
+      throw std::runtime_error("factor already optimized");
+    }
+    fp->setKey(optimizer_->addTagProjectionFactor(fp->getImageCorners(),
+                                                  fp->getTag()->getObjectCorners(),
+                                                  fp->getCamera()->getName(),
+                                                  fp->getCamera()->getIntrinsics(),
+                                                  pixelNoise_,
+                                                  optKeys[0], optKeys[1],
+                                                  optKeys[2], optKeys[3]));
+    ROS_INFO_STREAM("done adding projection factor");
+  }
+
+  void
+  Graph::setMissingValue(BoostGraphVertex v, const Transform &T_c_o)  {
+    auto edges = boost::out_edges(v, graph_);
+    int missingIdx(-1), edgeNum(0);
+    std::vector<PoseValueConstPtr> T(4);
+    PoseValuePtr missingPose;
+    for (auto edgeIt = edges.first; edgeIt != edges.second; ++edgeIt) {
+      BoostGraphVertex vv  = boost::target(*edgeIt, graph_); // value vertex
+      VertexPtr   vvp = graph_[vv].vertex; // pointer to value
+      PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>(vvp);
+      if (!pp) {
+        ROS_ERROR_STREAM("vertex is no pose: " << vv);
+        throw std::runtime_error("vertex is no pose");
+      }
+      T[edgeNum] = pp;
+      ROS_INFO_STREAM(" factor attached value: " << pp->getLabel());
+      if (!pp->isValid()) {
+        missingIdx = edgeNum;
+        missingPose = pp;
+        ROS_INFO_STREAM(" missing value: " << pp->getLabel());
+      } else {
+        ROS_INFO_STREAM(" valid value: " << pp->getLabel());
+      }
+      edgeNum++;
+    }
+    switch (missingIdx) {
+    case 0: { // T_r_c = T_r_w * T_w_b * T_b_o * T_o_c
+      missingPose->setPose(T[1]->getPose().inverse() * T[2]->getPose() *
+                           T[3]->getPose() * T_c_o.inverse()); 
+      break; }
+    case 1: { // T_w_r = T_w_b * T_b_o * T_o_c * T_c_r
+      missingPose->setPose(T[2]->getPose() * T[3]->getPose() *
+                           T_c_o.inverse() * T[0]->getPose().inverse());
+      break; }
+    case 2: { // T_w_b = T_w_r * T_r_c * T_c_o * T_o_b
+      missingPose->setPose(T[1]->getPose() * T[0]->getPose() *
+                           T_c_o * T[3]->getPose().inverse());
+      break; }
+    case 3: { // T_b_o = T_b_w * T_w_r * T_r_c * T_c_o
+      missingPose->setPose(T[2]->getPose().inverse() * T[1]->getPose() *
+                           T[0]->getPose() * T_c_o);
+      break; }
+    default: {
+      ROS_ERROR_STREAM("no missing idx for fac " << v);
+      throw std::runtime_error("no missing values!");
+      break; }
+    }
+    ROS_INFO_STREAM("setting value of vertex: " << missingPose->getLabel());
+    ROS_INFO_STREAM("set pose: " << std::endl << missingPose->getPose());
+  }
+  
+                                               
+  void Graph::initializeSubgraphs(const std::vector<std::set<BoostGraphVertex>> &verts) {
+    for (const auto &vset: verts) {
+      for (const auto &v: vset) {
+        BoostGraphVertex fv = boost::vertex(v, graph_); // factor vertex
+        VertexConstPtr  fvp = graph_[fv].vertex; // pointer to factor
+        TagProjectionFactorConstPtr fp =
+          std::dynamic_pointer_cast<const factor::TagProjection>(fvp);
+        if (fp) {
+          // do homography for this vertex, add new values to graph and the optimizer!
+          const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
+          ROS_INFO_STREAM("computing pose for factor " << fvp->getLabel());
+          auto tf = pnp::pose_from_4(fp->getImageCorners(),
+                                     fp->getTag()->getObjectCorners(),
+                                     ci.getK(), ci.getDistortionModel(), ci.getD());
+          std::cout << "got homography: " << std::endl << tf.first << " "
+                    << std::endl << tf.second << std::endl;
+          if (tf.second) {
+            setMissingValue(fv, tf.first);
+            addProjectionFactorToOptimizer(fv);
+            // add factor and values to optimizer
+          }
+        } else {
+          //ROS_WARN_STREAM("unhandled factor: " << fvp->getLabel());
+        }
+      }
+    }
   }
 
   void Graph::plotDebug(const ros::Time &t, const string &tag) {

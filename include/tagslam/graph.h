@@ -15,6 +15,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <unordered_map>
 #include <memory>
+#include <set>
 
 #pragma once
 
@@ -37,6 +38,7 @@ namespace tagslam {
     Graph();
     ~Graph() {};
     void setOptimizer(Optimizer *opt) { optimizer_ = opt; }
+    void setPixelNoise(double pn) { pixelNoise_ = pn; }
     inline bool hasId(const Id &id) const {
       return (idToVertex_.count(id) != 0);
     }
@@ -76,20 +78,24 @@ namespace tagslam {
                         const Camera2ConstPtr &cam,
                         const geometry_msgs::Point *imgCorners);
 
-    std::vector<std::shared_ptr<BoostGraph>>
+    std::vector<std::set<BoostGraphVertex>>
     findSubgraphs(const std::vector<BoostGraphVertex> &fac);
 
     static string tag_name(int tagid);
     static string body_name(const string &body);
     static string cam_name(const string &cam);
+    void initializeSubgraphs(const std::vector<std::set<BoostGraphVertex>> &verts);
   private:
     void examine(BoostGraphVertex fac,
                  std::list<BoostGraphVertex> *factorsToExamine,
                  std::set<BoostGraphVertex> *valuesEstablished,
                  std::set<BoostGraphVertex> *sv);
+    void setMissingValue(BoostGraphVertex v, const Transform &T_c_o);
+    void addProjectionFactorToOptimizer(const BoostGraphVertex v);
     typedef std::unordered_map<Id, BoostGraphVertex> IdToVertexMap;
     // ------ variables --------------
     BoostGraph         graph_;
+    double             pixelNoise_{1.0};
     bool               optimizeFullGraph_;
     Optimizer         *optimizer_;
     IdToVertexMap      idToVertex_;
