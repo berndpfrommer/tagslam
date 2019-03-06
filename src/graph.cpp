@@ -36,8 +36,11 @@ namespace tagslam {
     LabelWriter(const G &g) : graph(&g) { }
     template <class VertexOrEdge>
     void operator()(std::ostream &out, const VertexOrEdge& v) const {
-      out << "[label=\"" << (*graph)[v].vertex->getLabel() << "\", shape="
-          << (*graph)[v].vertex->getShape() <<"]";
+      VertexConstPtr vp = (*graph)[v].vertex;
+      const std::string color =
+        vp->isOptimized() ? "green" : (vp->isValid() ? "blue" : "red");
+      out << "[label=\"" << vp->getLabel() << "\", shape="
+          << vp->getShape() << ", color=" << color << "]";
     }
   private:
     const G *graph;
@@ -293,7 +296,7 @@ namespace tagslam {
       // not part of the optimizer yet, add it
       cp.pose->setKey(optimizer_->addPose(newPose));
     }
-
+    
     addRelativePosePrior(tCurr, "bodyrel:" + body->getName(), pp, cp, deltaPose,
                          cp.pose->isOptimized() && pp.pose->isOptimized());
   }
@@ -308,6 +311,9 @@ namespace tagslam {
     
     // add new factor and its edges to graph
     VertexPtr fvv(new factor::RelativePosePrior(t, deltaPose, name));
+    if (addToOptimizer) {
+      fvv->setIsValid(true);
+    }
     const BoostGraphVertex fv = boost::add_vertex(GraphVertex(fvv), graph_);
     boost::add_edge(fv, vp1.vertex, GraphEdge(0), graph_);
     boost::add_edge(fv, vp2.vertex, GraphEdge(1), graph_);
@@ -407,9 +413,10 @@ namespace tagslam {
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vvp);
       numEdges++;
       if ((vp && vp->isValid()) || valuesEstablished->count(vv) != 0) {
-        ROS_INFO_STREAM(" has valid value: " << vp->getLabel());
+        ROS_INFO_STREAM(" has valid    value: " << vp->getLabel());
         numValid++;
       } else {
+        ROS_INFO_STREAM(" has no valid value: " << vp->getLabel());
         valueVertex = vv;
       }
       values.push_back(vv);
@@ -417,14 +424,14 @@ namespace tagslam {
     if (numValid == numEdges - 1) {
       VertexConstPtr vt = graph_[valueVertex].vertex;
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
-      ROS_INFO_STREAM(" adding new factor to graph: " << vp->getLabel());
+      ROS_INFO_STREAM(" factor establishes new value: " << vp->getLabel());
       sv->insert(fac);
       for (const auto vv: values) {
         sv->insert(vv);
-        ROS_INFO_STREAM("  adding new corresponding values: " << vv);
+        ROS_INFO_STREAM("  adding new corresponding values: " << info(vv));
+        valuesEstablished->insert(vv);
       }
       
-      valuesEstablished->insert(numValid);
       auto edges = boost::out_edges(valueVertex, graph_);
       for (auto edgeIt = edges.first; edgeIt != edges.second; ++edgeIt) {
         BoostGraphVertex fv = boost::target(*edgeIt, graph_); // factor vertex
@@ -432,7 +439,7 @@ namespace tagslam {
         FactorConstPtr   fp = std::dynamic_pointer_cast<const factor::Factor>(fvp);
         if (fp) {
           if (fv != fac) { // no connections back
-            ROS_INFO_STREAM("adding new factor: " << fp->getLabel());
+            ROS_INFO_STREAM("activating new factor: " << fp->getLabel());
             factorsToExamine->push_front(fv);
           }
         }
@@ -440,6 +447,11 @@ namespace tagslam {
     } else {
       ROS_INFO_STREAM(" factor does not establish new values!");
     }
+  }
+
+  std::string Graph::info(BoostGraphVertex v) const {
+    VertexConstPtr  vp = graph_[v].vertex;
+    return (vp->getLabel());
   }
   
   std::vector<std::set<BoostGraphVertex>>
@@ -457,9 +469,17 @@ namespace tagslam {
         examinedFactors.insert(exFac);
         if (sv.back().count(exFac) == 0) {
           // don't have this vertex yet
+          ROS_INFO_STREAM("vertex may start new subgraph: " << info(exFac));
           sv.push_back(std::set<BoostGraphVertex>()); // empty set
         }
         examine(exFac, &factorsToExamine, &valuesEstablished, &sv.back());
+        if (sv.back().empty()) {
+          ROS_INFO_STREAM("vertex " << info(exFac) << " is useless!");
+          sv.pop_back();
+          examinedFactors.erase(exFac); // it may become active again later!
+        }
+      } else {
+        ROS_INFO_STREAM("already have examined factor " << info(exFac));
       }
     }
     ROS_INFO_STREAM("created " << sv.size() << " subgraphs");
@@ -548,8 +568,8 @@ namespace tagslam {
                            T[0]->getPose() * T_c_o);
       break; }
     default: {
-      ROS_ERROR_STREAM("no missing idx for fac " << v);
-      throw std::runtime_error("no missing values!");
+      ROS_INFO_STREAM("factor has no missing values!");
+      return;
       break; }
     }
     ROS_INFO_STREAM("setting value of vertex: " << missingPose->getLabel());
@@ -561,9 +581,9 @@ namespace tagslam {
     for (const auto &vset: verts) {
       for (const auto &v: vset) {
         BoostGraphVertex fv = boost::vertex(v, graph_); // factor vertex
-        VertexConstPtr  fvp = graph_[fv].vertex; // pointer to factor
-        TagProjectionFactorConstPtr fp =
-          std::dynamic_pointer_cast<const factor::TagProjection>(fvp);
+        VertexPtr  fvp = graph_[fv].vertex; // pointer to factor
+        TagProjectionFactorPtr fp =
+          std::dynamic_pointer_cast<factor::TagProjection>(fvp);
         if (fp) {
           // do homography for this vertex, add new values to graph and the optimizer!
           const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
@@ -575,6 +595,7 @@ namespace tagslam {
                     << std::endl << tf.second << std::endl;
           if (tf.second) {
             setMissingValue(fv, tf.first);
+            fp->setIsValid(true);
             addProjectionFactorToOptimizer(fv);
             // add factor and values to optimizer
           }

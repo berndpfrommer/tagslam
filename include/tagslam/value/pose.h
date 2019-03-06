@@ -22,7 +22,7 @@ namespace tagslam {
       const Transform &getPose() const { return (pose_); }
       void setPose(const Transform &pose) {
         pose_  = pose;
-        isValid_ = true;
+        setIsValid(true);
       }
     private:
       ros::Time time_;

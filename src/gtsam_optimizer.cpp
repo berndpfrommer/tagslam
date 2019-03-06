@@ -70,7 +70,7 @@ namespace tagslam {
       gtsam::BetweenFactor<gtsam::Pose3>(
         key1, key2, gtsam_utils::to_gtsam(deltaPose.getPose()),
         gtsam_utils::to_gtsam(deltaPose.getNoise())));
-    return (fullGraph_.size() + newGraph_.size() - 1);
+    return (fullGraph_.size() + newGraph_.size());
   }
 
   FactorKey GTSAMOptimizer::addAbsolutePosePrior(ValueKey key,
@@ -79,7 +79,7 @@ namespace tagslam {
     newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>
                         (key, gtsam_utils::to_gtsam(pwn.getPose()),
                          gtsam_utils::to_gtsam(pwn.getNoise())));
-    return (fullGraph_.size() + newGraph_.size() - 1);
+    return (fullGraph_.size() + newGraph_.size());
   }
 
   std::shared_ptr<Cal3DS3>
@@ -174,7 +174,7 @@ namespace tagslam {
         break;
       }
     }
-    return (fullGraph_.size() + newGraph_.size() - 1);
+    return (fullGraph_.size() + newGraph_.size());
   }
 
   void GTSAMOptimizer::optimize() {

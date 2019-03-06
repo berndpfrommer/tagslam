@@ -12,18 +12,16 @@ namespace tagslam {
     class Value: public Vertex {
     public:
       Value(const std::string &s = "", bool valid = false):
-        Vertex(s, "ellipse"), isValid_(valid) {}
+        Vertex(s, "ellipse") {
+        setIsValid(valid);
+      }
       bool isValue() const override { return (true); }
+      bool isOptimized() const override { return (key_ != 0); }
       virtual std::string getLabel() const override {
         return (Vertex::getLabel());
       }
       ValueKey getKey()  const { return (key_); }
-      bool     isValid() const { return (isValid_); }
-      bool     isOptimized() const { return (key_ != 0); }
-      
       void     setKey(ValueKey k) { key_ = k; }
-    protected:
-      bool     isValid_{false};
     private:
       ValueKey key_{0}; // zero is invalid!
     };

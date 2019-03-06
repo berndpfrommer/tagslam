@@ -92,6 +92,7 @@ namespace tagslam {
                  std::set<BoostGraphVertex> *sv);
     void setMissingValue(BoostGraphVertex v, const Transform &T_c_o);
     void addProjectionFactorToOptimizer(const BoostGraphVertex v);
+    std::string info(BoostGraphVertex v) const;
     typedef std::unordered_map<Id, BoostGraphVertex> IdToVertexMap;
     // ------ variables --------------
     BoostGraph         graph_;

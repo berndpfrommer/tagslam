@@ -201,17 +201,22 @@ namespace tagslam {
     for (const auto &body: bodies_) {
       Transform bodyTF;
       const string &bodyFrameId = body->getFrameId();
-      if (graph_.getPose(t, Graph::body_name(body->getName()), &bodyTF)) {
+      const ros::Time ts = body->isStatic() ? ros::Time(0) : t;
+      if (graph_.getPose(ts, Graph::body_name(body->getName()), &bodyTF)) {
+        ROS_INFO_STREAM("publishing pose  for body " << body->getName() << std::endl << bodyTF);
         tfBroadcaster_.sendTransform(
           tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId));
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
-          if (graph_.getPose(t, Graph::tag_name(tag->getId()), &tagTF)) {
+          if (graph_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
             const std::string frameId = "tag_" + std::to_string(tag->getId());
+            ROS_INFO_STREAM("publishing pose  for tag " << tag->getId() << std::endl << tagTF);
             tfBroadcaster_.sendTransform(
               tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId));
           }
         }
+      } else {
+        ROS_INFO_STREAM("no pose for " << body->getName());
       }
     }
   }
@@ -284,7 +289,7 @@ namespace tagslam {
       const auto body = nonstaticBodies_[body_idx];
       Transform pose;
       if (graph_.getPose(t, Graph::body_name(body->getName()), &pose)) {
-        //ROS_INFO_STREAM("publishing pose: " << body->getName());
+        ROS_INFO_STREAM("publishing odom for body " << body->getName() << std::endl << pose);
         odomPub_[body_idx].publish(
           make_odom(t, fixedFrame_, body->getOdomFrameId(), pose));
       }
@@ -410,6 +415,7 @@ namespace tagslam {
       ROS_INFO_STREAM("frame " << frameNum_ << " " << cameras_[i]->getName()
                       << " sees tags: " << ss.str());
     }
+    graph_.plotDebug(tagMsgs[0]->header.stamp, "factors");
     auto subGraphs = graph_.findSubgraphs(factors);
     graph_.initializeSubgraphs(subGraphs);
   }

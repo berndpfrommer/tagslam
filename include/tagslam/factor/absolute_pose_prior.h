@@ -15,7 +15,9 @@ namespace tagslam {
       AbsolutePosePrior(const ros::Time     &t  = ros::Time(0),
                         const PoseWithNoise &p  = PoseWithNoise(),
                         const std::string   &name = "") :
-        Factor(name), time_(t), poseWithNoise_(p) {}
+        Factor(name), time_(t), poseWithNoise_(p) {
+        setIsValid(p.isValid());
+      }
       std::string getLabel() const override;
     private:
       ros::Time     time_;

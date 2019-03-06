@@ -18,17 +18,20 @@ namespace tagslam {
       name_(n), shape_(s) {}
     virtual ~Vertex() {};
     virtual bool isValue() const = 0;
+    virtual bool isOptimized() const = 0;
+
+    bool isValid() const { return (isValid_); }
+    void setIsValid(bool v) { isValid_ = v; }
+    
     virtual std::string getLabel() const { return (name_); }
     virtual std::string getShape() const { return (shape_); }
-    virtual bool  getIsOptimized() const { return (isOptimized_); }
-    void setIsOptimized(bool b) { isOptimized_ = b; }
     friend std::ostream &operator<<(std::ostream &os, const Vertex &v);
   protected:
     // ----
     static std::string format_time(const ros::Time &t);
     std::string name_;
     std::string shape_;
-    bool        isOptimized_{false};
+    bool        isValid_{false};
   };
   typedef std::shared_ptr<Vertex> VertexPtr;
   typedef std::shared_ptr<const Vertex> VertexConstPtr;
