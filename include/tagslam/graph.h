@@ -78,17 +78,19 @@ namespace tagslam {
                         const Camera2ConstPtr &cam,
                         const geometry_msgs::Point *imgCorners);
 
-    std::vector<std::set<BoostGraphVertex>>
+    std::vector<std::list<BoostGraphVertex>>
     findSubgraphs(const std::vector<BoostGraphVertex> &fac);
 
     static string tag_name(int tagid);
     static string body_name(const string &body);
     static string cam_name(const string &cam);
-    void initializeSubgraphs(const std::vector<std::set<BoostGraphVertex>> &verts);
+    void initializeSubgraphs(const std::vector<std::list<BoostGraphVertex>> &verts);
   private:
     struct SubGraph {
-      std::set<BoostGraphVertex> factors;
-      std::set<BoostGraphVertex> values;
+      typedef std::list<BoostGraphVertex> FactorCollection;
+      typedef std::set<BoostGraphVertex>  ValueCollection;
+      FactorCollection  factors;
+      ValueCollection   values;
     };
     void exploreSubGraph(BoostGraphVertex start,
                          SubGraph *subGraph, SubGraph *found);

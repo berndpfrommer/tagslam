@@ -423,7 +423,7 @@ namespace tagslam {
       VertexConstPtr vt = graph_[valueVertex].vertex;
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
       ROS_INFO_STREAM(" factor establishes new value: " << vp->getLabel());
-      sg->factors.insert(fac);
+      sg->factors.push_back(fac);
       for (const auto vv: values) {
         sg->values.insert(vv);
         ROS_INFO_STREAM("  adding new corresponding values: " << info(vv));
@@ -452,19 +452,19 @@ namespace tagslam {
     return (vp->getLabel());
   }
   
-  std::vector<std::set<BoostGraphVertex>>
+  std::vector<std::list<BoostGraphVertex>>
   Graph::findSubgraphs(const std::vector<BoostGraphVertex> &facs) {
-    std::vector<std::set<BoostGraphVertex>> sv;
+    std::vector<std::list<BoostGraphVertex>> sv;
     std::cout << "===================================================" << std::endl;
     SubGraph found;
     for (const auto &pf: facs) {
-      if (found.factors.count(pf) == 0) {
+      auto it = std::find(found.factors.begin(), found.factors.end(), pf);
+      if (it == found.factors.end()) {
         // a new factor that has not been discovered
         SubGraph sg;
         exploreSubGraph(pf, &sg, &found);
         if (!sg.factors.empty()) {
           sv.push_back(sg.factors);    // transfer factors
-          sv.back().insert(sg.values.begin(), sg.values.end()); // transfer values
         }
       }
     }
@@ -575,7 +575,8 @@ namespace tagslam {
   }
   
                                                
-  void Graph::initializeSubgraphs(const std::vector<std::set<BoostGraphVertex>> &verts) {
+  void Graph::initializeSubgraphs(const std::vector<std::list<BoostGraphVertex>> &verts) {
+    ROS_INFO_STREAM("----------- initializing " << verts.size() << " subgraphs");
     for (const auto &vset: verts) {
       for (const auto &v: vset) {
         BoostGraphVertex fv = boost::vertex(v, graph_); // factor vertex
