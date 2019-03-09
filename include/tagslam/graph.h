@@ -86,10 +86,15 @@ namespace tagslam {
     static string cam_name(const string &cam);
     void initializeSubgraphs(const std::vector<std::set<BoostGraphVertex>> &verts);
   private:
+    struct SubGraph {
+      std::set<BoostGraphVertex> factors;
+      std::set<BoostGraphVertex> values;
+    };
+    void exploreSubGraph(BoostGraphVertex start,
+                         SubGraph *subGraph, SubGraph *found);
     void examine(BoostGraphVertex fac,
                  std::list<BoostGraphVertex> *factorsToExamine,
-                 std::set<BoostGraphVertex> *valuesEstablished,
-                 std::set<BoostGraphVertex> *sv);
+                 SubGraph *found, SubGraph *sg);
     void setMissingValue(BoostGraphVertex v, const Transform &T_c_o);
     void addProjectionFactorToOptimizer(const BoostGraphVertex v);
     std::string info(BoostGraphVertex v) const;

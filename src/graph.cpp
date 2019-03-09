@@ -393,12 +393,10 @@ namespace tagslam {
   };
 #endif
 
-
   void
   Graph::examine(BoostGraphVertex fac,
                  std::list<BoostGraphVertex> *factorsToExamine,
-                 std::set<BoostGraphVertex> *valuesEstablished,
-                 std::set<BoostGraphVertex> *sv) {
+                 SubGraph *found, SubGraph *sg) {
     // This is the factor vertex we are checking
     VertexConstPtr fv = graph_[fac].vertex;
     ROS_INFO_STREAM("examining factor: " << fv->getLabel());
@@ -412,7 +410,7 @@ namespace tagslam {
       VertexConstPtr   vvp = graph_[vv].vertex; // pointer to value
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vvp);
       numEdges++;
-      if ((vp && vp->isValid()) || valuesEstablished->count(vv) != 0) {
+      if ((vp && vp->isValid()) || found->values.count(vv) != 0) {
         ROS_INFO_STREAM(" has valid    value: " << vp->getLabel());
         numValid++;
       } else {
@@ -425,11 +423,11 @@ namespace tagslam {
       VertexConstPtr vt = graph_[valueVertex].vertex;
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
       ROS_INFO_STREAM(" factor establishes new value: " << vp->getLabel());
-      sv->insert(fac);
+      sg->factors.insert(fac);
       for (const auto vv: values) {
-        sv->insert(vv);
+        sg->values.insert(vv);
         ROS_INFO_STREAM("  adding new corresponding values: " << info(vv));
-        valuesEstablished->insert(vv);
+        found->values.insert(vv);
       }
       
       auto edges = boost::out_edges(valueVertex, graph_);
@@ -457,33 +455,33 @@ namespace tagslam {
   std::vector<std::set<BoostGraphVertex>>
   Graph::findSubgraphs(const std::vector<BoostGraphVertex> &facs) {
     std::vector<std::set<BoostGraphVertex>> sv;
-    sv.push_back(std::set<BoostGraphVertex>()); // empty set
     std::cout << "===================================================" << std::endl;
-    std::set<BoostGraphVertex>   examinedFactors;
-    std::set<BoostGraphVertex>   valuesEstablished;
-    std::list<BoostGraphVertex> factorsToExamine(facs.begin(), facs.end());
+    SubGraph found;
+    for (const auto &pf: facs) {
+      if (found.factors.count(pf) == 0) {
+        // a new factor that has not been discovered
+        SubGraph sg;
+        exploreSubGraph(pf, &sg, &found);
+        if (!sg.factors.empty()) {
+          sv.push_back(sg.factors);    // transfer factors
+          sv.back().insert(sg.values.begin(), sg.values.end()); // transfer values
+        }
+      }
+    }
+    return (sv);
+  }
+
+  void
+  Graph::exploreSubGraph(BoostGraphVertex start,
+                         SubGraph *subGraph, SubGraph *found) {
+    std::list<BoostGraphVertex> factorsToExamine;
+    factorsToExamine.push_back(start);
     while (!factorsToExamine.empty()) {
       BoostGraphVertex exFac = factorsToExamine.front();
       factorsToExamine.pop_front();
-      if (examinedFactors.count(exFac) == 0) {
-        examinedFactors.insert(exFac);
-        if (sv.back().count(exFac) == 0) {
-          // don't have this vertex yet
-          ROS_INFO_STREAM("vertex may start new subgraph: " << info(exFac));
-          sv.push_back(std::set<BoostGraphVertex>()); // empty set
-        }
-        examine(exFac, &factorsToExamine, &valuesEstablished, &sv.back());
-        if (sv.back().empty()) {
-          ROS_INFO_STREAM("vertex " << info(exFac) << " is useless!");
-          sv.pop_back();
-          examinedFactors.erase(exFac); // it may become active again later!
-        }
-      } else {
-        ROS_INFO_STREAM("already have examined factor " << info(exFac));
-      }
+      // examine() may append new factors to factorsToExamine
+      examine(exFac, &factorsToExamine, found, subGraph);
     }
-    ROS_INFO_STREAM("created " << sv.size() << " subgraphs");
-    return (sv);
   }
 
   void Graph::addProjectionFactorToOptimizer(const BoostGraphVertex v) {
@@ -494,12 +492,12 @@ namespace tagslam {
       VertexPtr        vvp = graph_[vv].vertex; // pointer to value
       PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>(vvp);
       if (!pp) {
-        ROS_ERROR_STREAM("vertex is no pose: " << vv);
+        ROS_ERROR_STREAM("vertex is no pose: " << vv << " " << info(vv));
         throw std::runtime_error("vertex is no pose");
       }
       if (!pp->isValid()) {
-        ROS_ERROR_STREAM("vertex is no pose!" << vv);
-        throw std::runtime_error("vertex is no pose");
+        ROS_ERROR_STREAM("vertex is not valid: " << info(vv));
+        throw std::runtime_error("vertex is not valid");
       }
       if (!pp->isOptimized()) {
         ROS_INFO_STREAM("adding pose to optimizer: " << pp->getLabel());
