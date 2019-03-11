@@ -36,6 +36,7 @@ namespace tagslam {
     int           getId() const { return (id_); }
     const string &getOdomTopic() const { return (odomTopic_); }
     const string &getOdomFrameId() const { return (odomFrameId_); }
+    const Transform &getTransformBodyOdom() const { return (T_body_odom_); }
     double        getDefaultTagSize() const { return (defaultTagSize_); }
     bool   isStatic() const { return (isStatic_); }
     void   setType(const string &t) { type = t; }
@@ -75,7 +76,7 @@ namespace tagslam {
     string              odomTopic_;
     string              odomFrameId_;
     PoseNoise2          odomNoise;
-    Transform           T_body_odom;
+    Transform           T_body_odom_;
     // -------- static functions
     static BodyPtr parse_body(const string &name,
                               XmlRpc::XmlRpcValue config);

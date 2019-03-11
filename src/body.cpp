@@ -48,7 +48,9 @@ namespace tagslam {
           yaml_utils::get_vec("position",body["T_body_odom"]["position"]);
         Eigen::Vector3d r =
           yaml_utils::get_vec("rotvec",   body["T_body_odom"]["rotvec"]);
-        T_body_odom = make_transform(r, p);
+        T_body_odom_ = make_transform(r, p);
+      } else {
+        T_body_odom_ = Transform::Identity();
       }
       if (body.hasMember("odom_frame_id")) {
         odomFrameId_ = static_cast<std::string>(body["odom_frame_id"]);

@@ -203,14 +203,16 @@ namespace tagslam {
       const string &bodyFrameId = body->getFrameId();
       const ros::Time ts = body->isStatic() ? ros::Time(0) : t;
       if (graph_.getPose(ts, Graph::body_name(body->getName()), &bodyTF)) {
-        ROS_INFO_STREAM("publishing pose  for body " << body->getName() << std::endl << bodyTF);
+        //ROS_INFO_STREAM("publishing pose for body "
+        // << body->getName() << std::endl << bodyTF);
         tfBroadcaster_.sendTransform(
           tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId));
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
           if (graph_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
             const std::string frameId = "tag_" + std::to_string(tag->getId());
-            ROS_INFO_STREAM("publishing pose  for tag " << tag->getId() << std::endl << tagTF);
+            //ROS_INFO_STREAM("publishing pose for tag "
+            //<< tag->getId() << std::endl << tagTF);
             tfBroadcaster_.sendTransform(
               tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId));
           }
@@ -312,7 +314,7 @@ namespace tagslam {
       graph_.addPose(t, Graph::body_name(body->getName()),
                      Transform::Identity(), false);
     }
-//#define USE_ODOM
+#define USE_ODOM
 #ifdef USE_ODOM
     if (odommsgs.size() == 0) {
       return;
@@ -353,7 +355,7 @@ namespace tagslam {
         ROS_WARN_STREAM("This will screw up the odom!");
       }
       ROS_INFO_STREAM("getting odom from " << bpt->getName() << " " << frameId);
-      odomProcessors_.push_back(OdometryProcessor(&graph_, bpt));
+      odomProcessors_.push_back(OdometryProcessor(nh_, &graph_, bpt));
     }
   }
 

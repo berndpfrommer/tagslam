@@ -319,8 +319,10 @@ namespace tagslam {
     boost::add_edge(fv, vp2.vertex, GraphEdge(1), graph_);
 
     if (addToOptimizer) {
-      optimizer_->addRelativePosePrior(vp1.pose->getKey(), vp2.pose->getKey(),
-                                       deltaPose);
+      optimizer_->addRelativePosePrior(
+        vp1.pose->getKey(), vp2.pose->getKey(), // ORIG
+        //vp2.pose->getKey(), vp1.pose->getKey(),
+        deltaPose);
     }
     return (fv);
   }

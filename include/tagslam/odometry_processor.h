@@ -17,12 +17,14 @@ namespace tagslam {
     using OdometryConstPtr = nav_msgs::OdometryConstPtr;
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    OdometryProcessor(Graph *graph, const BodyConstPtr &body);
+    OdometryProcessor(ros::NodeHandle &nh, Graph *graph, const BodyConstPtr &body);
     void process(const OdometryConstPtr &msgs);
 
     Graph         *graph_{NULL};
     BodyConstPtr  body_;
     Transform     pose_;
     ros::Time     time_{0};
+    ros::Publisher  pub_;
+    Transform     T_body_odom_;
   };
 }
