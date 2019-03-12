@@ -65,7 +65,7 @@ namespace tagslam {
   FactorKey
   GTSAMOptimizer::addRelativePosePrior(ValueKey key1, ValueKey key2,
                                        const PoseWithNoise &deltaPose) {
-    // ROS_INFO_STREAM("opt: add relposeprior: " << key1 << " - " << key2);
+    ROS_INFO_STREAM("opt: add relposeprior: " << key1 << " - " << key2);
     newGraph_.push_back(
       gtsam::BetweenFactor<gtsam::Pose3>(
         key1, key2, gtsam_utils::to_gtsam(deltaPose.getPose()),
@@ -178,14 +178,22 @@ namespace tagslam {
   }
 
   void GTSAMOptimizer::optimize() {
-    ROS_INFO_STREAM("adding values: " << newValues_.size()
+    ROS_INFO_STREAM("optimizer new values: " << newValues_.size()
                     << " factors: " << newGraph_.size());
+    //std::cout << "------------ new values: " << std::endl;
+    //newValues_.print();
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
-      gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
+      isam2_->update(newGraph_, newValues_);
+      for (int i = 0; i < 20; i++) {
+        isam2_->update();
+      }
+      gtsam::ISAM2Result res = isam2_->update();
       double err = *res.errorAfter;
       ROS_INFO_STREAM("optimizer error: " << err);
       values_ = isam2_->calculateEstimate();
+      //std::cout << "---- optimized values: " << std::endl;
+      //values_.print();
       //values_.print();
       //fullGraph_.print();
       newGraph_.erase(newGraph_.begin(), newGraph_.end());
@@ -196,15 +204,20 @@ namespace tagslam {
   }
 
   void GTSAMOptimizer::optimizeFullGraph() {
+    //std::cout << "------------ new values: " << std::endl;
+    //newValues_.print();
     fullGraph_ += newGraph_;
     values_.insert(newValues_);
     gtsam::LevenbergMarquardtParams lmp;
-    lmp.setVerbosity("SILENT");
+    //lmp.setVerbosity("SILENT");
+    lmp.setVerbosity("TERMINATION");
     lmp.setMaxIterations(100);
     lmp.setAbsoluteErrorTol(1e-7);
     lmp.setRelativeErrorTol(0);
     gtsam::LevenbergMarquardtOptimizer lmo(fullGraph_, values_, lmp);
     values_ = lmo.optimize();
+    //std::cout << "------ optimized: " << std::endl;
+    //values_.print();
     ROS_INFO_STREAM("optimizer error: " << lmo.error());
     //fullGraph_.print();
     //values_.print();

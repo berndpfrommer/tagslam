@@ -6,6 +6,7 @@
 
 #include "tagslam/body.h"
 #include "tagslam/geometry.h"
+#include "tagslam/pose_noise2.h"
 
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
@@ -26,5 +27,6 @@ namespace tagslam {
     ros::Time     time_{0};
     ros::Publisher  pub_;
     Transform     T_body_odom_;
+    PoseNoise2    deltaPoseNoise_;
   };
 }

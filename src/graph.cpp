@@ -281,15 +281,18 @@ namespace tagslam {
       throw std::runtime_error("no prev pose for delta");
     }
  
-    const Transform newPose = deltaPose.getPose() * pp.pose->getPose();
+    const Transform newPose = pp.pose->getPose() * deltaPose.getPose();
     bool poseValid = pp.pose->isValid();
     // add current body pose if not already there
     if (!cp.pose) {
       std::cout << "adding current pose!" << std::endl;
       // nothing there at all!
       cp = addPose(tCurr, name, newPose, poseValid);
-    } else if (!cp.pose->isValid() && poseValid) {
-      // the current pose is invalid, let's fix that
+    } else if (poseValid) {
+      //} else if (!cp.pose->isValid() && poseValid) {
+      // NOTE: this overwrites any existing value, making
+      // the assumption that pose delta gives a better
+      // estimate than previous methods.
       cp.pose->setPose(newPose);
     }
     if (!cp.pose->isOptimized() && cp.pose->isValid()) {
@@ -422,6 +425,7 @@ namespace tagslam {
       values.push_back(vv);
     }
     if (numValid == numEdges - 1) {
+      // establishes new value, let's explore the new
       VertexConstPtr vt = graph_[valueVertex].vertex;
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
       ROS_INFO_STREAM(" factor establishes new value: " << vp->getLabel());

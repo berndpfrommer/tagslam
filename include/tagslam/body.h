@@ -36,6 +36,7 @@ namespace tagslam {
     int           getId() const { return (id_); }
     const string &getOdomTopic() const { return (odomTopic_); }
     const string &getOdomFrameId() const { return (odomFrameId_); }
+    const PoseNoise2 &getOdomNoise() const { return (odomNoise_); }
     const Transform &getTransformBodyOdom() const { return (T_body_odom_); }
     double        getDefaultTagSize() const { return (defaultTagSize_); }
     bool   isStatic() const { return (isStatic_); }
@@ -43,7 +44,6 @@ namespace tagslam {
     void   setId(int id) { id_ = id; }
     void   setPoseWithNoise(const PoseWithNoise &p) { poseWithNoise = p; }
     const PoseWithNoise getPoseWithNoise() const { return (poseWithNoise); }
- 
     Tag2Ptr findTag(int tagId, int bits) const;
     void   addTag(const Tag2Ptr &tag);
     void   addTags(const Tag2Vec &tags);
@@ -75,7 +75,7 @@ namespace tagslam {
     // variables used in case odometry data is available
     string              odomTopic_;
     string              odomFrameId_;
-    PoseNoise2          odomNoise;
+    PoseNoise2          odomNoise_;
     Transform           T_body_odom_;
     // -------- static functions
     static BodyPtr parse_body(const string &name,

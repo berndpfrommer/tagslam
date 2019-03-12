@@ -65,7 +65,7 @@ namespace tagslam {
       if (body.hasMember("odom_translation_noise")) {
         odomTransNoise = static_cast<double>(body["odom_translation_noise"]);
       }
-      odomNoise = PoseNoise2::make(odomRotNoise, odomTransNoise);
+      odomNoise_ = PoseNoise2::make(odomRotNoise, odomTransNoise);
 
       if (body.hasMember("ignore_tags")) {
         auto ignTags = body["ignore_tags"];

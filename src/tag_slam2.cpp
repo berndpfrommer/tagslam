@@ -291,7 +291,7 @@ namespace tagslam {
       const auto body = nonstaticBodies_[body_idx];
       Transform pose;
       if (graph_.getPose(t, Graph::body_name(body->getName()), &pose)) {
-        ROS_INFO_STREAM("publishing odom for body " << body->getName() << std::endl << pose);
+        //ROS_INFO_STREAM("publishing odom for body " << body->getName() << std::endl << pose);
         odomPub_[body_idx].publish(
           make_odom(t, fixedFrame_, body->getOdomFrameId(), pose));
       }
@@ -314,18 +314,14 @@ namespace tagslam {
       graph_.addPose(t, Graph::body_name(body->getName()),
                      Transform::Identity(), false);
     }
+    processTags(tagmsgs);
 #define USE_ODOM
 #ifdef USE_ODOM
     if (odommsgs.size() == 0) {
       return;
     }
     processOdom(odommsgs);
-    graph_.optimize();
-    //if (!msgvec3.empty()) {
-    //graph_.plotDebug(msgvec3[0]->header.stamp, "odom");
-    //}
 #endif    
-    processTags(tagmsgs);
     graph_.optimize();
     publishBodyOdom(t);
     rosgraph_msgs::Clock clockMsg;
