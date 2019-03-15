@@ -314,7 +314,6 @@ namespace tagslam {
       graph_.addPose(t, Graph::body_name(body->getName()),
                      Transform::Identity(), false);
     }
-    processTags(tagmsgs);
 #define USE_ODOM
 #ifdef USE_ODOM
     if (odommsgs.size() == 0) {
@@ -322,6 +321,7 @@ namespace tagslam {
     }
     processOdom(odommsgs);
 #endif    
+    processTags(tagmsgs);
     graph_.optimize();
     publishBodyOdom(t);
     rosgraph_msgs::Clock clockMsg;

@@ -311,7 +311,6 @@ namespace tagslam {
                               const VertexPose &vp2,
                               const PoseWithNoise &deltaPose,
                               bool addToOptimizer) {
-    
     // add new factor and its edges to graph
     VertexPtr fvv(new factor::RelativePosePrior(t, deltaPose, name));
     if (addToOptimizer) {
@@ -320,13 +319,14 @@ namespace tagslam {
     const BoostGraphVertex fv = boost::add_vertex(GraphVertex(fvv), graph_);
     boost::add_edge(fv, vp1.vertex, GraphEdge(0), graph_);
     boost::add_edge(fv, vp2.vertex, GraphEdge(1), graph_);
-
+    
     if (addToOptimizer) {
       optimizer_->addRelativePosePrior(
         vp1.pose->getKey(), vp2.pose->getKey(), // ORIG
         //vp2.pose->getKey(), vp1.pose->getKey(),
         deltaPose);
     }
+    ROS_INFO_STREAM("adding " << fvv->getLabel() << " conn: " << vp1.pose->getLabel() << " -> " << vp2.pose->getLabel());
     return (fv);
   }
 
@@ -443,7 +443,7 @@ namespace tagslam {
         FactorConstPtr   fp = std::dynamic_pointer_cast<const factor::Factor>(fvp);
         if (fp) {
           if (fv != fac) { // no connections back
-            ROS_INFO_STREAM("activating new factor: " << fp->getLabel());
+            ROS_INFO_STREAM("   " << vp->getLabel() << " activates " << fp->getLabel());
             factorsToExamine->push_front(fv);
           }
         }
