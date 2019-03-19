@@ -29,7 +29,8 @@ namespace tagslam {
   }
 
   void
-  OdometryProcessor::process(const OdometryConstPtr &msg) {
+  OdometryProcessor::process(const OdometryConstPtr &msg,
+                             std::vector<BoostGraphVertex> *factors) {
     auto msg2 = *msg;
     msg2.header.frame_id = "map";
     pub_.publish(msg2);
@@ -58,7 +59,8 @@ namespace tagslam {
       //std::cout << "delta pose:" << std::endl;
       //std::cout << deltaPose << std::endl;
       const PoseWithNoise pn(deltaPose, deltaPoseNoise_, true);
-      graph_->addBodyPoseDelta(time_, msg->header.stamp, body_, pn);
+      auto fac = graph_->addBodyPoseDelta(time_, msg->header.stamp, body_, pn);
+      factors->push_back(fac);
     }
     pose_ = newPose;
     time_ = msg->header.stamp;

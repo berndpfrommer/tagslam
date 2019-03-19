@@ -269,7 +269,7 @@ namespace tagslam {
     return (VertexPose(npv, np));
   }
 
-  void
+  BoostGraphVertex
   Graph::addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
                           const BodyConstPtr &body,
                           const PoseWithNoise &deltaPose) {
@@ -278,31 +278,16 @@ namespace tagslam {
     VertexPose pp = findPose(tPrev, name);
     VertexPose cp = findPose(tCurr, name);
     if (!pp.pose) {
-      ROS_ERROR_STREAM("no prev pose for delta: " << name << " " << tPrev);
-      throw std::runtime_error("no prev pose for delta");
+      ROS_INFO_STREAM("adding previous pose for " << name << " " << tPrev);
+      pp = addPose(tPrev, name, Transform::Identity(), false);
     }
- 
-    const Transform newPose = pp.pose->getPose() * deltaPose.getPose();
-    bool poseValid = pp.pose->isValid();
-    // add current body pose if not already there
     if (!cp.pose) {
+      ROS_INFO_STREAM("adding current pose for " << name << " " << tCurr);
       std::cout << "adding current pose!" << std::endl;
-      // nothing there at all!
-      cp = addPose(tCurr, name, newPose, poseValid);
-    } else if (poseValid) {
-      //} else if (!cp.pose->isValid() && poseValid) {
-      // NOTE: this overwrites any existing value, making
-      // the assumption that pose delta gives a better
-      // estimate than previous methods.
-      cp.pose->setPose(newPose);
+      cp = addPose(tCurr, name, Transform::Identity(), false);
     }
-    if (!cp.pose->isOptimized() && cp.pose->isValid()) {
-      // not part of the optimizer yet, add it
-      cp.pose->setKey(optimizer_->addPose(newPose));
-    }
-    
-    addRelativePosePrior(tCurr, "bodyrel:" + body->getName(), pp, cp, deltaPose,
-                         cp.pose->isOptimized() && pp.pose->isOptimized());
+    return (addRelativePosePrior(tCurr, "bodyrel:" + body->getName(),
+                                 pp, cp, deltaPose, false));
   }
 
   BoostGraphVertex
@@ -427,7 +412,11 @@ namespace tagslam {
       VertexConstPtr vt = graph_[valueVertex].vertex;
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
       ROS_INFO_STREAM(" factor establishes new value: " << vp->getLabel());
-      sg->factors.push_back(fac);
+      auto &ff = found->factors;
+      if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
+        ff.push_back(fac);
+        sg->factors.push_back(fac);
+      }
       for (const auto vv: values) {
         sg->values.insert(vv);
         //ROS_INFO_STREAM("  adding new corresponding values: " << info(vv));
@@ -450,11 +439,21 @@ namespace tagslam {
       // this factor does not establish a new value, but
       // provides an additional measurement on existing ones.
       ROS_INFO_STREAM(" factor provides additional measurement: " << fv->getLabel());
+#if 0      
       auto &sgf = sg->factors;
       if (std::find(sgf.begin(), sgf.end(), fac) == sgf.end()) {
+        // factor is not already in subgraph
         ROS_INFO_STREAM("  factor added to subgraph: " << fv->getLabel());
         sgf.push_back(fac);
       }
+#else
+      auto &ff = found->factors;
+      if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
+        ff.push_back(fac);
+        sg->factors.push_back(fac);
+      }
+#endif
+
     } else {
       ROS_INFO_STREAM(" factor does not establish new values!");
     }

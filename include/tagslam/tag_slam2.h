@@ -73,7 +73,8 @@ namespace tagslam {
     void makeGraph();
     void readBodies();
     void playFromBag(const std::string &fname);
-    void processOdom(const std::vector<OdometryConstPtr> &odomMsg);
+    void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
+                     std::vector<BoostGraphVertex> *factors);
     std::vector<std::vector<string>> makeTopics(rosbag::Bag *bag) const;
     void setupOdom(const std::vector<OdometryConstPtr> &odomMsgs);
     void processTagsAndOdom(const std::vector<TagArrayConstPtr> &tagmsgs,
@@ -81,7 +82,8 @@ namespace tagslam {
     void publishTransforms(const ros::Time &t);
     void publishBodyOdom(const ros::Time &t);
     void sleep(double dt) const;
-    void processTags(const std::vector<TagArrayConstPtr> &tagMsgs);
+    void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
+                     std::vector<BoostGraphVertex> *factors);
     Tag2ConstPtr findTag(int tagId);
 
     // ------ variables --------

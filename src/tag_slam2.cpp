@@ -314,14 +314,18 @@ namespace tagslam {
       graph_.addPose(t, Graph::body_name(body->getName()),
                      Transform::Identity(), false);
     }
+    std::vector<BoostGraphVertex> factors;
 #define USE_ODOM
 #ifdef USE_ODOM
     if (odommsgs.size() == 0) {
       return;
     }
-    processOdom(odommsgs);
-#endif    
-    processTags(tagmsgs);
+    processOdom(odommsgs, &factors);
+#endif
+    processTags(tagmsgs, &factors);
+    //graph_.plotDebug(tagMsgs[0]->header.stamp, "factors");
+    auto subGraphs = graph_.findSubgraphs(factors);
+    graph_.initializeSubgraphs(subGraphs);
     graph_.optimize();
     publishBodyOdom(t);
     rosgraph_msgs::Clock clockMsg;
@@ -355,14 +359,16 @@ namespace tagslam {
     }
   }
 
-  void TagSlam2::processOdom(const std::vector<OdometryConstPtr> &odomMsgs) {
+  void
+  TagSlam2::processOdom(const std::vector<OdometryConstPtr> &odomMsgs,
+                        std::vector<BoostGraphVertex> *factors) {
     if (odomProcessors_.empty()) {
       setupOdom(odomMsgs);
     }
     // from odom child frame id, deduce bodies
     for (const auto odomIdx: irange(0ul, odomMsgs.size())) {
       const auto &msg = odomMsgs[odomIdx];
-      odomProcessors_[odomIdx].process(msg);
+      odomProcessors_[odomIdx].process(msg, factors);
       //graph_.test();
     }
   }
@@ -389,12 +395,12 @@ namespace tagslam {
     return (it->second);
   }
 
-  void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs) {
+  void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
+                             std::vector<BoostGraphVertex> *factors) {
     if (tagMsgs.size() != cameras_.size()) {
       ROS_ERROR_STREAM("tag msgs size mismatch!");
       return;
     }
-    std::vector<BoostGraphVertex> factors;
     for (const auto i: irange(0ul, cameras_.size())) {
       const ros::Time &t = tagMsgs[i]->header.stamp;
       for (const auto &tag: tagMsgs[i]->apriltags) {
@@ -403,7 +409,7 @@ namespace tagslam {
           const geometry_msgs::Point *img_corners = &(tag.corners[0]);
           auto fac = graph_.addProjectionFactor(t, tagPtr, cameras_[i],
                                                 img_corners);
-          factors.push_back(fac);
+          factors->push_back(fac);
         }
       }
       std::stringstream ss;
@@ -413,9 +419,6 @@ namespace tagslam {
       ROS_INFO_STREAM("frame " << frameNum_ << " " << cameras_[i]->getName()
                       << " sees tags: " << ss.str());
     }
-    graph_.plotDebug(tagMsgs[0]->header.stamp, "factors");
-    auto subGraphs = graph_.findSubgraphs(factors);
-    graph_.initializeSubgraphs(subGraphs);
   }
 
 }  // end of namespace

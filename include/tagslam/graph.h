@@ -63,9 +63,10 @@ namespace tagslam {
                          bool addToOptimizer);
 
     VertexPose addTag(const Tag2 &tag);
-    void addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
-                          const BodyConstPtr &body,
-                          const PoseWithNoise &deltaPose);
+    BoostGraphVertex
+    addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
+                     const BodyConstPtr &body,
+                     const PoseWithNoise &deltaPose);
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void plotDebug(const ros::Time &t, const string &tag);
     void optimize();

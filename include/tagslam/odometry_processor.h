@@ -7,6 +7,7 @@
 #include "tagslam/body.h"
 #include "tagslam/geometry.h"
 #include "tagslam/pose_noise2.h"
+#include "tagslam/boost_graph.h"
 
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
@@ -19,8 +20,8 @@ namespace tagslam {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     OdometryProcessor(ros::NodeHandle &nh, Graph *graph, const BodyConstPtr &body);
-    void process(const OdometryConstPtr &msgs);
-
+    void process(const OdometryConstPtr &msgs,
+                 std::vector<BoostGraphVertex> *factors);
     Graph         *graph_{NULL};
     BodyConstPtr  body_;
     Transform     pose_;
