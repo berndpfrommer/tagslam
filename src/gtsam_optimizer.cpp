@@ -66,6 +66,7 @@ namespace tagslam {
   GTSAMOptimizer::addRelativePosePrior(ValueKey key1, ValueKey key2,
                                        const PoseWithNoise &deltaPose) {
     ROS_INFO_STREAM("opt: add relposeprior: " << key1 << " - " << key2);
+    // key1 = key2 * deltaPose
     newGraph_.push_back(
       gtsam::BetweenFactor<gtsam::Pose3>(
         key1, key2, gtsam_utils::to_gtsam(deltaPose.getPose()),

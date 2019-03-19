@@ -7,6 +7,7 @@
 #include "tagslam/pose_with_noise.h"
 #include "tagslam/value_key.h"
 #include "tagslam/camera2.h"
+#include "tagslam/value/pose.h"
 
 #include <ros/ros.h>
 #include <geometry_msgs/Point.h>
@@ -97,8 +98,13 @@ namespace tagslam {
     void examine(BoostGraphVertex fac,
                  std::list<BoostGraphVertex> *factorsToExamine,
                  SubGraph *found, SubGraph *sg);
-    void setMissingValue(BoostGraphVertex v, const Transform &T_c_o);
     void addProjectionFactorToOptimizer(const BoostGraphVertex v);
+    int findConnectedPoses(BoostGraphVertex v,
+                           std::vector<PoseValuePtr> *poses);
+    int  setValueFromRelativePosePrior(BoostGraphVertex v, const Transform &deltaPose,
+                                       std::vector<PoseValuePtr> *poses);
+    void setValueFromTagProjection(BoostGraphVertex v, const Transform &T_c_o);
+
     std::string info(BoostGraphVertex v) const;
     typedef std::unordered_map<Id, BoostGraphVertex> IdToVertexMap;
     // ------ variables --------------

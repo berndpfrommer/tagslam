@@ -312,19 +312,16 @@ namespace tagslam {
                               const PoseWithNoise &deltaPose,
                               bool addToOptimizer) {
     // add new factor and its edges to graph
-    VertexPtr fvv(new factor::RelativePosePrior(t, deltaPose, name));
-    if (addToOptimizer) {
-      fvv->setIsValid(true);
-    }
+    FactorPtr fvv(new factor::RelativePosePrior(t, deltaPose, name));
     const BoostGraphVertex fv = boost::add_vertex(GraphVertex(fvv), graph_);
     boost::add_edge(fv, vp1.vertex, GraphEdge(0), graph_);
     boost::add_edge(fv, vp2.vertex, GraphEdge(1), graph_);
     
     if (addToOptimizer) {
-      optimizer_->addRelativePosePrior(
-        vp1.pose->getKey(), vp2.pose->getKey(), // ORIG
-        //vp2.pose->getKey(), vp1.pose->getKey(),
-        deltaPose);
+      fvv->setIsValid(true);
+      fvv->setKey(optimizer_->addRelativePosePrior(
+                    vp1.pose->getKey(), vp2.pose->getKey(),
+                    deltaPose));
     }
     ROS_INFO_STREAM("adding " << fvv->getLabel() << " conn: " << vp1.pose->getLabel() << " -> " << vp2.pose->getLabel());
     return (fv);
@@ -448,6 +445,11 @@ namespace tagslam {
           }
         }
       }
+    } else if (numValid == numEdges) {
+      // this factor does not establish a new value, but
+      // provides an additional measurement on existing ones.
+      ROS_INFO_STREAM(" factor provides additional measurement: " << fv->getLabel());
+      //sg->factors.push_back(fac);
     } else {
       ROS_INFO_STREAM(" factor does not establish new values!");
     }
@@ -529,12 +531,13 @@ namespace tagslam {
     ROS_INFO_STREAM("done adding projection factor");
   }
 
-  void
-  Graph::setMissingValue(BoostGraphVertex v, const Transform &T_c_o)  {
+
+  int
+  Graph::findConnectedPoses(BoostGraphVertex v,
+                            std::vector<PoseValuePtr> *poses) {
     auto edges = boost::out_edges(v, graph_);
-    int missingIdx(-1), edgeNum(0);
-    std::vector<PoseValueConstPtr> T(4);
-    PoseValuePtr missingPose;
+    int missingIdx(-1), edgeNum(0), numMissing(0);
+    poses->clear();
     for (auto edgeIt = edges.first; edgeIt != edges.second; ++edgeIt) {
       BoostGraphVertex vv  = boost::target(*edgeIt, graph_); // value vertex
       VertexPtr   vvp = graph_[vv].vertex; // pointer to value
@@ -543,47 +546,93 @@ namespace tagslam {
         ROS_ERROR_STREAM("vertex is no pose: " << vv);
         throw std::runtime_error("vertex is no pose");
       }
-      T[edgeNum] = pp;
+      poses->push_back(pp);
       ROS_INFO_STREAM(" factor attached value: " << pp->getLabel());
       if (!pp->isValid()) {
         missingIdx = edgeNum;
-        missingPose = pp;
+        numMissing++;
         ROS_INFO_STREAM(" missing value: " << pp->getLabel());
       } else {
         ROS_INFO_STREAM(" valid value: " << pp->getLabel());
       }
       edgeNum++;
     }
-    switch (missingIdx) {
+    missingIdx = (numMissing == 1) ? missingIdx : -(numMissing + 1);
+    return (missingIdx);
+  }
+
+  void
+  Graph::setValueFromTagProjection(BoostGraphVertex v, const Transform &T_c_o)  {
+    std::vector<PoseValuePtr> T;
+    int idx = findConnectedPoses(v, &T);
+    switch (idx) {
     case 0: { // T_r_c = T_r_w * T_w_b * T_b_o * T_o_c
-      missingPose->setPose(T[1]->getPose().inverse() * T[2]->getPose() *
-                           T[3]->getPose() * T_c_o.inverse()); 
+      T[idx]->setPose(T[1]->getPose().inverse() * T[2]->getPose() *
+                      T[3]->getPose() * T_c_o.inverse()); 
       break; }
     case 1: { // T_w_r = T_w_b * T_b_o * T_o_c * T_c_r
-      missingPose->setPose(T[2]->getPose() * T[3]->getPose() *
-                           T_c_o.inverse() * T[0]->getPose().inverse());
+      T[idx]->setPose(T[2]->getPose() * T[3]->getPose() *
+                      T_c_o.inverse() * T[0]->getPose().inverse());
       break; }
     case 2: { // T_w_b = T_w_r * T_r_c * T_c_o * T_o_b
-      missingPose->setPose(T[1]->getPose() * T[0]->getPose() *
-                           T_c_o * T[3]->getPose().inverse());
+      T[idx]->setPose(T[1]->getPose() * T[0]->getPose() *
+                      T_c_o * T[3]->getPose().inverse());
       break; }
     case 3: { // T_b_o = T_b_w * T_w_r * T_r_c * T_c_o
-      missingPose->setPose(T[2]->getPose().inverse() * T[1]->getPose() *
-                           T[0]->getPose() * T_c_o);
+      T[idx]->setPose(T[2]->getPose().inverse() * T[1]->getPose() *
+                      T[0]->getPose() * T_c_o);
       break; }
-    default: {
+    case -1: {
       ROS_INFO_STREAM("factor has no missing values!");
       return;
       break; }
+    default: {
+      ROS_INFO_STREAM("factor has multiple missing values!");
+      return;
+      break; }
     }
-    ROS_INFO_STREAM("setting value of vertex: " << missingPose->getLabel());
-    ROS_INFO_STREAM("set pose: " << std::endl << missingPose->getPose());
+    ROS_INFO_STREAM("setting value of vertex: " << T[idx]->getLabel());
+    ROS_INFO_STREAM("set pose: " << std::endl << T[idx]->getPose());
   }
-  
+
+  int
+  Graph::setValueFromRelativePosePrior(BoostGraphVertex v, const Transform &deltaPose,
+                                       std::vector<PoseValuePtr> *poses)  {
+    std::vector<PoseValuePtr> &T = *poses;
+    int idx = findConnectedPoses(v, &T);
+    if (T.size()  != 2) {
+      ROS_ERROR_STREAM("rel pose prior has wrong num connected: " << T.size());
+      throw std::runtime_error("rel pose prior has wrong num conn");
+    }
+    switch (idx) {
+    case 0: { // T_1 = T_2 * delta T
+      T[idx]->setPose(T[1]->getPose() * deltaPose);
+      break; }
+    case 1: { // T_2 = T_1 * delta T^-1
+      T[idx]->setPose(T[0]->getPose() * deltaPose.inverse());
+      break; }
+    case -1: {
+      ROS_INFO_STREAM("delta pose factor has no missing values!");
+      return (idx);
+      break; }
+    default: {
+      ROS_INFO_STREAM("delta factor has multiple missing values!");
+      return (idx);
+      break; }
+    }
+    ROS_INFO_STREAM("setting value of vertex: " << T[idx]->getLabel());
+    ROS_INFO_STREAM("set pose: " << std::endl << T[idx]->getPose());
+    return (idx);
+  }
+
                                                
   void Graph::initializeSubgraphs(const std::vector<std::list<BoostGraphVertex>> &verts) {
     ROS_INFO_STREAM("----------- initializing " << verts.size() << " subgraphs");
     for (const auto &vset: verts) {
+      ROS_INFO_STREAM("---------- subgraph of size: " << vset.size());
+      for (const auto &v: vset) {
+        ROS_INFO_STREAM("    " << graph_[v].vertex->getLabel());
+      }
       for (const auto &v: vset) {
         BoostGraphVertex fv = boost::vertex(v, graph_); // factor vertex
         VertexPtr  fvp = graph_[fv].vertex; // pointer to factor
@@ -599,13 +648,30 @@ namespace tagslam {
           std::cout << "got homography: " << std::endl << tf.first << " "
                     << std::endl << tf.second << std::endl;
           if (tf.second) {
-            setMissingValue(fv, tf.first);
+            setValueFromTagProjection(fv, tf.first);
             fp->setIsValid(true);
             addProjectionFactorToOptimizer(fv);
             // add factor and values to optimizer
           }
         } else {
-          //ROS_WARN_STREAM("unhandled factor: " << fvp->getLabel());
+          RelativePosePriorFactorPtr rp =
+          std::dynamic_pointer_cast<factor::RelativePosePrior>(fvp);
+          if (rp && !rp->isOptimized()) {
+            std::vector<PoseValuePtr> poses;
+            int idx = setValueFromRelativePosePrior(v, rp->getPoseWithNoise().getPose(), &poses);
+            if (idx >= 0) {
+              for (const auto i: irange(0, 2)) {
+                if (!poses[i]->isOptimized()) {
+                  poses[i]->setKey(optimizer_->addPose(poses[i]->getPose()));
+                }
+              }
+              rp->setKey(optimizer_->addRelativePosePrior(
+                           poses[0]->getKey(), poses[1]->getKey(),
+                           rp->getPoseWithNoise()));
+            }
+          } else {
+            ROS_INFO_STREAM("skipping factor: " << fvp->getLabel());
+          }
         }
       }
     }

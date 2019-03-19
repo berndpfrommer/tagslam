@@ -33,11 +33,11 @@
 	<!--
 	    <param name="bag_start_time" value="190.0"/>
 	-->
-	<param name="bag_start_time" value="10.0"/>
+	<param name="bag_start_time" value="13.1"/>
 	<param name="bag_file" value="$(arg bag)"/>
 	<param name="optimize_full_graph" value="true"/>
 	<param name="has_compressed_images" value="true"/>
-	<param name="max_number_of_frames" value="7000"/>
+	<param name="max_number_of_frames" value="100"/>
   </node>
 
 </launch>

@@ -17,9 +17,12 @@ namespace tagslam {
                         const std::string   &name = "") :
         Factor(name), time_(t), poseWithNoise_(p) {}
       std::string getLabel() const override;
+      const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
     private:
       ros::Time     time_;
       PoseWithNoise poseWithNoise_;
     };
   }
+  typedef std::shared_ptr<factor::RelativePosePrior> RelativePosePriorFactorPtr;
+  typedef std::shared_ptr<const factor::RelativePosePrior> RelativePosePriorFactorConstPtr;
 }
