@@ -22,6 +22,7 @@
 #include <map>
 #include <sstream>
 
+//#define DEBUG_GRAPH
 
 namespace tagslam {
 
@@ -278,12 +279,11 @@ namespace tagslam {
     VertexPose pp = findPose(tPrev, name);
     VertexPose cp = findPose(tCurr, name);
     if (!pp.pose) {
-      ROS_INFO_STREAM("adding previous pose for " << name << " " << tPrev);
+      ROS_DEBUG_STREAM("adding previous pose for " << name << " " << tPrev);
       pp = addPose(tPrev, name, Transform::Identity(), false);
     }
     if (!cp.pose) {
-      ROS_INFO_STREAM("adding current pose for " << name << " " << tCurr);
-      std::cout << "adding current pose!" << std::endl;
+      ROS_DEBUG_STREAM("adding current pose for " << name << " " << tCurr);
       cp = addPose(tCurr, name, Transform::Identity(), false);
     }
     return (addRelativePosePrior(tCurr, "bodyrel:" + body->getName(),
@@ -309,7 +309,7 @@ namespace tagslam {
                     vp1.pose->getKey(), vp2.pose->getKey(),
                     deltaPose));
     }
-    ROS_INFO_STREAM("adding " << fvv->getLabel() << " conn: " << vp1.pose->getLabel() << " -> " << vp2.pose->getLabel());
+    ROS_DEBUG_STREAM("adding " << fvv->getLabel() << " conn: " << vp1.pose->getLabel() << " -> " << vp2.pose->getLabel());
     return (fv);
   }
 
@@ -387,7 +387,7 @@ namespace tagslam {
                  SubGraph *found, SubGraph *sg) {
     // This is the factor vertex we are checking
     VertexConstPtr fv = graph_[fac].vertex;
-    ROS_INFO_STREAM("examining factor: " << fv->getLabel());
+    ROS_DEBUG_STREAM("examining factor: " << fv->getLabel());
     // find out if this factor allows us to determine a new value
     auto edges = boost::out_edges(fac, graph_);
     int numEdges(0), numValid(0);
@@ -411,7 +411,7 @@ namespace tagslam {
       // establishes new value, let's explore the new
       VertexConstPtr vt = graph_[valueVertex].vertex;
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
-      ROS_INFO_STREAM(" factor establishes new value: " << vp->getLabel());
+      ROS_DEBUG_STREAM(" factor establishes new value: " << vp->getLabel());
       auto &ff = found->factors;
       if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
         ff.push_back(fac);
@@ -430,7 +430,7 @@ namespace tagslam {
         FactorConstPtr   fp = std::dynamic_pointer_cast<const factor::Factor>(fvp);
         if (fp) {
           if (fv != fac) { // no connections back
-            ROS_INFO_STREAM("  " << vp->getLabel() << " activates " << fp->getLabel());
+            ROS_DEBUG_STREAM("  " << vp->getLabel() << " activates " << fp->getLabel());
             factorsToExamine->push_front(fv);
           }
         }
@@ -438,24 +438,14 @@ namespace tagslam {
     } else if (numValid == numEdges) {
       // this factor does not establish a new value, but
       // provides an additional measurement on existing ones.
-      ROS_INFO_STREAM(" factor provides additional measurement: " << fv->getLabel());
-#if 0      
-      auto &sgf = sg->factors;
-      if (std::find(sgf.begin(), sgf.end(), fac) == sgf.end()) {
-        // factor is not already in subgraph
-        ROS_INFO_STREAM("  factor added to subgraph: " << fv->getLabel());
-        sgf.push_back(fac);
-      }
-#else
+      ROS_DEBUG_STREAM(" factor provides additional measurement: " << fv->getLabel());
       auto &ff = found->factors;
       if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
         ff.push_back(fac);
         sg->factors.push_back(fac);
       }
-#endif
-
     } else {
-      ROS_INFO_STREAM(" factor does not establish new values!");
+      ROS_DEBUG_STREAM(" factor does not establish new values!");
     }
   }
 
@@ -467,7 +457,7 @@ namespace tagslam {
   std::vector<std::list<BoostGraphVertex>>
   Graph::findSubgraphs(const std::vector<BoostGraphVertex> &facs) {
     std::vector<std::list<BoostGraphVertex>> sv;
-    std::cout << "===================================================" << std::endl;
+    ROS_DEBUG("===================================================");
     SubGraph found;
     for (const auto &pf: facs) {
       auto it = std::find(found.factors.begin(), found.factors.end(), pf);
@@ -512,7 +502,7 @@ namespace tagslam {
         throw std::runtime_error("vertex is not valid");
       }
       if (!pp->isOptimized()) {
-        ROS_INFO_STREAM("adding pose to optimizer: " << pp->getLabel());
+        ROS_DEBUG_STREAM("adding pose to optimizer: " << pp->getLabel());
         pp->setKey(optimizer_->addPose(pp->getPose()));
       }
       optKeys.push_back(pp->getKey());
@@ -525,7 +515,7 @@ namespace tagslam {
       ROS_ERROR_STREAM("factor already optimized: " << fp->getLabel());
       throw std::runtime_error("factor already optimized");
     }
-    ROS_INFO_STREAM("adding tag projection factor to optimizer: " << info(v));
+    ROS_DEBUG_STREAM("adding tag projection factor to optimizer: " << info(v));
     fp->setKey(optimizer_->addTagProjectionFactor(fp->getImageCorners(),
                                                   fp->getTag()->getObjectCorners(),
                                                   fp->getCamera()->getName(),
@@ -551,13 +541,13 @@ namespace tagslam {
         throw std::runtime_error("vertex is no pose");
       }
       poses->push_back(pp);
-      //ROS_INFO_STREAM(" factor attached value: " << pp->getLabel());
+      //ROS_DEBUG_STREAM(" factor attached value: " << pp->getLabel());
       if (!pp->isValid()) {
         missingIdx = edgeNum;
         numMissing++;
-        //ROS_INFO_STREAM(" missing value: " << pp->getLabel());
+        //ROS_DEBUG_STREAM(" missing value: " << pp->getLabel());
       } else {
-        //ROS_INFO_STREAM(" valid value: " << pp->getLabel());
+        //ROS_DEBUG_STREAM(" valid value: " << pp->getLabel());
       }
       edgeNum++;
     }
@@ -587,16 +577,16 @@ namespace tagslam {
                       T[0]->getPose() * T_c_o);
       break; }
     case -1: {
-      ROS_INFO_STREAM("factor has no missing values!");
+      ROS_DEBUG_STREAM("factor has no missing values!");
       return;
       break; }
     default: {
-      ROS_INFO_STREAM("factor has multiple missing values!");
+      ROS_DEBUG_STREAM("factor has multiple missing values!");
       return;
       break; }
     }
-    ROS_INFO_STREAM("setting value of vertex: " << T[idx]->getLabel());
-    ROS_INFO_STREAM("set pose: " << std::endl << T[idx]->getPose());
+    ROS_DEBUG_STREAM("tag proj setting value of " << T[idx]->getLabel());
+    ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
   }
 
   int
@@ -609,33 +599,33 @@ namespace tagslam {
       throw std::runtime_error("rel pose prior has wrong num conn");
     }
     switch (idx) {
-    case 0: { // T_1 = T_2 * delta T
-      T[idx]->setPose(T[1]->getPose() * deltaPose);
+    case 0: { // T_0 = T_1 * delta T^-1
+      T[idx]->setPose(T[1]->getPose() * deltaPose.inverse());
       break; }
-    case 1: { // T_2 = T_1 * delta T^-1
-      T[idx]->setPose(T[0]->getPose() * deltaPose.inverse());
+    case 1: { // T_1 = T_0 * delta T
+      T[idx]->setPose(T[0]->getPose() * deltaPose);
       break; }
     case -1: {
-      ROS_INFO_STREAM("delta pose factor has no missing values!");
+      ROS_DEBUG_STREAM("delta pose factor has no missing values!");
       return (idx);
       break; }
     default: {
-      ROS_INFO_STREAM("delta factor has multiple missing values!");
+      ROS_DEBUG_STREAM("delta factor has multiple missing values!");
       return (idx);
       break; }
     }
-    ROS_INFO_STREAM("setting value of vertex: " << T[idx]->getLabel());
-    ROS_INFO_STREAM("set pose: " << std::endl << T[idx]->getPose());
+    ROS_DEBUG_STREAM("rel pos setting value of " << T[idx]->getLabel());
+    ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
     return (idx);
   }
 
                                                
   void Graph::initializeSubgraphs(const std::vector<std::list<BoostGraphVertex>> &verts) {
-    ROS_INFO_STREAM("----------- initializing " << verts.size() << " subgraphs");
+    ROS_DEBUG_STREAM("----------- initializing " << verts.size() << " subgraphs");
     for (const auto &vset: verts) {
-      ROS_INFO_STREAM("---------- subgraph of size: " << vset.size());
+      ROS_DEBUG_STREAM("---------- subgraph of size: " << vset.size());
       for (const auto &v: vset) {
-        ROS_INFO_STREAM("    " << graph_[v].vertex->getLabel());
+        ROS_DEBUG_STREAM("    " << graph_[v].vertex->getLabel());
       }
       for (const auto &v: vset) {
         BoostGraphVertex fv = boost::vertex(v, graph_); // factor vertex
@@ -645,12 +635,12 @@ namespace tagslam {
         if (fp) {
           // do homography for this vertex, add new values to graph and the optimizer!
           const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
-          ROS_INFO_STREAM("computing pose for factor " << fvp->getLabel());
+          ROS_DEBUG_STREAM("computing pose for factor " << fvp->getLabel());
           auto tf = pnp::pose_from_4(fp->getImageCorners(),
                                      fp->getTag()->getObjectCorners(),
                                      ci.getK(), ci.getDistortionModel(), ci.getD());
-          std::cout << "got homography: " << std::endl << tf.first << " "
-                    << std::endl << tf.second << std::endl;
+          ROS_DEBUG_STREAM("got homography: " << std::endl << tf.first << " "
+                           << std::endl << tf.second);
           if (tf.second) {
             setValueFromTagProjection(fv, tf.first);
             fp->setIsValid(true);
@@ -674,8 +664,20 @@ namespace tagslam {
                            rp->getPoseWithNoise()));
             }
           } else {
-            ROS_INFO_STREAM("skipping factor: " << fvp->getLabel());
+            ROS_DEBUG_STREAM("skipping factor: " << fvp->getLabel());
           }
+        }
+      }
+    }
+  }
+ 
+  void Graph::transferValues() {
+    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
+      VertexPtr &vp = graph_[*vi.first].vertex;
+      if (vp->isValue() && vp->isOptimized()) {
+        PoseValuePtr p = std::dynamic_pointer_cast<value::Pose>(vp);
+        if (p) {
+          p->setPose(optimizer_->getPose(p->getKey()));
         }
       }
     }

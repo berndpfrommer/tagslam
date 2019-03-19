@@ -327,6 +327,7 @@ namespace tagslam {
     auto subGraphs = graph_.findSubgraphs(factors);
     graph_.initializeSubgraphs(subGraphs);
     graph_.optimize();
+    graph_.transferValues();
     publishBodyOdom(t);
     rosgraph_msgs::Clock clockMsg;
     clockMsg.clock = t;

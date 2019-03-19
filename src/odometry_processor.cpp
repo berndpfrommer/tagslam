@@ -56,8 +56,6 @@ namespace tagslam {
     } else {
       const auto &tf = T_body_odom_;
       Transform deltaPose = tf * pose_.inverse() * newPose * tf.inverse();
-      //std::cout << "delta pose:" << std::endl;
-      //std::cout << deltaPose << std::endl;
       const PoseWithNoise pn(deltaPose, deltaPoseNoise_, true);
       auto fac = graph_->addBodyPoseDelta(time_, msg->header.stamp, body_, pn);
       factors->push_back(fac);

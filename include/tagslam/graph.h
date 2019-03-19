@@ -87,6 +87,7 @@ namespace tagslam {
     static string body_name(const string &body);
     static string cam_name(const string &cam);
     void initializeSubgraphs(const std::vector<std::list<BoostGraphVertex>> &verts);
+    void transferValues();
   private:
     struct SubGraph {
       typedef std::list<BoostGraphVertex> FactorCollection;
@@ -105,7 +106,6 @@ namespace tagslam {
     int  setValueFromRelativePosePrior(BoostGraphVertex v, const Transform &deltaPose,
                                        std::vector<PoseValuePtr> *poses);
     void setValueFromTagProjection(BoostGraphVertex v, const Transform &T_c_o);
-
     std::string info(BoostGraphVertex v) const;
     typedef std::unordered_map<Id, BoostGraphVertex> IdToVertexMap;
     // ------ variables --------------

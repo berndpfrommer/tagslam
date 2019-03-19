@@ -50,7 +50,7 @@ namespace tagslam {
   
   ValueKey GTSAMOptimizer::addPose(const Transform &p) {
     ValueKey key = generateKey();
-    ROS_INFO_STREAM("optimizer: adding pose with key " << key);
+    ROS_DEBUG_STREAM("optimizer: adding pose with key " << key);
     newValues_.insert(key, gtsam_utils::to_gtsam(p));
     return (key);
   }
@@ -65,7 +65,7 @@ namespace tagslam {
   FactorKey
   GTSAMOptimizer::addRelativePosePrior(ValueKey key1, ValueKey key2,
                                        const PoseWithNoise &deltaPose) {
-    ROS_INFO_STREAM("opt: add relposeprior: " << key1 << " - " << key2);
+    ROS_DEBUG_STREAM("optimizer: adding relposeprior: " << key1 << " - " << key2);
     // key1 = key2 * deltaPose
     newGraph_.push_back(
       gtsam::BetweenFactor<gtsam::Pose3>(
@@ -76,7 +76,7 @@ namespace tagslam {
 
   FactorKey GTSAMOptimizer::addAbsolutePosePrior(ValueKey key,
                                                  const PoseWithNoise &pwn) {
-    ROS_INFO_STREAM("optimizer: adding absposeprior: " << key);
+    ROS_DEBUG_STREAM("optimizer: adding absposeprior: " << key);
     newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>
                         (key, gtsam_utils::to_gtsam(pwn.getPose()),
                          gtsam_utils::to_gtsam(pwn.getNoise())));
@@ -131,7 +131,7 @@ namespace tagslam {
     const CameraIntrinsics2 &ci,
     double pixelNoise,
     ValueKey T_r_c, ValueKey T_w_r, ValueKey T_w_b, ValueKey T_b_o) {
-    ROS_INFO_STREAM("gtsam: adding tag proj fac: " << T_r_c << " " <<
+    ROS_DEBUG_STREAM("gtsam: adding tag proj fac: " << T_r_c << " " <<
                     T_w_r << " " << T_w_b << " " << T_b_o);
 
     gtsam::Expression<gtsam::Pose3>  T_b_o_fac(T_b_o);
@@ -179,7 +179,7 @@ namespace tagslam {
   }
 
   void GTSAMOptimizer::optimize() {
-    ROS_INFO_STREAM("optimizer new values: " << newValues_.size()
+    ROS_DEBUG_STREAM("optimizer new values: " << newValues_.size()
                     << " factors: " << newGraph_.size());
     //std::cout << "------------ new values: " << std::endl;
     //newValues_.print();
@@ -205,8 +205,6 @@ namespace tagslam {
   }
 
   void GTSAMOptimizer::optimizeFullGraph() {
-    //std::cout << "------------ new values: " << std::endl;
-    //newValues_.print();
     fullGraph_ += newGraph_;
     values_.insert(newValues_);
     gtsam::LevenbergMarquardtParams lmp;
@@ -217,11 +215,17 @@ namespace tagslam {
     lmp.setRelativeErrorTol(0);
     gtsam::LevenbergMarquardtOptimizer lmo(fullGraph_, values_, lmp);
     values_ = lmo.optimize();
-    //std::cout << "------ optimized: " << std::endl;
-    //values_.print();
     ROS_INFO_STREAM("optimizer error: " << lmo.error());
-    //fullGraph_.print();
-    //values_.print();
+#ifdef DEBUG_BEFORE_AFTER   
+    for (const auto &v : newValues_) {
+      std::cout << "----- before: " << std::endl;
+      v.value.print();
+      std::cout << std::endl;
+      std::cout << "----- after: " << std::endl;
+      values_.at(v.key).print();
+      std::cout << std::endl;
+    }
+#endif    
     newGraph_.erase(newGraph_.begin(), newGraph_.end());
     newValues_.clear();
   }
