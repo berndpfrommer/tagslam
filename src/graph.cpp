@@ -16,6 +16,7 @@
 #include <boost/graph/graphviz.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <vector>
+#include <algorithm>
 #include <fstream>
 #include <queue>
 #include <map>
@@ -413,10 +414,10 @@ namespace tagslam {
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vvp);
       numEdges++;
       if ((vp && vp->isValid()) || found->values.count(vv) != 0) {
-        ROS_INFO_STREAM(" has valid    value: " << vp->getLabel());
+        //ROS_INFO_STREAM(" has valid    value: " << vp->getLabel());
         numValid++;
       } else {
-        ROS_INFO_STREAM(" has no valid value: " << vp->getLabel());
+        //ROS_INFO_STREAM(" has no valid value: " << vp->getLabel());
         valueVertex = vv;
       }
       values.push_back(vv);
@@ -429,7 +430,7 @@ namespace tagslam {
       sg->factors.push_back(fac);
       for (const auto vv: values) {
         sg->values.insert(vv);
-        ROS_INFO_STREAM("  adding new corresponding values: " << info(vv));
+        //ROS_INFO_STREAM("  adding new corresponding values: " << info(vv));
         found->values.insert(vv);
       }
       
@@ -440,7 +441,7 @@ namespace tagslam {
         FactorConstPtr   fp = std::dynamic_pointer_cast<const factor::Factor>(fvp);
         if (fp) {
           if (fv != fac) { // no connections back
-            ROS_INFO_STREAM("   " << vp->getLabel() << " activates " << fp->getLabel());
+            ROS_INFO_STREAM("  " << vp->getLabel() << " activates " << fp->getLabel());
             factorsToExamine->push_front(fv);
           }
         }
@@ -449,7 +450,11 @@ namespace tagslam {
       // this factor does not establish a new value, but
       // provides an additional measurement on existing ones.
       ROS_INFO_STREAM(" factor provides additional measurement: " << fv->getLabel());
-      //sg->factors.push_back(fac);
+      auto &sgf = sg->factors;
+      if (std::find(sgf.begin(), sgf.end(), fac) == sgf.end()) {
+        ROS_INFO_STREAM("  factor added to subgraph: " << fv->getLabel());
+        sgf.push_back(fac);
+      }
     } else {
       ROS_INFO_STREAM(" factor does not establish new values!");
     }
@@ -521,6 +526,7 @@ namespace tagslam {
       ROS_ERROR_STREAM("factor already optimized: " << fp->getLabel());
       throw std::runtime_error("factor already optimized");
     }
+    ROS_INFO_STREAM("adding tag projection factor to optimizer: " << info(v));
     fp->setKey(optimizer_->addTagProjectionFactor(fp->getImageCorners(),
                                                   fp->getTag()->getObjectCorners(),
                                                   fp->getCamera()->getName(),
@@ -528,7 +534,6 @@ namespace tagslam {
                                                   pixelNoise_,
                                                   optKeys[0], optKeys[1],
                                                   optKeys[2], optKeys[3]));
-    ROS_INFO_STREAM("done adding projection factor");
   }
 
 
@@ -547,13 +552,13 @@ namespace tagslam {
         throw std::runtime_error("vertex is no pose");
       }
       poses->push_back(pp);
-      ROS_INFO_STREAM(" factor attached value: " << pp->getLabel());
+      //ROS_INFO_STREAM(" factor attached value: " << pp->getLabel());
       if (!pp->isValid()) {
         missingIdx = edgeNum;
         numMissing++;
-        ROS_INFO_STREAM(" missing value: " << pp->getLabel());
+        //ROS_INFO_STREAM(" missing value: " << pp->getLabel());
       } else {
-        ROS_INFO_STREAM(" valid value: " << pp->getLabel());
+        //ROS_INFO_STREAM(" valid value: " << pp->getLabel());
       }
       edgeNum++;
     }
