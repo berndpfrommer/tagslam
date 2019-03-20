@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosbag
   flex_sync
   std_msgs
+  std_srvs
   nav_msgs
   geometry_msgs
   sensor_msgs

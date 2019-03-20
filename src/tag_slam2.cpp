@@ -44,19 +44,19 @@ namespace tagslam {
 
 
   void TagSlam2::sleep(double dt) const {
-    ros::Rate r(10); // 10 hz
     ros::WallTime tw0 = ros::WallTime::now();
-    while (ros::WallTime::now() - tw0 < ros::WallDuration(0.2)) {
+    for (ros::WallTime t = ros::WallTime::now(); t - tw0 < ros::WallDuration(dt);
+         t = ros::WallTime::now()) {
       ros::spinOnce();
-      ros::WallTime::sleepUntil(ros::WallTime::now() + ros::WallDuration(0.01));
+      ros::WallTime::sleepUntil(t + (t-tw0));
     }
-    ROS_INFO_STREAM("done sleeping!");
   }
 
   bool TagSlam2::initialize() {
     cameras_ = Camera2::parse_cameras("cameras", nh_);
     bool optFullGraph;
     nh_.param<bool>("optimize_full_graph", optFullGraph, false);
+    nh_.param<double>("playback_rate", playbackRate_, 5.0);
     double pixelNoise;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
     graph_.setPixelNoise(pixelNoise);
@@ -102,9 +102,11 @@ namespace tagslam {
     string bagFile;
     nh_.param<string>("bag_file", bagFile, "");
     clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
+    service_ = nh_.advertiseService("replay", &TagSlam2::replay, this);
+
     sleep(1.0);
     playFromBag(bagFile);
-    graph_.plotDebug(ros::Time(0), "final");
+    //graph_.plotDebug(ros::Time(0), "final");
     return (true);
   }
 
@@ -195,6 +197,23 @@ namespace tagslam {
       }
     }
     return (topics);
+  }
+
+  bool TagSlam2::replay(std_srvs::Trigger::Request& req,
+                        std_srvs::Trigger::Response &res) {
+    ROS_INFO_STREAM("replaying!");
+    ros::Time t0(0);
+    for (const auto &t: times_) {
+      publishAll(t);
+      if (t0 != ros::Time(0)) {
+        sleep((t - t0).toSec() / playbackRate_);
+      }
+      t0 = t;
+    }
+    res.message = "replayed " + std::to_string(times_.size());
+    res.success = true;
+    ROS_INFO_STREAM("finished replaying " << times_.size());
+    return (true);
   }
 
   void TagSlam2::publishTransforms(const ros::Time &t) {
@@ -328,13 +347,17 @@ namespace tagslam {
     graph_.initializeSubgraphs(subGraphs);
     graph_.optimize();
     graph_.transferValues();
+    times_.push_back(t);
+    publishAll(t);
+    frameNum_++;
+  }
+
+  void TagSlam2::publishAll(const ros::Time &t) {
     publishBodyOdom(t);
     rosgraph_msgs::Clock clockMsg;
     clockMsg.clock = t;
     clockPub_.publish(clockMsg);
     publishTransforms(t);
-
-    frameNum_++;
   }
   
   void TagSlam2::setupOdom(const std::vector<OdometryConstPtr> &odomMsgs) {

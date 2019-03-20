@@ -17,6 +17,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <nav_msgs/Odometry.h>
+#include <std_srvs/Trigger.h>
 
 
 #include <string>
@@ -85,6 +86,9 @@ namespace tagslam {
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
                      std::vector<BoostGraphVertex> *factors);
     Tag2ConstPtr findTag(int tagId);
+    void publishAll(const ros::Time &t);
+    bool replay(std_srvs::Trigger::Request& req,
+                std_srvs::Trigger::Response &res);
 
     // ------ variables --------
     ros::NodeHandle      nh_;
@@ -101,9 +105,12 @@ namespace tagslam {
     bool                 hasCompressedImages_;
     int                  frameNum_{0};
     int                  maxFrameNum_{1000000};
+    double               playbackRate_{1.0};
     std::vector<cv::Mat> images_;
     std::vector<OdometryProcessor> odomProcessors_;
     tf::TransformBroadcaster tfBroadcaster_;
+    ros::ServiceServer   service_;
     TagMap               tagMap_;
+    std::list<ros::Time> times_;
   };
 }

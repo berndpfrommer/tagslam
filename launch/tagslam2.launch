@@ -32,12 +32,13 @@
 	<rosparam command="load" file="$(arg camera_poses_file)"/>
 	<!--
 	    <param name="bag_start_time" value="190.0"/>
-	-->
 	<param name="bag_start_time" value="13.1"/>
+	-->
+	<param name="bag_start_time" value="0"/>
 	<param name="bag_file" value="$(arg bag)"/>
 	<param name="optimize_full_graph" value="true"/>
 	<param name="has_compressed_images" value="true"/>
-	<param name="max_number_of_frames" value="4000000"/>
+	<param name="max_number_of_frames" value="400000"/>
   </node>
 
 </launch>
