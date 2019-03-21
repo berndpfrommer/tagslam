@@ -13,7 +13,7 @@ bodies:
          z: 0
        rotvec:
          x: 0
-         y: 0
+         y: 1.507963
          z: 0
        position_noise:
          x: 0.0001
