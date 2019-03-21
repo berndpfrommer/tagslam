@@ -8,6 +8,7 @@
 #include "tagslam/value_key.h"
 #include "tagslam/camera2.h"
 #include "tagslam/value/pose.h"
+#include "tagslam/profiler.h"
 
 #include <ros/ros.h>
 #include <geometry_msgs/Point.h>
@@ -37,7 +38,7 @@ namespace tagslam {
       std::shared_ptr<value::Pose> pose;
     };
     Graph();
-    ~Graph() {};
+    ~Graph();
     void setOptimizer(Optimizer *opt) { optimizer_ = opt; }
     void setPixelNoise(double pn) { pixelNoise_ = pn; }
     inline bool hasId(const Id &id) const {
@@ -121,5 +122,6 @@ namespace tagslam {
     Optimizer         *optimizer_;
     IdToVertexMap      idToVertex_;
     TimeToVertexesMap  times_;
+    Profiler           profiler_;
   };
 }

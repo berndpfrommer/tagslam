@@ -113,6 +113,7 @@ src/vertex.cpp
 src/camera_intrinsics2.cpp
 src/odometry_processor.cpp
 src/pnp.cpp
+src/profiler.cpp
 src/gtsam_distortion/Cal3FS2.cpp
 src/gtsam_distortion/Cal3DS3.cpp
 )

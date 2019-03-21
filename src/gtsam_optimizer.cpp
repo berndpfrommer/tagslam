@@ -185,13 +185,22 @@ namespace tagslam {
     //newValues_.print();
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
-      isam2_->update(newGraph_, newValues_);
-      for (int i = 0; i < 20; i++) {
-        isam2_->update();
+      gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
+      double prevErr = *res.errorAfter;
+      for (int i = 0; i < maxIter_ - 1; i++) {
+        res = isam2_->update();
+        // if either there is small improvement
+        if (*res.errorAfter < lastError_ + errorThreshold_ ||
+            fabs(*res.errorAfter - prevErr) < errorThreshold_ * 0.1) {
+          ROS_DEBUG_STREAM("stopped after iteration " << i << " now: " << *res.errorAfter << " last: " << lastError_ << " prev: " << prevErr);
+          break;
+        } else {
+          ROS_DEBUG_STREAM("new error: " << *res.errorAfter << " vs last: " << lastError_);
+        }
+        prevErr = *res.errorAfter;
       }
-      gtsam::ISAM2Result res = isam2_->update();
-      double err = *res.errorAfter;
-      ROS_INFO_STREAM("optimizer error: " << err);
+      lastError_ = *res.errorAfter;
+      ROS_INFO_STREAM("optimizer error: " << lastError_);
       values_ = isam2_->calculateEstimate();
       //std::cout << "---- optimized values: " << std::endl;
       //values_.print();

@@ -7,6 +7,7 @@
 #include "tagslam/gtsam_optimizer.h"
 #include "tagslam/graph.h"
 #include "tagslam/camera2.h"
+#include "tagslam/profiler.h"
 #include "tagslam/odometry_processor.h"
 
 #include <flex_sync/sync.h>
@@ -111,6 +112,7 @@ namespace tagslam {
     tf::TransformBroadcaster tfBroadcaster_;
     ros::ServiceServer   service_;
     TagMap               tagMap_;
+    Profiler             profiler_;
     std::list<ros::Time> times_;
   };
 }

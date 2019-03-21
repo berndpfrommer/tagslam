@@ -82,6 +82,10 @@ namespace tagslam {
 #endif
   }
 
+  Graph::~Graph() {
+    std::cout << profiler_ << std::endl;
+    std::cout.flush();
+  }
 /*
   template <class G>
   struct UnoptimizedValuesPredicate {
@@ -163,6 +167,7 @@ namespace tagslam {
 */  
 
   void Graph::optimize() {
+    profiler_.reset();
     if (optimizer_) {
       if (optimizeFullGraph_) {
         optimizer_->optimizeFullGraph();
@@ -170,6 +175,7 @@ namespace tagslam {
         optimizer_->optimize();
       }
     }
+    profiler_.record("optimize");
   }
 
   void Graph::addBody(const Body &body) {
@@ -482,6 +488,7 @@ namespace tagslam {
   Graph::findSubgraphs(const ros::Time &t,
                        const std::vector<BoostGraphVertex> &facs,
                        SubGraph *found) {
+    profiler_.reset();
     std::vector<std::list<BoostGraphVertex>> sv;
     ROS_DEBUG_STREAM("======================= finding subgraphs for t = " << t);
     // first look over the new factors
@@ -496,6 +503,7 @@ namespace tagslam {
         }
       }
     }
+    profiler_.record("findSubGraphs");
     return (sv);
   }
 
@@ -542,6 +550,8 @@ namespace tagslam {
         ROS_DEBUG_STREAM("all elements gone for time " << key);
         times_.erase(key);
       }
+      std::cout << profiler_ << std::endl;
+      std::cout.flush();
     }
   }
 
@@ -697,6 +707,7 @@ namespace tagslam {
 
                                                
   void Graph::initializeSubgraphs(const std::vector<std::list<BoostGraphVertex>> &verts) {
+    profiler_.reset();
     ROS_DEBUG_STREAM("----------- initializing " << verts.size() << " subgraphs");
     for (const auto &vset: verts) {
       ROS_DEBUG_STREAM("---------- subgraph of size: " << vset.size());
@@ -747,10 +758,12 @@ namespace tagslam {
         }
       }
     }
+    profiler_.record("initializeSubgraphs");
   }
 
  
   void Graph::transferValues() {
+    profiler_.reset();
     for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
       VertexPtr &vp = graph_[*vi.first].vertex;
       if (vp->isValue() && vp->isOptimized()) {
@@ -760,6 +773,7 @@ namespace tagslam {
         }
       }
     }
+    profiler_.record("transferValues");
   }
 
   void Graph::plotDebug(const ros::Time &t, const string &tag) {

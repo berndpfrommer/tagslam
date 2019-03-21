@@ -346,18 +346,25 @@ namespace tagslam {
                      Transform::Identity(), false);
     }
     std::vector<BoostGraphVertex> factors;
+    profiler_.reset();
 #define USE_ODOM
 #ifdef USE_ODOM
     if (odommsgs.size() != 0) {
       processOdom(odommsgs, &factors);
     }
+    profiler_.record("processOdom");
 #endif
     processTags(tagmsgs, &factors);
+    profiler_.record("processTags");
     graph_.processNewFactors(t, factors);
+    profiler_.record("processNewFactors");
     //graph_.plotDebug(tagMsgs[0]->header.stamp, "factors");
     //graph_.transferValues();
     times_.push_back(t);
     publishAll(t);
+    profiler_.record("publishAll");
+    std::cout << profiler_ << std::endl;
+    std::cout.flush();
     frameNum_++;
   }
 

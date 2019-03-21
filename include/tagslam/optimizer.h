@@ -16,6 +16,7 @@ namespace tagslam {
 
     virtual void optimize() = 0;
     virtual void optimizeFullGraph() = 0;
+    virtual void setErrorThreshold(double th) = 0;
 
 
     // retrieves the optimized pose for a given key

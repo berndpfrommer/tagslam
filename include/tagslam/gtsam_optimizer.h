@@ -20,6 +20,7 @@ namespace tagslam {
     // ---- implement Optimizer interface
     void      optimize() override;
     void      optimizeFullGraph() override;
+    void      setErrorThreshold(double th) override { errorThreshold_ = th; }
     Transform getPose(ValueKey key) override;
     ValueKey  addPose(const Transform &pose) override;
     FactorKey addRelativePosePrior(ValueKey key1, ValueKey key2,
@@ -50,6 +51,9 @@ namespace tagslam {
     std::shared_ptr<gtsam::ISAM2> isam2_;
     gtsam::ExpressionFactorGraph  fullGraph_;
     gtsam::ExpressionFactorGraph  newGraph_;
+    int                           maxIter_{20};
+    double                        lastError_{0};
+    double                        errorThreshold_{2.0};
     RadTanModelMap                radTanModelMap_;
     EquiModelMap                  equiModelMap_;
     PixelNoiseMap                 pixelNoiseMap_;
