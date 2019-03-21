@@ -243,6 +243,15 @@ namespace tagslam {
         ROS_INFO_STREAM(t<< " no pose for " << body->getName());
       }
     }
+    for (const auto &cam: cameras_) {
+      Transform camTF;
+      if (graph_.getPose(ros::Time(0), Graph::cam_name(cam->getName()), &camTF)) {
+        const string &rigFrameId = cam->getRig()->getFrameId();
+        tfBroadcaster_.sendTransform(
+          tf::StampedTransform(to_tftf(camTF), t, rigFrameId, cam->getFrameId()));
+        ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
+      }
+    }
   }
 
   void TagSlam2::playFromBag(const string &fname) {
