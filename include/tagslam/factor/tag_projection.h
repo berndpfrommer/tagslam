@@ -29,7 +29,6 @@ namespace tagslam {
       const std::shared_ptr<const Camera2> getCamera() const { return (cam_); }
       const std::shared_ptr<const Tag2> getTag() const { return (tag_); }
     private:
-      ros::Time                            time_;
       const std::shared_ptr<const Camera2> cam_;
       const std::shared_ptr<const Tag2>    tag_;
       Eigen::Matrix<double, 4, 2>          imgCorners_;

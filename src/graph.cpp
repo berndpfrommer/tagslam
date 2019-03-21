@@ -31,6 +31,15 @@ namespace tagslam {
   static Graph::Id make_id(const ros::Time &t, const std::string &name) {
     return (name + "_" + std::to_string(t.toNSec()));
   }
+  static bool contains(std::list<BoostGraphVertex> &c,
+                       const BoostGraphVertex &v) {
+    return (std::find(c.begin(), c.end(), v) != c.end());
+  }
+  static bool contains(std::vector<BoostGraphVertex> &c,
+                       const BoostGraphVertex &v) {
+    return (std::find(c.begin(), c.end(), v) != c.end());
+  }
+  
 
   template <class G>
   class LabelWriter {
@@ -382,7 +391,7 @@ namespace tagslam {
 #endif
 
   void
-  Graph::examine(BoostGraphVertex fac,
+  Graph::examine(const ros::Time &t, BoostGraphVertex fac,
                  std::list<BoostGraphVertex> *factorsToExamine,
                  SubGraph *found, SubGraph *sg) {
     // This is the factor vertex we are checking
@@ -431,7 +440,22 @@ namespace tagslam {
         if (fp) {
           if (fv != fac) { // no connections back
             ROS_DEBUG_STREAM("  " << vp->getLabel() << " activates " << fp->getLabel());
-            factorsToExamine->push_front(fv);
+            if (fp->getTime() == t || fp->getTime() == ros::Time(0)) {
+              factorsToExamine->push_front(fv);
+            } else {
+              TimeToVertexesMap::iterator it = times_.find(fp->getTime());
+              if (it == times_.end()) {
+                ROS_DEBUG_STREAM("   first vertex at time: " << fp->getTime());
+                it = times_.insert(TimeToVertexesMap::value_type(fp->getTime(), std::vector<BoostGraphVertex>())).first;
+              }
+              auto &c = it->second;
+              if (!contains(c, fv)) {
+                ROS_DEBUG_STREAM("   remembering factor " << fp->getLabel());
+                c.push_back(fv);
+              } else {
+                ROS_DEBUG_STREAM("   already remembered factor " << fp->getLabel());
+              }
+            }
           }
         }
       }
@@ -453,18 +477,20 @@ namespace tagslam {
     VertexConstPtr  vp = graph_[v].vertex;
     return (vp->getLabel());
   }
-  
+
   std::vector<std::list<BoostGraphVertex>>
-  Graph::findSubgraphs(const std::vector<BoostGraphVertex> &facs) {
+  Graph::findSubgraphs(const ros::Time &t,
+                       const std::vector<BoostGraphVertex> &facs,
+                       SubGraph *found) {
     std::vector<std::list<BoostGraphVertex>> sv;
-    ROS_DEBUG("===================================================");
-    SubGraph found;
-    for (const auto &pf: facs) {
-      auto it = std::find(found.factors.begin(), found.factors.end(), pf);
-      if (it == found.factors.end()) {
-        // a new factor that has not been discovered
+    ROS_DEBUG_STREAM("======================= finding subgraphs for t = " << t);
+    // first look over the new factors
+    for (const auto &fac: facs) {
+      ROS_DEBUG_STREAM(" ----- exploring new subgraph starting at: " << info(fac));
+      if (!contains(found->factors, fac)) {
+        // this is a new factor that has not been explored
         SubGraph sg;
-        exploreSubGraph(pf, &sg, &found);
+        exploreSubGraph(t, fac, &sg, found);
         if (!sg.factors.empty()) {
           sv.push_back(sg.factors);    // transfer factors
         }
@@ -474,7 +500,54 @@ namespace tagslam {
   }
 
   void
-  Graph::exploreSubGraph(BoostGraphVertex start,
+  Graph::processNewFactors(const ros::Time &t,
+                           const std::vector<BoostGraphVertex> &facs) {
+    ROS_DEBUG_STREAM("&&&&&&&&&&&&&&&&&&&&&&&&&&&&& got new factors for t = " << t);
+    SubGraph found;
+    std::vector<std::list<BoostGraphVertex>> sv;
+    sv = findSubgraphs(t, facs, &found);
+    if (sv.empty()) {
+      ROS_INFO_STREAM("no new factors activated!");
+      return;
+    }
+    initializeSubgraphs(sv);
+    optimize();
+    transferValues();
+#if 0    
+    for (const auto &kv: times_) {
+      ROS_DEBUG_STREAM("time: " << kv.first);
+    }
+#endif    
+
+    ROS_DEBUG_STREAM("&-&-&-&-&-&-&-& done with new factors for t = " << t);
+    while (!times_.empty()) {
+      auto it = times_.rbegin();
+      const ros::Time key = it->first;
+      ROS_DEBUG_STREAM("++++++++++ handling old factors for t = " << key);
+      sv = findSubgraphs(key, it->second, &found);
+      initializeSubgraphs(sv);
+      optimize();
+      transferValues();
+      // now remove factors that have been used
+      ROS_DEBUG_STREAM("removing used factors...");
+      for (auto ii = times_[key].begin(); ii != times_[key].end();) {
+        if (contains(found.factors, *ii)) {
+          ROS_DEBUG_STREAM("removing used factor " << info(*ii) << " for time "  << key);
+          ii = times_[key].erase(ii);
+        } else {
+          ++ii;
+        }
+      }
+      if (times_[key].empty()) {
+        ROS_DEBUG_STREAM("all elements gone for time " << key);
+        times_.erase(key);
+      }
+    }
+  }
+
+  void
+  Graph::exploreSubGraph(const ros::Time &t,
+                         BoostGraphVertex start,
                          SubGraph *subGraph, SubGraph *found) {
     std::list<BoostGraphVertex> factorsToExamine;
     factorsToExamine.push_back(start);
@@ -482,7 +555,7 @@ namespace tagslam {
       BoostGraphVertex exFac = factorsToExamine.front();
       factorsToExamine.pop_front();
       // examine() may append new factors to factorsToExamine
-      examine(exFac, &factorsToExamine, found, subGraph);
+      examine(t, exFac, &factorsToExamine, found, subGraph);
     }
   }
 
@@ -567,6 +640,7 @@ namespace tagslam {
     case 1: { // T_w_r = T_w_b * T_b_o * T_o_c * T_c_r
       T[idx]->setPose(T[2]->getPose() * T[3]->getPose() *
                       T_c_o.inverse() * T[0]->getPose().inverse());
+      //ROS_DEBUG_STREAM("setting rig pose: " << T[idx]->getLabel() << std::endl << T[idx]->getPose());
       break; }
     case 2: { // T_w_b = T_w_r * T_r_c * T_c_o * T_o_b
       T[idx]->setPose(T[1]->getPose() * T[0]->getPose() *
@@ -577,7 +651,9 @@ namespace tagslam {
                       T[0]->getPose() * T_c_o);
       break; }
     case -1: {
-      ROS_DEBUG_STREAM("factor has no missing values!");
+      // T_c_o = T_c_r[0] * T_r_w[1] * T_w_b[2] * T_b_o[3]
+      Transform Test_c_o = T[0]->getPose().inverse() * T[1]->getPose().inverse() * T[2]->getPose() * T[3]->getPose();
+      ROS_DEBUG_STREAM("duplicate factor with mismatch: " << std::endl << T_c_o * Test_c_o.inverse());
       return;
       break; }
     default: {
@@ -643,9 +719,11 @@ namespace tagslam {
                            << std::endl << tf.second);
           if (tf.second) {
             setValueFromTagProjection(fv, tf.first);
-            fp->setIsValid(true);
-            addProjectionFactorToOptimizer(fv);
-            // add factor and values to optimizer
+            if (!fp->isOptimized()) {
+              // add factor and values to optimizer
+              fp->setIsValid(true);
+              addProjectionFactorToOptimizer(fv);
+            }
           }
         } else {
           RelativePosePriorFactorPtr rp =
@@ -670,6 +748,7 @@ namespace tagslam {
       }
     }
   }
+
  
   void Graph::transferValues() {
     for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {

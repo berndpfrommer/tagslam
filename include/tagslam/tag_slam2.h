@@ -47,7 +47,7 @@ namespace tagslam {
     template<typename S>
     void processBag(S *sync, rosbag::View *view) {
       for (const rosbag::MessageInstance &m: *view) {
-        typename S::Type1::ConstPtr t1 = m.instantiate<typename S::Type1>();
+         typename S::Type1::ConstPtr t1 = m.instantiate<typename S::Type1>();
         if (t1) {    sync->process(m.getTopic(), t1); } else {
           typename S::Type2::ConstPtr t2 = m.instantiate<typename S::Type2>();
           if (t2) {  sync->process(m.getTopic(), t2); } else {

@@ -196,6 +196,9 @@ namespace tagslam {
         }
       }
     }
+    ROS_INFO_STREAM("number of tag   topics: " << topics[0].size());
+    ROS_INFO_STREAM("number of image topics: " << topics[1].size());
+    ROS_INFO_STREAM("number of odom  topics: " << topics[2].size());
     return (topics);
   }
 
@@ -237,7 +240,7 @@ namespace tagslam {
           }
         }
       } else {
-        ROS_INFO_STREAM("no pose for " << body->getName());
+        ROS_INFO_STREAM(t<< " no pose for " << body->getName());
       }
     }
   }
@@ -336,17 +339,14 @@ namespace tagslam {
     std::vector<BoostGraphVertex> factors;
 #define USE_ODOM
 #ifdef USE_ODOM
-    if (odommsgs.size() == 0) {
-      return;
+    if (odommsgs.size() != 0) {
+      processOdom(odommsgs, &factors);
     }
-    processOdom(odommsgs, &factors);
 #endif
     processTags(tagmsgs, &factors);
+    graph_.processNewFactors(t, factors);
     //graph_.plotDebug(tagMsgs[0]->header.stamp, "factors");
-    auto subGraphs = graph_.findSubgraphs(factors);
-    graph_.initializeSubgraphs(subGraphs);
-    graph_.optimize();
-    graph_.transferValues();
+    //graph_.transferValues();
     times_.push_back(t);
     publishAll(t);
     frameNum_++;

@@ -15,11 +15,10 @@ namespace tagslam {
       RelativePosePrior(const ros::Time     &t  = ros::Time(0),
                         const PoseWithNoise &p  = PoseWithNoise(),
                         const std::string   &name = "") :
-        Factor(name), time_(t), poseWithNoise_(p) {}
+        Factor(name, t), poseWithNoise_(p) {}
       std::string getLabel() const override;
       const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
     private:
-      ros::Time     time_;
       PoseWithNoise poseWithNoise_;
     };
   }

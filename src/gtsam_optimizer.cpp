@@ -205,6 +205,10 @@ namespace tagslam {
   }
 
   void GTSAMOptimizer::optimizeFullGraph() {
+    if (newGraph_.empty() && newValues_.empty()) {
+      ROS_INFO_STREAM("graph not updated, no need to optimize!");
+      return;
+    }
     fullGraph_ += newGraph_;
     values_.insert(newValues_);
     gtsam::LevenbergMarquardtParams lmp;

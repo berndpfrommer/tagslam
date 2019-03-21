@@ -14,7 +14,7 @@ namespace tagslam {
                                  const std::shared_ptr<const Tag2> &tag,
                                  const geometry_msgs::Point *imgCorn,
                                  const std::string   &name) :
-      Factor(name), time_(t), cam_(cam), tag_(tag) {
+      Factor(name, t), cam_(cam), tag_(tag) {
       imgCorners_ <<
         imgCorn[0].x, imgCorn[0].y,
         imgCorn[1].x, imgCorn[1].y,

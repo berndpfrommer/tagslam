@@ -80,14 +80,11 @@ namespace tagslam {
                         const Camera2ConstPtr &cam,
                         const geometry_msgs::Point *imgCorners);
 
-    std::vector<std::list<BoostGraphVertex>>
-    findSubgraphs(const std::vector<BoostGraphVertex> &fac);
-
     static string tag_name(int tagid);
     static string body_name(const string &body);
     static string cam_name(const string &cam);
-    void initializeSubgraphs(const std::vector<std::list<BoostGraphVertex>> &verts);
-    void transferValues();
+    void processNewFactors(const ros::Time &t,
+                           const std::vector<BoostGraphVertex> &facs);
   private:
     struct SubGraph {
       typedef std::list<BoostGraphVertex> FactorCollection;
@@ -95,9 +92,17 @@ namespace tagslam {
       FactorCollection  factors;
       ValueCollection   values;
     };
-    void exploreSubGraph(BoostGraphVertex start,
+    void initializeSubgraphs(const std::vector<std::list<BoostGraphVertex>> &verts);
+    std::vector<std::list<BoostGraphVertex>>
+    findSubgraphs(const ros::Time &t,
+                  const std::vector<BoostGraphVertex> &fac,
+                  SubGraph *found);
+
+    void transferValues();
+    void exploreSubGraph(const ros::Time &t,
+                         BoostGraphVertex start,
                          SubGraph *subGraph, SubGraph *found);
-    void examine(BoostGraphVertex fac,
+    void examine(const ros::Time &t, BoostGraphVertex fac,
                  std::list<BoostGraphVertex> *factorsToExamine,
                  SubGraph *found, SubGraph *sg);
     void addProjectionFactorToOptimizer(const BoostGraphVertex v);
@@ -108,11 +113,13 @@ namespace tagslam {
     void setValueFromTagProjection(BoostGraphVertex v, const Transform &T_c_o);
     std::string info(BoostGraphVertex v) const;
     typedef std::unordered_map<Id, BoostGraphVertex> IdToVertexMap;
+    typedef std::map<ros::Time, std::vector<BoostGraphVertex>> TimeToVertexesMap;
     // ------ variables --------------
     BoostGraph         graph_;
     double             pixelNoise_{1.0};
     bool               optimizeFullGraph_;
     Optimizer         *optimizer_;
     IdToVertexMap      idToVertex_;
+    TimeToVertexesMap  times_;
   };
 }
