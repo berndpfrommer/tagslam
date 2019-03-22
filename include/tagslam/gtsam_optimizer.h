@@ -19,7 +19,7 @@ namespace tagslam {
     ~GTSAMOptimizer();
     // ---- implement Optimizer interface
     void      optimize() override;
-    void      optimizeFullGraph() override;
+    void      optimizeFullGraph(bool force = false) override;
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
     Transform getPose(ValueKey key) override;
     ValueKey  addPose(const Transform &pose) override;

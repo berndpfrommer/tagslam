@@ -15,7 +15,7 @@ namespace tagslam {
     virtual ~Optimizer() {};
 
     virtual void optimize() = 0;
-    virtual void optimizeFullGraph() = 0;
+    virtual void optimizeFullGraph(bool force = false) = 0;
     virtual void setErrorThreshold(double th) = 0;
 
 

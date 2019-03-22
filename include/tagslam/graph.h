@@ -71,6 +71,7 @@ namespace tagslam {
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void plotDebug(const ros::Time &t, const string &tag);
     void optimize();
+    void reoptimize();
     void test();
     void addTagMeasurements(const BodyVec &bodies,
                             const std::vector<TagArrayConstPtr> &tagMsgs,

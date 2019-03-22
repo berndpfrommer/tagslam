@@ -23,7 +23,8 @@ namespace tagslam {
     p.setEvaluateNonlinearError(true);
     // these two settings were absolutely necessary to
     // make ISAM2 work.
-    p.relinearizeThreshold = 0.01;
+    //p.relinearizeThreshold = 0.01;
+    p.relinearizeThreshold = 0.05;
     p.relinearizeSkip = 1;
     std::shared_ptr<gtsam::ISAM2> isam2(new gtsam::ISAM2(p));
     return (isam2);
@@ -223,8 +224,8 @@ namespace tagslam {
     }
   }
 
-  void GTSAMOptimizer::optimizeFullGraph() {
-    if (newGraph_.empty() && newValues_.empty()) {
+  void GTSAMOptimizer::optimizeFullGraph(bool force) {
+    if (newGraph_.empty() && newValues_.empty() && !force) {
       ROS_INFO_STREAM("graph not updated, no need to optimize!");
       return;
     }

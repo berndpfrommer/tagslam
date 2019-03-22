@@ -532,8 +532,8 @@ namespace tagslam {
     for (const auto &kv: times_) {
       ROS_DEBUG_STREAM("time: " << kv.first);
     }
-#endif    
-
+#endif
+    std::cout << profiler_ << std::endl;
     ROS_DEBUG_STREAM("&-&-&-&-&-&-&-& done with new factors for t = " << t);
     while (!times_.empty()) {
       auto it = times_.rbegin();
@@ -784,6 +784,10 @@ namespace tagslam {
       }
     }
     profiler_.record("transferValues");
+  }
+
+  void Graph::reoptimize() {
+    optimizer_->optimizeFullGraph(true);
   }
 
   void Graph::plotDebug(const ros::Time &t, const string &tag) {

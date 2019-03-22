@@ -299,6 +299,7 @@ namespace tagslam {
       bag.close();
     }
     ROS_INFO_STREAM("done processing bag!");
+    graph_.reoptimize();
   }
 
   void TagSlam2::syncCallback(
