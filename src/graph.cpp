@@ -31,6 +31,13 @@ namespace tagslam {
   static Graph::Id make_id(const ros::Time &t, const std::string &name) {
     return (name + "_" + std::to_string(t.toNSec()));
   }
+
+  static double find_size_of_tag(const Eigen::Matrix<double, 4, 2> &x) {
+    // shoelace formula
+    const double A = fabs(x(0,0)*x(1,1) + x(1,0)*x(2,1) + x(2,0)*x(3,1) + x(3,0)*x(0,1)
+                          -x(1,0)*x(0,1) - x(2,0)*x(1,1) - x(3,0)*x(2,1) - x(0,0)*x(3,1));
+    return (A);
+  }
   static bool contains(std::list<BoostGraphVertex> &c,
                        const BoostGraphVertex &v) {
     return (std::find(c.begin(), c.end(), v) != c.end());
@@ -645,7 +652,7 @@ namespace tagslam {
     switch (idx) {
     case 0: { // T_r_c = T_r_w * T_w_b * T_b_o * T_o_c
       T[idx]->setPose(T[1]->getPose().inverse() * T[2]->getPose() *
-                      T[3]->getPose() * T_c_o.inverse()); 
+                      T[3]->getPose() * T_c_o.inverse());
       break; }
     case 1: { // T_w_r = T_w_b * T_b_o * T_o_c * T_c_r
       T[idx]->setPose(T[2]->getPose() * T[3]->getPose() *
@@ -663,7 +670,10 @@ namespace tagslam {
     case -1: {
       // T_c_o = T_c_r[0] * T_r_w[1] * T_w_b[2] * T_b_o[3]
       Transform Test_c_o = T[0]->getPose().inverse() * T[1]->getPose().inverse() * T[2]->getPose() * T[3]->getPose();
-      ROS_DEBUG_STREAM("duplicate factor with mismatch: " << std::endl << T_c_o * Test_c_o.inverse());
+      Transform poseDiff = T_c_o * Test_c_o.inverse();
+      Eigen::AngleAxisd aa;
+      aa.fromRotationMatrix(poseDiff.rotation());
+      ROS_DEBUG_STREAM("dup factor with mismatch angle: " << aa.angle() << " len: " << poseDiff.translation().norm());
       return;
       break; }
     default: {
@@ -726,8 +736,8 @@ namespace tagslam {
           auto tf = pnp::pose_from_4(fp->getImageCorners(),
                                      fp->getTag()->getObjectCorners(),
                                      ci.getK(), ci.getDistortionModel(), ci.getD());
-          ROS_DEBUG_STREAM("got homography: " << std::endl << tf.first << " "
-                           << std::endl << tf.second);
+          double sz = find_size_of_tag(fp->getImageCorners());
+          ROS_DEBUG_STREAM("got homography, area " << sz << " good: " << tf.second << std::endl << tf.first);
           if (tf.second) {
             setValueFromTagProjection(fv, tf.first);
             if (!fp->isOptimized()) {

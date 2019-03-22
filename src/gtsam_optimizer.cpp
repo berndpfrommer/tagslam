@@ -206,6 +206,16 @@ namespace tagslam {
       //values_.print();
       //values_.print();
       //fullGraph_.print();
+//#ifdef DEBUG_BEFORE_AFTER   
+    for (const auto &v : newValues_) {
+      std::cout << "----- before: " << std::endl;
+      v.value.print();
+      std::cout << std::endl;
+      std::cout << "----- after: " << std::endl;
+      values_.at(v.key).print();
+      std::cout << std::endl;
+    }
+//#endif    
       newGraph_.erase(newGraph_.begin(), newGraph_.end());
       newValues_.clear();
     } else {

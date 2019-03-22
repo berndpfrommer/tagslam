@@ -60,12 +60,13 @@ namespace tagslam {
       cv::Mat SL;
       cv::SVD::compute(HL, SL);
       cv::Mat H  = HL * 1.0/SL.at<double>(0, 1);
+      cv::Mat RR(3,3,CV_64F);
+#ifdef USE_SHORTCUT      
       // now normalize and orthogonalize the first two columns,
       // which are the first two columns of the rotation matrix R
-      cv::Mat r1=H.col(0)/cv::norm(H.col(0));
+      cv::Mat r1 = H.col(0)/cv::norm(H.col(0));
       cv::Mat r2 = H.col(1) - H.col(1).dot(r1)*r1;
       r2 = r2/cv::norm(r2);
-      cv::Mat RR(3,3,CV_64F);
       r1.copyTo(RR.col(0));
       r2.copyTo(RR.col(1));
       // r3 = r1 x r2
@@ -75,10 +76,29 @@ namespace tagslam {
         r1.at<double>(0,0)*r2.at<double>(2,0);
       RR.at<double>(2,2) = r1.at<double>(0,0)*r2.at<double>(1,0) -
         r1.at<double>(1,0)*r2.at<double>(0,0);
-      *rvec = cv::Mat(3,1,CV_64F);
-      cv::Rodrigues(RR, *rvec);
+      //std::cout << "decomposed homography simple: " << std::endl << RR << std::endl;
       *tvec = cv::Mat(3,1,CV_64F);
       H.col(2).copyTo(*tvec);
+#else      
+      cv::Mat H12 = cv::Mat_<double>(3,3);
+      HL.col(0).copyTo(H12.col(0));
+      HL.col(1).copyTo(H12.col(1));
+      HL.col(0).cross(HL.col(1)).copyTo(H12.col(2));
+      cv::Mat W, U, VT;
+      cv::SVD::compute(H12, W, U, VT);
+      cv::Mat diag = (cv::Mat_<double>(3,3) << 1, 0, 0,    0, 1, 0,   0, 0, cv::determinant(U*VT));
+      cv::Mat RSVD = U * diag * VT;
+      //std::cout << "decomposed homography SVD: " << cv::determinant(RSVD) << std::endl << RSVD << std::endl;
+      //std::cout << "error vs homography SVD: " << W.at<double>(0) << " " << W.at<double>(1) << " " << W.at<double>(2) << std::endl << RSVD * RR.t() << std::endl;
+      RR = RSVD;
+      *tvec = cv::Mat(3,1,CV_64F);
+      cv::Mat hl(3, 1, CV_64F);
+      HL.col(2).copyTo(hl);
+      hl = hl / cv::norm(HL.col(0));
+      hl.copyTo(*tvec);
+#endif      
+      *rvec = cv::Mat(3,1,CV_64F);
+      cv::Rodrigues(RR, *rvec);
     }
 
     static cv::Mat

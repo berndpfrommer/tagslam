@@ -39,6 +39,18 @@ namespace tagslam {
     return (ttf);
   }
   
+  static double find_size_of_tag(const geometry_msgs::Point *imgCorn) {
+    Eigen::Matrix<double, 4, 2> x;
+    x << imgCorn[0].x, imgCorn[0].y,
+      imgCorn[1].x, imgCorn[1].y,
+      imgCorn[2].x, imgCorn[2].y,
+      imgCorn[3].x, imgCorn[3].y;
+    // shoelace formula
+    const double A = fabs(x(0,0)*x(1,1) + x(1,0)*x(2,1) + x(2,0)*x(3,1) + x(3,0)*x(0,1)
+                          -x(1,0)*x(0,1) - x(2,0)*x(1,1) - x(3,0)*x(2,1) - x(0,0)*x(3,1));
+    return (A);
+  }
+ 
   TagSlam2::TagSlam2(const ros::NodeHandle &nh) : nh_(nh) {
   }
 
@@ -441,6 +453,9 @@ namespace tagslam {
       ROS_ERROR_STREAM("tag msgs size mismatch!");
       return;
     }
+    typedef std::multimap<double, BoostGraphVertex> MMap;
+    MMap sortedFactors;
+
     for (const auto i: irange(0ul, cameras_.size())) {
       const ros::Time &t = tagMsgs[i]->header.stamp;
       for (const auto &tag: tagMsgs[i]->apriltags) {
@@ -449,7 +464,8 @@ namespace tagslam {
           const geometry_msgs::Point *img_corners = &(tag.corners[0]);
           auto fac = graph_.addProjectionFactor(t, tagPtr, cameras_[i],
                                                 img_corners);
-          factors->push_back(fac);
+          double sz = find_size_of_tag(img_corners);
+          sortedFactors.insert(MMap::value_type(sz, fac));
         }
       }
       std::stringstream ss;
@@ -458,6 +474,9 @@ namespace tagslam {
       }
       ROS_INFO_STREAM("frame " << frameNum_ << " " << cameras_[i]->getName()
                       << " sees tags: " << ss.str());
+    }
+    for (auto it = sortedFactors.rbegin(); it != sortedFactors.rend(); ++it) {
+      factors->push_back(it->second);
     }
   }
 
