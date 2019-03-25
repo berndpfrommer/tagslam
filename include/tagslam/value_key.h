@@ -2,8 +2,10 @@
  * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
+#include <cstddef>
+
 #pragma once
 
 namespace tagslam {
-  typedef size_t ValueKey;
+  typedef std::size_t ValueKey;
 }

@@ -71,10 +71,9 @@ namespace tagslam {
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
     double pixelNoise;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
-    graph_.setPixelNoise(pixelNoise);
+    graphManager_.setPixelNoise(pixelNoise);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
-    graph_.setOptimizer(&optimizer_);
-    graph_.setOptimizeFullGraph(optFullGraph);
+    graphManager_.setOptimizeFullGraph(optFullGraph);
     readBodies();
     bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
@@ -90,12 +89,12 @@ namespace tagslam {
       PoseWithNoise pwn = PoseWithNoise::parse(cam->getName(), nh_);
       if (!pwn.isValid()) {
         ROS_INFO_STREAM("camera " << cam->getName() << " has no pose!");
-        graph_.addPose(ros::Time(0), Graph::cam_name(cam->getName()),
+        graphManager_.addPose(ros::Time(0), Graph::cam_name(cam->getName()),
                        Transform::Identity(), false);
       } else {
         camHasKnownPose = true;
         ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
-        graph_.addPoseWithPrior(ros::Time(0),
+        graphManager_.addPoseWithPrior(ros::Time(0),
                                 Graph::cam_name(cam->getName()), pwn);
       }
     }
@@ -104,8 +103,7 @@ namespace tagslam {
       return (false);
     }
     //
-    //optimizer_.optimizeFullGraph();
-    optimizer_.optimize();
+    graphManager_.optimize();
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
@@ -118,7 +116,7 @@ namespace tagslam {
 
     sleep(1.0);
     playFromBag(bagFile);
-    //graph_.plotDebug(ros::Time(0), "final");
+    //graphManager_.plotDebug(ros::Time(0), "final");
     return (true);
   }
 
@@ -133,7 +131,7 @@ namespace tagslam {
     // now read bodies
     bodies_ = Body::parse_bodies(config);
     for (const auto &body: bodies_) {
-      graph_.addBody(*body);
+      graphManager_.addBody(*body);
       // add associated tags as vertices
       for (const auto &tag: body->getTags()) {
         tagMap_.insert(TagMap::value_type(tag->getId(), tag));
@@ -236,14 +234,14 @@ namespace tagslam {
       Transform bodyTF;
       const string &bodyFrameId = body->getFrameId();
       const ros::Time ts = body->isStatic() ? ros::Time(0) : t;
-      if (graph_.getPose(ts, Graph::body_name(body->getName()), &bodyTF)) {
+      if (graphManager_.getPose(ts, Graph::body_name(body->getName()), &bodyTF)) {
         //ROS_INFO_STREAM("publishing pose for body "
         // << body->getName() << std::endl << bodyTF);
         tfBroadcaster_.sendTransform(
           tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId));
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
-          if (graph_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
+          if (graphManager_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
             const std::string frameId = "tag_" + std::to_string(tag->getId());
             //ROS_INFO_STREAM("publishing pose for tag "
             //<< tag->getId() << std::endl << tagTF);
@@ -257,7 +255,7 @@ namespace tagslam {
     }
     for (const auto &cam: cameras_) {
       Transform camTF;
-      if (graph_.getPose(ros::Time(0), Graph::cam_name(cam->getName()), &camTF)) {
+      if (graphManager_.getPose(ros::Time(0), Graph::cam_name(cam->getName()), &camTF)) {
         const string &rigFrameId = cam->getRig()->getFrameId();
         tfBroadcaster_.sendTransform(
           tf::StampedTransform(to_tftf(camTF), t, rigFrameId, cam->getFrameId()));
@@ -299,7 +297,7 @@ namespace tagslam {
       bag.close();
     }
     ROS_INFO_STREAM("done processing bag!");
-    graph_.reoptimize();
+    graphManager_.reoptimize();
   }
 
   void TagSlam2::syncCallback(
@@ -334,7 +332,7 @@ namespace tagslam {
     for (const auto body_idx: irange(0ul, nonstaticBodies_.size())) {
       const auto body = nonstaticBodies_[body_idx];
       Transform pose;
-      if (graph_.getPose(t, Graph::body_name(body->getName()), &pose)) {
+      if (graphManager_.getPose(t, Graph::body_name(body->getName()), &pose)) {
         //ROS_INFO_STREAM("publishing odom for body " << body->getName() << std::endl << pose);
         odomPub_[body_idx].publish(
           make_odom(t, fixedFrame_, body->getOdomFrameId(), pose));
@@ -355,10 +353,10 @@ namespace tagslam {
 
     // add unknown poses for all non-static bodies
     for (const auto &body: nonstaticBodies_) {
-      graph_.addPose(t, Graph::body_name(body->getName()),
+      graphManager_.addPose(t, Graph::body_name(body->getName()),
                      Transform::Identity(), false);
     }
-    std::vector<BoostGraphVertex> factors;
+    std::vector<Graph::Vertex> factors;
     profiler_.reset();
 #define USE_ODOM
 #ifdef USE_ODOM
@@ -369,10 +367,9 @@ namespace tagslam {
 #endif
     processTags(tagmsgs, &factors);
     profiler_.record("processTags");
-    graph_.processNewFactors(t, factors);
+    graphManager_.processNewFactors(t, factors);
     profiler_.record("processNewFactors");
-    //graph_.plotDebug(tagMsgs[0]->header.stamp, "factors");
-    //graph_.transferValues();
+    //graphManager_.plotDebug(tagMsgs[0]->header.stamp, "factors");
     times_.push_back(t);
     publishAll(t);
     profiler_.record("publishAll");
@@ -408,13 +405,13 @@ namespace tagslam {
         ROS_WARN_STREAM("This will screw up the odom!");
       }
       ROS_INFO_STREAM("getting odom from " << bpt->getName() << " " << frameId);
-      odomProcessors_.push_back(OdometryProcessor(nh_, &graph_, bpt));
+      odomProcessors_.push_back(OdometryProcessor(nh_, &graphManager_, bpt));
     }
   }
 
   void
   TagSlam2::processOdom(const std::vector<OdometryConstPtr> &odomMsgs,
-                        std::vector<BoostGraphVertex> *factors) {
+                        std::vector<Graph::Vertex> *factors) {
     if (odomProcessors_.empty()) {
       setupOdom(odomMsgs);
     }
@@ -440,7 +437,7 @@ namespace tagslam {
         defaultBody_->addTag(p);
         ROS_INFO_STREAM("new tag " << tagId << " attached to " <<
                         defaultBody_->getName());
-        graph_.addTag(*p);
+        graphManager_.addTag(*p);
         auto iit = tagMap_.insert(TagMap::value_type(tagId, p));
         it = iit.first;
       }
@@ -449,12 +446,12 @@ namespace tagslam {
   }
 
   void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
-                             std::vector<BoostGraphVertex> *factors) {
+                             std::vector<Graph::Vertex> *factors) {
     if (tagMsgs.size() != cameras_.size()) {
       ROS_ERROR_STREAM("tag msgs size mismatch!");
       return;
     }
-    typedef std::multimap<double, BoostGraphVertex> MMap;
+    typedef std::multimap<double, Graph::Vertex> MMap;
     MMap sortedFactors;
 
     for (const auto i: irange(0ul, cameras_.size())) {
@@ -463,8 +460,8 @@ namespace tagslam {
         Tag2ConstPtr tagPtr = findTag(tag.id);
         if (tagPtr) {
           const geometry_msgs::Point *img_corners = &(tag.corners[0]);
-          auto fac = graph_.addProjectionFactor(t, tagPtr, cameras_[i],
-                                                img_corners);
+          auto fac = graphManager_.addProjectionFactor(t, tagPtr, cameras_[i],
+                                                       img_corners);
           double sz = find_size_of_tag(img_corners);
           sortedFactors.insert(MMap::value_type(sz, fac));
         }

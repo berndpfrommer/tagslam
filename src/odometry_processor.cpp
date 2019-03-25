@@ -4,7 +4,7 @@
 
 #include "tagslam/odometry_processor.h"
 #include "tagslam/geometry.h"
-#include "tagslam/graph.h"
+#include "tagslam/graph_manager.h"
 #include <geometry_msgs/Quaternion.h>
 #include <geometry_msgs/Point.h>
 
@@ -13,9 +13,9 @@ namespace tagslam {
   using OdometryConstPtr = nav_msgs::OdometryConstPtr;
 
   OdometryProcessor::OdometryProcessor(ros::NodeHandle &nh,
-                                       Graph *graph,
+                                       GraphManager *gm,
                                        const BodyConstPtr &body) :
-    graph_(graph), body_(body) {
+    graphManager_(gm), body_(body) {
     pub_ = nh.advertise<nav_msgs::Odometry>("raw_odom/body_"+body->getName(), 5);
     T_body_odom_ = body->getTransformBodyOdom();
     deltaPoseNoise_ = body->getOdomNoise();
@@ -30,7 +30,7 @@ namespace tagslam {
 
   void
   OdometryProcessor::process(const OdometryConstPtr &msg,
-                             std::vector<BoostGraphVertex> *factors) {
+                             std::vector<Graph::Vertex> *factors) {
     auto msg2 = *msg;
     msg2.header.frame_id = "map";
     pub_.publish(msg2);
@@ -41,23 +41,11 @@ namespace tagslam {
     if (time_ == ros::Time(0)) {
       pose_ = newPose;
       time_ = msg->header.stamp;
-//#define INIT_POSE
-#ifdef INIT_POSE
-      std::string name = Graph::body_name(body_->getName());
-      Graph::VertexPose vp = graph_->findPose(time_, name);
-      PoseWithNoise pn(newPose.inverse(), //Transform::Identity(),
-                       PoseNoise2::make(0.0001, 0.0001), true);
-      if (!vp.pose) {
-        graph_->addPoseWithPrior(time_, name, pn);
-      } else {
-        graph_->addPrior(time_, vp, name,pn);
-      }
-#endif      
     } else {
       const auto &tf = T_body_odom_;
       Transform deltaPose = tf * pose_.inverse() * newPose * tf.inverse();
       const PoseWithNoise pn(deltaPose, deltaPoseNoise_, true);
-      auto fac = graph_->addBodyPoseDelta(time_, msg->header.stamp, body_, pn);
+      auto fac = graphManager_->addBodyPoseDelta(time_, msg->header.stamp, body_, pn);
       factors->push_back(fac);
     }
     pose_ = newPose;

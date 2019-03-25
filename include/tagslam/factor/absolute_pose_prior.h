@@ -19,8 +19,11 @@ namespace tagslam {
         setIsValid(p.isValid());
       }
       std::string getLabel() const override;
+      const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
     private:
       PoseWithNoise poseWithNoise_;
     };
   }
+  typedef std::shared_ptr<factor::AbsolutePosePrior> AbsolutePosePriorFactorPtr;
+  typedef std::shared_ptr<const factor::AbsolutePosePrior> AbsolutePosePriorFactorConstPtr;
 }

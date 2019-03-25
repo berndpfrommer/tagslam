@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "tagslam/gtsam_optimizer.h"
-#include "tagslam/graph.h"
+#include "tagslam/graph_manager.h"
 #include "tagslam/camera2.h"
 #include "tagslam/profiler.h"
 #include "tagslam/odometry_processor.h"
@@ -37,7 +36,6 @@ namespace tagslam {
     using CompressedImage = sensor_msgs::CompressedImage;
     using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
     using string = std::string;
-    using VertexPose = Graph::VertexPose;
   public:
     TagSlam2(const ros::NodeHandle &nh);
     TagSlam2(const TagSlam2&) = delete;
@@ -72,11 +70,10 @@ namespace tagslam {
   private:
     typedef std::unordered_map<int, Tag2ConstPtr> TagMap;
 
-    void makeGraph();
     void readBodies();
     void playFromBag(const std::string &fname);
     void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
-                     std::vector<BoostGraphVertex> *factors);
+                     std::vector<Graph::Vertex> *factors);
     std::vector<std::vector<string>> makeTopics(rosbag::Bag *bag) const;
     void setupOdom(const std::vector<OdometryConstPtr> &odomMsgs);
     void processTagsAndOdom(const std::vector<TagArrayConstPtr> &tagmsgs,
@@ -85,7 +82,7 @@ namespace tagslam {
     void publishBodyOdom(const ros::Time &t);
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
-                     std::vector<BoostGraphVertex> *factors);
+                     std::vector<Graph::Vertex> *factors);
     Tag2ConstPtr findTag(int tagId);
     void publishAll(const ros::Time &t);
     bool replay(std_srvs::Trigger::Request& req,
@@ -93,8 +90,7 @@ namespace tagslam {
 
     // ------ variables --------
     ros::NodeHandle      nh_;
-    Graph                graph_;
-    GTSAMOptimizer       optimizer_;
+    GraphManager         graphManager_;
     Camera2Vec           cameras_;
     BodyVec              bodies_;
     BodyVec              nonstaticBodies_;

@@ -12,13 +12,16 @@ namespace tagslam {
   namespace factor {
     class RelativePosePrior: public Factor {
     public:
-      RelativePosePrior(const ros::Time     &t  = ros::Time(0),
+      RelativePosePrior(const ros::Time     &t    = ros::Time(0),
+                        const ros::Time     &tm1  = ros::Time(0),
                         const PoseWithNoise &p  = PoseWithNoise(),
                         const std::string   &name = "") :
-        Factor(name, t), poseWithNoise_(p) {}
+        Factor(name, t), prevTime_(tm1), poseWithNoise_(p) {}
       std::string getLabel() const override;
+      const ros::Time &getPreviousTime() const { return (prevTime_); }
       const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
     private:
+      ros::Time     prevTime_;
       PoseWithNoise poseWithNoise_;
     };
   }

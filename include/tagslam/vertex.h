@@ -20,11 +20,12 @@ namespace tagslam {
     virtual bool isValue() const = 0;
     virtual bool isOptimized() const = 0;
 
-    bool isValid() const { return (isValid_); }
-    void setIsValid(bool v) { isValid_ = v; }
-    
     virtual std::string getLabel() const { return (name_); }
     virtual std::string getShape() const { return (shape_); }
+    
+    bool        isValid() const { return (isValid_); }
+    void        setIsValid(bool v) { isValid_ = v; }
+    std::string getName() const { return (name_); }
     friend std::ostream &operator<<(std::ostream &os, const Vertex &v);
   protected:
     // ----

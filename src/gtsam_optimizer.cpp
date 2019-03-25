@@ -207,7 +207,7 @@ namespace tagslam {
       //values_.print();
       //values_.print();
       //fullGraph_.print();
-//#ifdef DEBUG_BEFORE_AFTER   
+#ifdef DEBUG_BEFORE_AFTER   
     for (const auto &v : newValues_) {
       std::cout << "----- before: " << std::endl;
       v.value.print();
@@ -216,7 +216,7 @@ namespace tagslam {
       values_.at(v.key).print();
       std::cout << std::endl;
     }
-//#endif    
+#endif    
       newGraph_.erase(newGraph_.begin(), newGraph_.end());
       newValues_.clear();
     } else {
@@ -224,7 +224,7 @@ namespace tagslam {
     }
   }
 
-  void GTSAMOptimizer::optimizeFullGraph(bool force) {
+  void GTSAMOptimizer::optimizeFull(bool force) {
     if (newGraph_.empty() && newValues_.empty() && !force) {
       ROS_INFO_STREAM("graph not updated, no need to optimize!");
       return;

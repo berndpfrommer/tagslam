@@ -3,10 +3,11 @@
  */
 
 #pragma once
-#include "tagslam/graph.h"
 #include "tagslam/value_key.h"
 #include "tagslam/factor_key.h"
 #include "tagslam/geometry.h"
+#include "tagslam/camera_intrinsics2.h"
+#include "tagslam/pose_with_noise.h"
 
 namespace tagslam {
   class Optimizer {
@@ -15,7 +16,7 @@ namespace tagslam {
     virtual ~Optimizer() {};
 
     virtual void optimize() = 0;
-    virtual void optimizeFullGraph(bool force = false) = 0;
+    virtual void optimizeFull(bool force = false) = 0;
     virtual void setErrorThreshold(double th) = 0;
 
 

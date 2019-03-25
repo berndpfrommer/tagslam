@@ -23,14 +23,17 @@ namespace tagslam {
                     const std::shared_ptr<const Tag2> &tag =
                     std::shared_ptr<Tag2>(),
                     const geometry_msgs::Point *imgCorn = NULL,
+                    double pixelNoise = 1.0,
                     const std::string   &name = "");
       std::string getLabel() const override;
       const Eigen::Matrix<double, 4,2> &getImageCorners() const { return (imgCorners_); }
       const std::shared_ptr<const Camera2> getCamera() const { return (cam_); }
       const std::shared_ptr<const Tag2> getTag() const { return (tag_); }
+      double getPixelNoise() const { return (pixelNoise_); }
     private:
       const std::shared_ptr<const Camera2> cam_;
       const std::shared_ptr<const Tag2>    tag_;
+      double                               pixelNoise_;
       Eigen::Matrix<double, 4, 2>          imgCorners_;
     };
   }
