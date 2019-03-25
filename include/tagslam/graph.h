@@ -35,7 +35,7 @@ namespace tagslam {
                         const std::string &name) const {
       return (hasId(make_id(t, name))); }
     inline bool isOptimized(const Vertex &v) const {
-      return (graph_[v].vertex->isOptimized()); }
+      return (graph_[v]->isOptimized()); }
     string info(Vertex v) const;
     void   optimize();
     void   optimizeFull(bool force = false);
@@ -62,7 +62,7 @@ namespace tagslam {
     
     void      addToOptimizer(const Graph::Vertex &gv);
     // use operator overloading for this
-    VertexPtr getVertex(const Vertex f) { return (graph_[f].vertex); }
+    VertexPtr getVertex(const Vertex f) { return (graph_[f]); }
     
     inline Vertex find(const ros::Time &t, const string &name) const {
       return (find(make_id(t, name)));

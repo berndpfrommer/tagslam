@@ -23,7 +23,7 @@ namespace tagslam {
     LabelWriter(const G &g) : graph(&g) { }
     template <class VertexOrEdge>
     void operator()(std::ostream &out, const VertexOrEdge& v) const {
-      VertexConstPtr vp = (*graph)[v].vertex;
+      VertexConstPtr vp = (*graph)[v];
       const std::string color =
         vp->isOptimized() ? "green" : (vp->isValid() ? "blue" : "red");
       out << "[label=\"" << vp->getLabel() << "\", shape="
@@ -77,7 +77,7 @@ namespace tagslam {
     std::vector<ValueKey> optKeys;
     for (auto edgeIt = edges.first; edgeIt != edges.second; ++edgeIt) {
       Graph::Vertex vv  = boost::target(*edgeIt, graph_); // value vertex
-      VertexPtr     vvp = graph_[vv].vertex; // pointer to value
+      VertexPtr     vvp = graph_[vv]; // pointer to value
       ValuePtr       vp = std::dynamic_pointer_cast<value::Value>(vvp);
       if (!vp) {
         ROS_ERROR_STREAM("vertex is no pose: " << vvp->getLabel());
@@ -114,7 +114,7 @@ namespace tagslam {
 
   void
   Graph::addAbsolutePosePriorFactorToOptimizer(const Graph::Vertex &v) {
-    auto &vp = graph_[v].vertex;
+    auto &vp = graph_[v];
     if (vp->isOptimized()) {
       ROS_ERROR_STREAM("already optimized: " << vp->getLabel());
       throw std::runtime_error("already optimized!");
@@ -152,7 +152,7 @@ namespace tagslam {
 
   void
   Graph::addRelativePosePriorFactorToOptimizer(const Graph::Vertex &v) {
-    auto &vp = graph_[v].vertex;
+    auto &vp = graph_[v];
     if (vp->isOptimized()) {
       ROS_ERROR_STREAM("already optimized: " << vp->getLabel());
       throw std::runtime_error("already optimized!");
@@ -220,7 +220,7 @@ namespace tagslam {
 
   void
   Graph::addTagProjectionFactorToOptimizer(const Graph::Vertex &v) {
-    auto &vp = graph_[v].vertex;
+    auto &vp = graph_[v];
     if (vp->isOptimized()) {
       ROS_ERROR_STREAM("already optimized: " << vp->getLabel());
       throw std::runtime_error("already optimized!");
@@ -255,7 +255,7 @@ namespace tagslam {
 
   void
   Graph::addPoseToOptimizer(const Graph::Vertex &v) {
-    auto &vp = graph_[v].vertex;
+    auto &vp = graph_[v];
     if (vp->isOptimized()) {
       ROS_ERROR_STREAM("already optimized: " << vp->getLabel());
       throw std::runtime_error("already optimized!");
@@ -269,7 +269,7 @@ namespace tagslam {
   }
 
   Transform Graph::getOptimizedPose(const Vertex &v) const {
-    PoseValueConstPtr  vp = std::dynamic_pointer_cast<value::Pose>(graph_[v].vertex);
+    PoseValueConstPtr  vp = std::dynamic_pointer_cast<value::Pose>(graph_[v]);
     if (!vp) {
       ROS_ERROR_STREAM("vertex is not pose: " << info(v));
       throw std::runtime_error("vertex is not pose");
@@ -300,7 +300,7 @@ namespace tagslam {
   }
 
   std::string Graph::info(BoostGraphVertex v) const {
-    VertexConstPtr  vp = graph_[v].vertex;
+    VertexConstPtr  vp = graph_[v];
     return (vp->getLabel());
   }
 

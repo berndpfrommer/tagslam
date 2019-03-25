@@ -37,18 +37,6 @@ namespace tagslam {
   GTSAMOptimizer::~GTSAMOptimizer() {
   }
 
-  template <class G>
-  struct ValuesPredicate {
-    ValuesPredicate() : graph(NULL) {}
-    ValuesPredicate(const G &g, bool v) : graph(&g), isValue(v) {}
-    template <typename V>
-    bool operator()(const V &v) const {
-      return ((*graph)[v].vertex->isValue() == isValue);
-    }
-    const G *graph;
-    bool     isValue;
-  };
-  
   ValueKey GTSAMOptimizer::addPose(const Transform &p) {
     ValueKey key = generateKey();
     ROS_DEBUG_STREAM("optimizer: adding pose with key " << key);

@@ -8,7 +8,7 @@
 
 namespace tagslam {
   std::ostream &operator<<(std::ostream &os, const GraphVertex &v) {
-    os << v.vertex->getLabel();
+    os << v->getLabel();
     return (os);
   }
 }
