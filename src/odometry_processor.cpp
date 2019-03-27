@@ -30,7 +30,7 @@ namespace tagslam {
 
   void
   OdometryProcessor::process(const OdometryConstPtr &msg,
-                             std::vector<Graph::Vertex> *factors) {
+                             std::vector<VertexDesc> *factors) {
     auto msg2 = *msg;
     msg2.header.frame_id = "map";
     pub_.publish(msg2);

@@ -9,9 +9,15 @@
 
 namespace tagslam {
   std::ostream &operator<<(std::ostream &os, const Vertex &v) {
-    os << v.getLabel();
+    os << v.toString();
     return (os);
   }
+
+  std::string Vertex::toString() const {
+    return (getLabel() + "," + (isValid() ? "V" : "I") + ","
+            + (isOptimized() ? "O" : "U"));
+  }
+
   std::string Vertex::format_time(const ros::Time &t) {
     // wrap around every 100 seconds,
     // resolution is in milliseconds

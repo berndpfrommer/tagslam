@@ -26,6 +26,11 @@ namespace tagslam {
                     double pixelNoise = 1.0,
                     const std::string   &name = "");
       std::string getLabel() const override;
+      VertexId    getId() const override { return (make_id(time_, name_));}
+      std::shared_ptr<Vertex> clone() const override {
+        return (std::shared_ptr<TagProjection>(new TagProjection(*this))); }
+      VertexDesc attachTo(Graph *g) const override;
+      OptimizerKey addToOptimizer(Graph *g) override;
       const Eigen::Matrix<double, 4,2> &getImageCorners() const { return (imgCorners_); }
       const std::shared_ptr<const Camera2> getCamera() const { return (cam_); }
       const std::shared_ptr<const Tag2> getTag() const { return (tag_); }

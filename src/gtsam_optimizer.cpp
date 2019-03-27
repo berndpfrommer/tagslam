@@ -31,6 +31,7 @@ namespace tagslam {
   }
 
   GTSAMOptimizer::GTSAMOptimizer() {
+    verbosity_ = "SILENT";
     isam2_ = make_isam2();
   }
 
@@ -167,11 +168,13 @@ namespace tagslam {
     return (fullGraph_.size() + newGraph_.size());
   }
 
-  void GTSAMOptimizer::optimize() {
+  double GTSAMOptimizer::optimize() {
     ROS_DEBUG_STREAM("optimizer new values: " << newValues_.size()
                     << " factors: " << newGraph_.size());
-    //std::cout << "------------ new values: " << std::endl;
-    //newValues_.print();
+    std::cout << "------------ new values:  " << std::endl;
+    newValues_.print();
+    std::cout << "------------ new factors: " << std::endl;
+    newGraph_.print();
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
       gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
@@ -184,12 +187,11 @@ namespace tagslam {
           ROS_DEBUG_STREAM("stopped after iteration " << i << " now: " << *res.errorAfter << " last: " << lastError_ << " prev: " << prevErr);
           break;
         } else {
-          ROS_DEBUG_STREAM("new error: " << *res.errorAfter << " vs last: " << lastError_);
+          ROS_DEBUG_STREAM("new err: " << *res.errorAfter << " vs last: " << lastError_);
         }
         prevErr = *res.errorAfter;
       }
       lastError_ = *res.errorAfter;
-      ROS_INFO_STREAM("optimizer error: " << lastError_);
       values_ = isam2_->calculateEstimate();
       //std::cout << "---- optimized values: " << std::endl;
       //values_.print();
@@ -210,24 +212,27 @@ namespace tagslam {
     } else {
       ROS_INFO_STREAM("optimizer: delta graph is 0!");
     }
+    return (lastError_);
   }
 
-  void GTSAMOptimizer::optimizeFull(bool force) {
+  double GTSAMOptimizer::optimizeFull(bool force) {
+    ROS_DEBUG_STREAM("optimizing full(" << force << ") new fac: " <<
+                     newGraph_.size() << ", new val: " << newValues_.size());
     if (newGraph_.empty() && newValues_.empty() && !force) {
       ROS_INFO_STREAM("graph not updated, no need to optimize!");
-      return;
+      return (lastError_);
     }
     fullGraph_ += newGraph_;
     values_.insert(newValues_);
+    
     gtsam::LevenbergMarquardtParams lmp;
-    //lmp.setVerbosity("SILENT");
-    lmp.setVerbosity("TERMINATION");
+    lmp.setVerbosity(verbosity_);
     lmp.setMaxIterations(100);
     lmp.setAbsoluteErrorTol(1e-7);
     lmp.setRelativeErrorTol(0);
     gtsam::LevenbergMarquardtOptimizer lmo(fullGraph_, values_, lmp);
     values_ = lmo.optimize();
-    ROS_INFO_STREAM("optimizer error: " << lmo.error());
+    lastError_ = lmo.error();
 #ifdef DEBUG_BEFORE_AFTER   
     for (const auto &v : newValues_) {
       std::cout << "----- before: " << std::endl;
@@ -237,9 +242,10 @@ namespace tagslam {
       values_.at(v.key).print();
       std::cout << std::endl;
     }
-#endif    
+#endif
     newGraph_.erase(newGraph_.begin(), newGraph_.end());
     newValues_.clear();
+    return (lastError_);
   }
   Transform GTSAMOptimizer::getPose(ValueKey key) {
     return (gtsam_utils::from_gtsam(values_.at<gtsam::Pose3>(key)));

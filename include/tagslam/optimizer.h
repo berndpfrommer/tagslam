@@ -15,9 +15,10 @@ namespace tagslam {
     Optimizer() {}
     virtual ~Optimizer() {};
 
-    virtual void optimize() = 0;
-    virtual void optimizeFull(bool force = false) = 0;
+    virtual double optimize() = 0;
+    virtual double optimizeFull(bool force = false) = 0;
     virtual void setErrorThreshold(double th) = 0;
+    virtual void setVerbosity(const std::string &v) = 0;
 
 
     // retrieves the optimized pose for a given key

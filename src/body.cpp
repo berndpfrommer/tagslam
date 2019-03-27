@@ -70,7 +70,7 @@ namespace tagslam {
       if (body.hasMember("ignore_tags")) {
         auto ignTags = body["ignore_tags"];
         for (const auto i: irange(0, ignTags.size())) {
-          ignoreTags.insert(static_cast<int>(ignTags[i]));
+          ignoreTags_.insert(static_cast<int>(ignTags[i]));
         }
       }
       if (body.hasMember("pose") > 0 && body["pose"].getType() ==

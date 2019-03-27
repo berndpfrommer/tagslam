@@ -3,9 +3,9 @@
  */
 
 #pragma once
-#include <cstddef>
-#include "tagslam/optimizer_key.h"
+
+#include "tagslam/boost_graph.h"
 
 namespace tagslam {
-  typedef OptimizerKey ValueKey;
+  typedef BoostGraphVertex VertexDesc;
 }

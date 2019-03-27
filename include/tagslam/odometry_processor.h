@@ -23,7 +23,7 @@ namespace tagslam {
     OdometryProcessor(ros::NodeHandle &nh, GraphManager *graph,
                       const BodyConstPtr &body);
     void process(const OdometryConstPtr &msgs,
-                 std::vector<Graph::Vertex> *factors);
+                 std::vector<VertexDesc> *factors);
     GraphManager    *graphManager_{NULL};
     BodyConstPtr    body_;
     Transform       pose_;

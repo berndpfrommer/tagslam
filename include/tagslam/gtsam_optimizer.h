@@ -18,9 +18,10 @@ namespace tagslam {
     GTSAMOptimizer();
     ~GTSAMOptimizer();
     // ---- implement Optimizer interface
-    void      optimize() override;
-    void      optimizeFull(bool force = false) override;
+    double    optimize() override;
+    double    optimizeFull(bool force = false) override;
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
+    void      setVerbosity(const std::string &v) { verbosity_ = v;}
     Transform getPose(ValueKey key) override;
     ValueKey  addPose(const Transform &pose) override;
     FactorKey addRelativePosePrior(ValueKey key1, ValueKey key2,
@@ -46,6 +47,7 @@ namespace tagslam {
 
     // ------------ variables ------------
     ValueKey                      key_{0};
+    std::string                   verbosity_;
     gtsam::Values                 values_;
     gtsam::Values                 newValues_;
     std::shared_ptr<gtsam::ISAM2> isam2_;

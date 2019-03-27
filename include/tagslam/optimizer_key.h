@@ -3,9 +3,7 @@
  */
 
 #pragma once
-#include <cstddef>
-#include "tagslam/optimizer_key.h"
 
 namespace tagslam {
-  typedef OptimizerKey ValueKey;
+  typedef size_t OptimizerKey;
 }

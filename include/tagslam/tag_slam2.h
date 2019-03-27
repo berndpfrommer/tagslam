@@ -73,7 +73,7 @@ namespace tagslam {
     void readBodies();
     void playFromBag(const std::string &fname);
     void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
-                     std::vector<Graph::Vertex> *factors);
+                     std::vector<VertexDesc> *factors);
     std::vector<std::vector<string>> makeTopics(rosbag::Bag *bag) const;
     void setupOdom(const std::vector<OdometryConstPtr> &odomMsgs);
     void processTagsAndOdom(const std::vector<TagArrayConstPtr> &tagmsgs,
@@ -82,7 +82,7 @@ namespace tagslam {
     void publishBodyOdom(const ros::Time &t);
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
-                     std::vector<Graph::Vertex> *factors);
+                     std::vector<VertexDesc> *factors);
     Tag2ConstPtr findTag(int tagId);
     void publishAll(const ros::Time &t);
     bool replay(std_srvs::Trigger::Request& req,

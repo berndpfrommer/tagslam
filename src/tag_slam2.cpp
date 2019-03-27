@@ -356,7 +356,7 @@ namespace tagslam {
       graphManager_.addPose(t, Graph::body_name(body->getName()),
                      Transform::Identity(), false);
     }
-    std::vector<Graph::Vertex> factors;
+    std::vector<VertexDesc> factors;
     profiler_.reset();
 #define USE_ODOM
 #ifdef USE_ODOM
@@ -411,7 +411,7 @@ namespace tagslam {
 
   void
   TagSlam2::processOdom(const std::vector<OdometryConstPtr> &odomMsgs,
-                        std::vector<Graph::Vertex> *factors) {
+                        std::vector<VertexDesc> *factors) {
     if (odomProcessors_.empty()) {
       setupOdom(odomMsgs);
     }
@@ -427,6 +427,10 @@ namespace tagslam {
     auto it = tagMap_.find(tagId);
     Tag2Ptr p;
     if (it == tagMap_.end()) {
+      if (defaultBody_->ignoreTag(tagId)) {
+        ROS_WARN_STREAM("ignoring tag: " << tagId);
+        return (p);
+      }
       if (!defaultBody_) {
         ROS_WARN_STREAM("no default body, ignoring tag: " << tagId);
         return (p);
@@ -446,12 +450,12 @@ namespace tagslam {
   }
 
   void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
-                             std::vector<Graph::Vertex> *factors) {
+                             std::vector<VertexDesc> *factors) {
     if (tagMsgs.size() != cameras_.size()) {
       ROS_ERROR_STREAM("tag msgs size mismatch!");
       return;
     }
-    typedef std::multimap<double, Graph::Vertex> MMap;
+    typedef std::multimap<double, VertexDesc> MMap;
     MMap sortedFactors;
 
     for (const auto i: irange(0ul, cameras_.size())) {

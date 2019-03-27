@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "tagslam/optimizer_key.h"
+
 namespace tagslam {
-  typedef size_t FactorKey;
+  typedef OptimizerKey FactorKey;
 }

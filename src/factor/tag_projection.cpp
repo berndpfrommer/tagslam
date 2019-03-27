@@ -3,12 +3,22 @@
  */
 
 #include "tagslam/factor/tag_projection.h"
+#include "tagslam/graph.h"
 #include <geometry_msgs/Point.h>
 #include <string>
 #include <sstream>
 
 namespace tagslam {
   namespace factor {
+    VertexDesc TagProjection::attachTo(Graph *g) const {
+      auto f = std::shared_ptr<TagProjection>(new TagProjection(*this));
+      f->setKey(0);
+      return (g->add(f));
+    }
+    OptimizerKey TagProjection::addToOptimizer(Graph *g) {
+      return (g->addToOptimizer(this));
+    }
+    
     TagProjection::TagProjection(const ros::Time &t,
                                  const std::shared_ptr<const Camera2> &cam,
                                  const std::shared_ptr<const Tag2> &tag,

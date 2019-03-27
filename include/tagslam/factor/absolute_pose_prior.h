@@ -19,6 +19,11 @@ namespace tagslam {
         setIsValid(p.isValid());
       }
       std::string getLabel() const override;
+      VertexId getId() const override { return (make_id(time_, "app_" + name_));}
+      std::shared_ptr<Vertex> clone() const override {
+        return (std::shared_ptr<AbsolutePosePrior>(new AbsolutePosePrior(*this))); }
+      VertexDesc attachTo(Graph *g) const override;
+      OptimizerKey addToOptimizer(Graph *g) override;
       const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
     private:
       PoseWithNoise poseWithNoise_;

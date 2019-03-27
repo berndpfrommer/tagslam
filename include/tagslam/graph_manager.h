@@ -34,13 +34,13 @@ namespace tagslam {
     // --------------------- good
     void setPixelNoise(double pn) { pixelNoise_ = pn; }
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
-    void optimize();
-    void reoptimize();
-    Graph::Vertex addPose(const ros::Time &t, const string &name,
+    double optimize();
+    double reoptimize();
+    VertexDesc addPose(const ros::Time &t, const string &name,
                           const Transform &pose, bool poseIsValid);
-    Graph::Vertex addPoseWithPrior(const ros::Time &t, const string &name,
+    VertexDesc addPoseWithPrior(const ros::Time &t, const string &name,
                                    const PoseWithNoise &pn);
-    Graph::Vertex addTagProjectionFactor(const ros::Time &t,
+    VertexDesc addTagProjectionFactor(const ros::Time &t,
                                          const Tag2ConstPtr &tag,
                                          const Camera2ConstPtr &cam,
                                          const geometry_msgs::Point *imgCorners);
@@ -50,47 +50,54 @@ namespace tagslam {
     bool getPose(const ros::Time &t, const string &id, Transform *tf) const;
     void addTag(const Tag2 &tag);
     void processNewFactors(const ros::Time &t,
-                           const std::vector<BoostGraphVertex> &facs);
-    Graph::Vertex
+                           const std::vector<VertexDesc> &facs);
+    VertexDesc
     addProjectionFactor(const ros::Time &t,
                         const Tag2ConstPtr &tag,
                         const Camera2ConstPtr &cam,
                         const geometry_msgs::Point *imgCorners);
-    Graph::Vertex
+    VertexDesc
     addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
                      const BodyConstPtr &body,
                      const PoseWithNoise &deltaPose);
   private:
     struct SubGraph {
-      typedef std::list<Graph::Vertex> FactorCollection;
-      typedef std::set<Graph::Vertex>  ValueCollection;
+      typedef std::list<VertexDesc> FactorCollection;
+      typedef std::set<VertexDesc>  ValueCollection;
       FactorCollection  factors;
       ValueCollection   values;
     };
 
-    typedef std::map<ros::Time, std::vector<Graph::Vertex>> TimeToVertexesMap;
+    typedef std::map<ros::Time, std::vector<VertexDesc>> TimeToVertexesMap;
 
     
     
-    Graph::Vertex addPrior(const ros::Time &t,
+    VertexDesc addPrior(const ros::Time &t,
                            const string &name,
                            const PoseWithNoise &pn);
-    void examine(const ros::Time &t, Graph::Vertex fac,
-                 std::list<Graph::Vertex> *factorsToExamine,
+    void examine(const ros::Time &t, VertexDesc fac,
+                 std::list<VertexDesc> *factorsToExamine,
                  SubGraph *found, SubGraph *sg);
-    std::vector<std::list<Graph::Vertex>>
+    std::vector<std::list<VertexDesc>>
     findSubgraphs(const ros::Time &t,
-                  const std::vector<Graph::Vertex> &fac,
+                  const std::vector<VertexDesc> &fac,
                   SubGraph *found);
     void exploreSubGraph(const ros::Time &t,
-                         Graph::Vertex start,
+                         VertexDesc start,
                          SubGraph *subGraph, SubGraph *found);
-    int findConnectedPoses(Graph::Vertex v,
+    int findConnectedPoses(const Graph &graph,
+                           VertexDesc v,
                            std::vector<PoseValuePtr> *poses,
-                           std::vector<Graph::Vertex> *conn);
-    void setValueFromTagProjection(Graph::Vertex v, const Transform &T_c_o);
-    int  setValueFromRelativePosePrior(Graph::Vertex v, const Transform &deltaPose);
-    void initializeSubgraphs(const std::vector<std::list<Graph::Vertex>> &verts);
+                           std::vector<VertexDesc> *conn);
+    void setValueFromTagProjection(Graph *graph,
+                                   VertexDesc v, const Transform &T_c_o);
+    int  setValueFromRelativePosePrior(Graph *graph,
+                                       VertexDesc v, const Transform &deltaPose);
+    void initializeSubgraphs(
+          std::vector<GraphPtr> *subGraphs,
+          const std::vector<std::list<VertexDesc>> &verts);
+    void optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
+    void initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
 
     
     // ------ variables --------------

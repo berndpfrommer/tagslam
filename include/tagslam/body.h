@@ -44,6 +44,7 @@ namespace tagslam {
     void   setId(int id) { id_ = id; }
     void   setPoseWithNoise(const PoseWithNoise &p) { poseWithNoise = p; }
     const PoseWithNoise getPoseWithNoise() const { return (poseWithNoise); }
+    bool   ignoreTag(int tagId) const { return (ignoreTags_.count(tagId) != 0); }
     Tag2Ptr findTag(int tagId, int bits) const;
     void   addTag(const Tag2Ptr &tag);
     void   addTags(const Tag2Vec &tags);
@@ -67,7 +68,7 @@ namespace tagslam {
     // tags that are hanging off of it
     Tag2Map             tags;
     // tags that cannot be attached to this body
-    std::set<int>       ignoreTags;
+    std::set<int>       ignoreTags_;
     // default tag size for discovered, unknown tags
     double              defaultTagSize_{0};
     // any initial pose prior
