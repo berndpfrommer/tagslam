@@ -265,8 +265,8 @@ namespace tagslam {
   void
   GraphManager::optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs) {
     profiler_.reset();
-    for (const auto &sg: subGraphs) {
-      double err = sg->optimizeFull();
+    for (auto &sg: subGraphs) {
+      double err =  sg->optimizeFull();
       ROS_INFO_STREAM("error for subgraph optim: " << err);
       sg->transferOptimizedValues();
     }
@@ -277,7 +277,12 @@ namespace tagslam {
   GraphManager::initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs) {
     profiler_.reset();
     for (const auto &sg: subGraphs) {
-      graph_.initializeFrom(*sg);
+      double err = sg->optimizeFull();
+      if (err < maxSubgraphError_) {
+        graph_.initializeFrom(*sg);
+      } else { 
+        ROS_WARN_STREAM("dropping subgraph with error: " << err);
+      }
     }
     profiler_.record("initialzeFromSubgraphs");
   }
@@ -299,39 +304,17 @@ namespace tagslam {
       return;
     }
     ROS_DEBUG_STREAM("^^^^^^^^^^ checking complete graph for error before doing anything! ^^^^^^^^^^");
-    double terr = graph_.getError();
-    std::cout << "full graph total error: " <<  terr << std::endl;
+    double err = graph_.getError();
     
     std::vector<GraphPtr> subGraphs;
     initializeSubgraphs(&subGraphs, sv);
     optimizeSubgraphs(subGraphs);
     initializeFromSubgraphs(subGraphs);
-    double err = optimize();
+    err = optimize();
     ROS_INFO_STREAM("after new factors optimizer error: " << err);
-#if 0
-    ++fooCnt;
-    ROS_DEBUG_STREAM("fooCnt: " << fooCnt);
-    if (fooCnt == 1335) {
-      Graph &sg = *subGraphs[0];
-      VertexDesc vds = sg.findPose(t, "body:rig");
-      VertexDesc vd  = graph_.findPose(t, "body:rig");
-      if (Graph::is_valid(vds) && Graph::is_valid(vd)) {
-        Transform pose = graph_.getOptimizedPose(vd);
-        sg.setOptimizedPose(vds, pose);
-        ROS_INFO_STREAM("transferred pose: " << std::endl << pose);
-        ROS_INFO_STREAM("subgraph error: " << sg.getError());
-      } else {
-        ROS_DEBUG_STREAM("POSE NOT FOUND!!!: " << vds << " " << vd);
-      }
-    }
-#endif    
     
     std::cout << profiler_ << std::endl;
-#if 0    
-    for (const auto &kv: times_) {
-      ROS_DEBUG_STREAM("time: " << kv.first);
-    }
-#endif
+ 
     ROS_DEBUG_STREAM("&-&-&-&-&-&-&-& done with new factors for t = " << t);
     while (!times_.empty()) {
       auto it = times_.rbegin();
@@ -546,7 +529,14 @@ namespace tagslam {
  
 
   double GraphManager::reoptimize() {
-    return (graph_.optimizeFull(true));
+    double err = graph_.optimizeFull(true /*force*/);
+    graph_.transferOptimizedValues();
+    const auto errMap = graph_.getErrorMap();
+    ROS_INFO_STREAM("----------- error map: -----------");
+    for (const auto &v: errMap) {
+      ROS_INFO_STREAM("  " << v.first << " " << *(graph_.getVertex(v.second)));
+    }
+    return (err);
   }
 
   void GraphManager::plotDebug(const ros::Time &t, const string &tag) {

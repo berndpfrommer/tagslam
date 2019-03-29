@@ -21,6 +21,7 @@ namespace tagslam {
     double    optimize() override;
     double    optimizeFull(bool force = false) override;
     double    errorFull() override;
+    double    getError(FactorKey k) const override;
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
     void      setVerbosity(const std::string &v) { verbosity_ = v;}
     Transform getPose(ValueKey key) override;
@@ -29,7 +30,7 @@ namespace tagslam {
                                    const PoseWithNoise &deltaPose) override;
     FactorKey addAbsolutePosePrior(ValueKey key,
                                    const PoseWithNoise &pose) override;
-    FactorKey addTagProjectionFactor(
+    std::vector<FactorKey> addTagProjectionFactor(
       const Eigen::Matrix<double, 4, 2> &imgCorners,
       const Eigen::Matrix<double, 4, 3> &objCorners,
       const std::string &cameraName,

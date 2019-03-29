@@ -69,9 +69,11 @@ namespace tagslam {
     bool optFullGraph;
     nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
-    double pixelNoise;
+    double pixelNoise, maxSubgraphError;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
     graphManager_.setPixelNoise(pixelNoise);
+    nh_.param<double>("max_subgraph_error", maxSubgraphError, 15.0);
+    graphManager_.setMaxSubgraphError(maxSubgraphError);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graphManager_.setOptimizeFullGraph(optFullGraph);
     readBodies();
@@ -424,17 +426,17 @@ namespace tagslam {
   }
 
   Tag2ConstPtr TagSlam2::findTag(int tagId) {
-    auto it = tagMap_.find(tagId);
+    TagMap::iterator it = tagMap_.find(tagId);
     Tag2Ptr p;
     if (it == tagMap_.end()) {
-      if (defaultBody_->ignoreTag(tagId)) {
-        ROS_WARN_STREAM("ignoring tag: " << tagId);
-        return (p);
-      }
       if (!defaultBody_) {
         ROS_WARN_STREAM("no default body, ignoring tag: " << tagId);
         return (p);
       } else {
+        if (defaultBody_->ignoreTag(tagId)) {
+          ROS_INFO_STREAM("ignoring tag as requested in config: " << tagId);
+          return (p);
+        }
         p = Tag2::make(tagId, 6 /*num bits = tag family */,
                        defaultBody_->getDefaultTagSize(),
                        PoseWithNoise() /* invalid pose */, defaultBody_);

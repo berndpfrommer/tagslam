@@ -25,12 +25,19 @@ namespace tagslam {
                     const geometry_msgs::Point *imgCorn = NULL,
                     double pixelNoise = 1.0,
                     const std::string   &name = "");
+      // ------ inherited methods -----
       std::string getLabel() const override;
       VertexId    getId() const override { return (make_id(time_, name_));}
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<TagProjection>(new TagProjection(*this))); }
       VertexDesc attachTo(Graph *g) const override;
-      OptimizerKey addToOptimizer(Graph *g) override;
+      void addToOptimizer(Graph *g) override;
+      bool isOptimized() const override { return (!keys_.empty()); }
+      std::vector<FactorKey> getKeys()  const override { return (keys_); }
+
+      void setKeys(const std::vector<FactorKey> &k) { keys_ = k; }
+      void clearKeys() override { keys_.clear(); }
+      // --------- own methods
       const Eigen::Matrix<double, 4,2> &getImageCorners() const { return (imgCorners_); }
       const std::shared_ptr<const Camera2> getCamera() const { return (cam_); }
       const std::shared_ptr<const Tag2> getTag() const { return (tag_); }
@@ -40,6 +47,7 @@ namespace tagslam {
       const std::shared_ptr<const Tag2>    tag_;
       double                               pixelNoise_;
       Eigen::Matrix<double, 4, 2>          imgCorners_;
+      std::vector<FactorKey>               keys_;
     };
   }
   typedef std::shared_ptr<factor::TagProjection> TagProjectionFactorPtr;

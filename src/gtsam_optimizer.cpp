@@ -44,13 +44,6 @@ namespace tagslam {
     newValues_.insert(key, gtsam_utils::to_gtsam(p));
     return (key);
   }
-#if 0
-  static gtsam::noiseModel::Gaussian::shared_ptr  make_pose_noise(double angle, double position) {
-    gtsam::Vector sn(6);
-    sn << angle,angle,angle,position,position,position;
-    return (gtsam::noiseModel::Diagonal::Sigmas(sn));
-  }
-#endif  
 
   FactorKey
   GTSAMOptimizer::addRelativePosePrior(ValueKey key1, ValueKey key2,
@@ -61,7 +54,7 @@ namespace tagslam {
       gtsam::BetweenFactor<gtsam::Pose3>(
         key1, key2, gtsam_utils::to_gtsam(deltaPose.getPose()),
         gtsam_utils::to_gtsam(deltaPose.getNoise())));
-    return (fullGraph_.size() + newGraph_.size());
+    return (fullGraph_.size() + newGraph_.size() - 1);
   }
 
   FactorKey GTSAMOptimizer::addAbsolutePosePrior(ValueKey key,
@@ -70,7 +63,7 @@ namespace tagslam {
     newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>
                         (key, gtsam_utils::to_gtsam(pwn.getPose()),
                          gtsam_utils::to_gtsam(pwn.getNoise())));
-    return (fullGraph_.size() + newGraph_.size());
+    return (fullGraph_.size() + newGraph_.size() - 1);
   }
 
   std::shared_ptr<Cal3DS3>
@@ -113,7 +106,7 @@ namespace tagslam {
     return (it->second);
   }
 
-  FactorKey
+  std::vector<FactorKey>
   GTSAMOptimizer::addTagProjectionFactor(
     const Eigen::Matrix<double, 4, 2> &imgCorners,
     const Eigen::Matrix<double, 4, 3> &objCorners,
@@ -123,7 +116,8 @@ namespace tagslam {
     ValueKey T_r_c, ValueKey T_w_r, ValueKey T_w_b, ValueKey T_b_o) {
     ROS_DEBUG_STREAM("gtsam: adding tag proj fac: " << T_r_c << " " <<
                     T_w_r << " " << T_w_b << " " << T_b_o);
-
+    std::vector<FactorKey> keys;
+    keys.reserve(4);
     gtsam::Expression<gtsam::Pose3>  T_b_o_fac(T_b_o);
     gtsam::Expression<gtsam::Pose3>  T_w_b_fac(T_w_b);
     gtsam::Expression<gtsam::Pose3>  T_r_c_fac(T_r_c);
@@ -164,8 +158,9 @@ namespace tagslam {
         throw (std::runtime_error("invalid dist model"));
         break;
       }
+      keys.push_back(fullGraph_.size() + newGraph_.size() - 1);
     }
-    return (fullGraph_.size() + newGraph_.size());
+    return (keys);
   }
 
   double GTSAMOptimizer::optimize() {
@@ -278,6 +273,12 @@ namespace tagslam {
     newValues_.clear();
     return (lastError_);
   }
+
+  double GTSAMOptimizer::getError(FactorKey k) const {
+    double err = fullGraph_.at(k)->error(values_);
+    return (err);
+  }
+
   Transform GTSAMOptimizer::getPose(ValueKey key) {
     return (gtsam_utils::from_gtsam(values_.at<gtsam::Pose3>(key)));
   }

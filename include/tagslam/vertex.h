@@ -26,7 +26,7 @@ namespace tagslam {
     virtual std::shared_ptr<Vertex> clone() const = 0;
     virtual VertexId   getId() const = 0;
     virtual VertexDesc attachTo(Graph *g) const = 0;
-    virtual OptimizerKey addToOptimizer(Graph *g) = 0;
+    virtual void addToOptimizer(Graph *g) = 0;
 
     virtual std::string getLabel() const { return (name_); }
     virtual std::string getShape() const { return (shape_); }

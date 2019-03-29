@@ -5,6 +5,7 @@
 #pragma once
 
 #include "tagslam/optimizer_key.h"
+#include <climits>
 
 namespace tagslam {
   typedef OptimizerKey FactorKey;

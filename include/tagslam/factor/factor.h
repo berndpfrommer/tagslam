@@ -16,13 +16,13 @@ namespace tagslam {
         Vertex(s, "box", t) {}
       virtual ~Factor() {}
       
+      virtual std::vector<FactorKey> getKeys()  const = 0;
+      virtual void clearKeys() = 0;
       bool isValue() const override { return (false); }
-      bool isOptimized() const override { return (key_ != 0); }
 
-      FactorKey getKey()  const { return (key_); }
-      void      setKey(FactorKey k) { key_ = k; }
-    private:
-      FactorKey key_{0};    // zero is invalid!
+      static inline bool is_valid(FactorKey k) { return (k != Invalid); }
+    protected:
+      static const FactorKey Invalid{ULONG_MAX};
     };
   }
   typedef std::shared_ptr<factor::Factor> FactorPtr;

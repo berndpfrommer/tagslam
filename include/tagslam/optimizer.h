@@ -18,6 +18,8 @@ namespace tagslam {
     virtual double optimize() = 0;
     virtual double optimizeFull(bool force = false) = 0;
     virtual double errorFull() = 0;
+    virtual double getError(FactorKey k) const = 0;
+
     virtual void setErrorThreshold(double th) = 0;
     virtual void setVerbosity(const std::string &v) = 0;
 
@@ -36,7 +38,7 @@ namespace tagslam {
     //    T_c_o   = T_c_r * T_r_w * T_w_b * T_b_o;
     //    u_proj_i = K * rad_dist(T_c_o * X_i)   where i = 1..4 (corners)
     //    err = sum_i  ||u_proj_i - u||
-    virtual FactorKey addTagProjectionFactor(
+    virtual std::vector<FactorKey> addTagProjectionFactor(
       // u = image points  (2d)
       const Eigen::Matrix<double, 4, 2> &u,
       // X = object points (3d, but in plane with z = 0)

@@ -142,8 +142,8 @@ namespace tagslam {
   }
 
 
-  OptimizerKey Graph::addToOptimizer(const VertexDesc &v) {
-    return (graph_[v]->addToOptimizer(this));
+  void Graph::addToOptimizer(const VertexDesc &v) {
+    graph_[v]->addToOptimizer(this);
   }
 
   std::vector<ValueKey>
@@ -213,7 +213,7 @@ namespace tagslam {
   }
   
 
-  OptimizerKey
+  std::vector<OptimizerKey>
   Graph::addToOptimizer(factor::TagProjection *p) {
     if (p->isOptimized()) {
       ROS_ERROR_STREAM("already optimized: " << p->getLabel());
@@ -229,12 +229,12 @@ namespace tagslam {
       ROS_ERROR_STREAM("wrong num values for " << info(v) << ": " << optKeys.size());
       throw std::runtime_error("wrong num values for factor");
     }
-    p->setKey(
+    p->setKeys(
       optimizer_->addTagProjectionFactor(
         p->getImageCorners(), p->getTag()->getObjectCorners(),
         p->getCamera()->getName(), p->getCamera()->getIntrinsics(),
         p->getPixelNoise(), optKeys[0], optKeys[1], optKeys[2], optKeys[3]));
-    return (p->getKey());
+    return (p->getKeys());
   }
 
   VertexDesc
@@ -447,8 +447,26 @@ namespace tagslam {
       }
     }
     std::stringstream ss;
-    ss << "fac: " << numFac + numOptFac << " opt vals: " << numOptVal << " unopt vals: " << numVal;
+    ss << "opt fac: " << numOptFac << " unopt fac: " << numFac
+       << " opt vals: " << numOptVal << " unopt vals: " << numVal;
     return (ss.str());
+  }
+
+  Graph::ErrorToVertexMap Graph::getErrorMap() const {
+    ErrorToVertexMap errMap;
+    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
+      const VertexConstPtr vp = graph_[*vi.first];
+      if (!vp->isValue() && vp->isOptimized()) {
+        const FactorConstPtr fp = std::dynamic_pointer_cast<const factor::Factor>(vp);
+        double errSum(0);
+        for (const auto &k: fp->getKeys()) {
+          double e = optimizer_->getError(k);
+          errSum += e;
+        }
+        errMap.insert(ErrorToVertexMap::value_type(errSum, *vi.first));
+      }
+    }
+    return (errMap);
   }
 
   // static method!

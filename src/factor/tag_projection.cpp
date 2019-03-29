@@ -12,11 +12,11 @@ namespace tagslam {
   namespace factor {
     VertexDesc TagProjection::attachTo(Graph *g) const {
       auto f = std::shared_ptr<TagProjection>(new TagProjection(*this));
-      f->setKey(0);
+      f->clearKeys();
       return (g->add(f));
     }
-    OptimizerKey TagProjection::addToOptimizer(Graph *g) {
-      return (g->addToOptimizer(this));
+    void TagProjection::addToOptimizer(Graph *g) {
+      g->addToOptimizer(this);
     }
     
     TagProjection::TagProjection(const ros::Time &t,

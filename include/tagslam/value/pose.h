@@ -23,7 +23,7 @@ namespace tagslam {
         return (std::shared_ptr<Pose>(new Pose(*this))); }
       VertexId getId() const override { return (id(time_, name_));}
       VertexDesc attachTo(Graph *g) const override;
-      OptimizerKey addToOptimizer(Graph *g) override;
+      void addToOptimizer(Graph *g) override;
 
       const Transform &getPose() const { return (pose_); }
       void setPose(const Transform &pose) {

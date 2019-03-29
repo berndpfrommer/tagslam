@@ -27,7 +27,7 @@ namespace tagslam {
     using string = std::string;
   public:
     Graph();
-
+    typedef std::multimap<double, VertexDesc> ErrorToVertexMap;
     void setVerbosity(const string &v) {
       optimizer_->setVerbosity(v);
     }
@@ -50,9 +50,9 @@ namespace tagslam {
     OptimizerKey addToOptimizer(value::Pose               *p);
     OptimizerKey addToOptimizer(factor::RelativePosePrior *p);
     OptimizerKey addToOptimizer(factor::AbsolutePosePrior *p);
-    OptimizerKey addToOptimizer(factor::TagProjection     *p);
+    std::vector<OptimizerKey> addToOptimizer(factor::TagProjection     *p);
 
-    OptimizerKey addToOptimizer(const VertexDesc &v);
+    void addToOptimizer(const VertexDesc &v);
 
     VertexDesc addPose(const ros::Time &t, const string &name,
                    const Transform &pose, bool poseIsValid);
@@ -77,7 +77,7 @@ namespace tagslam {
     VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
     
     VertexDesc findPose(const ros::Time &t, const string &name) const;
-  
+    ErrorToVertexMap getErrorMap() const;
     // static methods
     static string tag_name(int tagid);
     static string body_name(const string &body);

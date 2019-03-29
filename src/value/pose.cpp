@@ -14,8 +14,8 @@ namespace tagslam {
       v->setKey(0); // clear optimizer key
       return (g->add(v));
     }
-    OptimizerKey Pose::addToOptimizer(Graph *g) {
-      return (g->addToOptimizer(this));
+    void Pose::addToOptimizer(Graph *g) {
+      g->addToOptimizer(this);
     }
     std::string Pose::getLabel() const {
       std::stringstream ss;

@@ -12,11 +12,11 @@ namespace tagslam {
   namespace factor {
     VertexDesc AbsolutePosePrior::attachTo(Graph *g) const {
       auto f = std::shared_ptr<AbsolutePosePrior>(new AbsolutePosePrior(*this));
-      f->setKey(0);
+      f->clearKeys();
       return (g->add(f));
     }
-    OptimizerKey AbsolutePosePrior::addToOptimizer(Graph *g) {
-      return (g->addToOptimizer(this));
+    void AbsolutePosePrior::addToOptimizer(Graph *g) {
+      g->addToOptimizer(this);
     }
     std::string AbsolutePosePrior::getLabel() const {
       std::stringstream ss;

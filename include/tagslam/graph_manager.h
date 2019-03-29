@@ -34,6 +34,7 @@ namespace tagslam {
     // --------------------- good
     void setPixelNoise(double pn) { pixelNoise_ = pn; }
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
+    void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
     double optimize();
     double reoptimize();
     VertexDesc addPose(const ros::Time &t, const string &name,
@@ -66,6 +67,7 @@ namespace tagslam {
       typedef std::set<VertexDesc>  ValueCollection;
       FactorCollection  factors;
       ValueCollection   values;
+      double            error_{0};
     };
 
     typedef std::map<ros::Time, std::vector<VertexDesc>> TimeToVertexesMap;
@@ -107,5 +109,6 @@ namespace tagslam {
     TimeToVertexesMap  times_;
     Profiler           profiler_;
     size_t             numNoFactors_{0};
+    double             maxSubgraphError_{15.0};
   };
 }
