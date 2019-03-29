@@ -17,6 +17,7 @@ namespace tagslam {
 
     virtual double optimize() = 0;
     virtual double optimizeFull(bool force = false) = 0;
+    virtual double errorFull() = 0;
     virtual void setErrorThreshold(double th) = 0;
     virtual void setVerbosity(const std::string &v) = 0;
 
@@ -44,6 +45,9 @@ namespace tagslam {
       const CameraIntrinsics2 &ci,
       double pixelNoise,
       ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) = 0;
+
+    // for debugging, allow direct setting of value
+    virtual void setPose(ValueKey k, const Transform &pose) = 0;
   private:
   };
 }

@@ -40,7 +40,7 @@
 	<param name="bag_file" value="$(arg bag)"/>
 	<param name="optimize_full_graph" value="false"/>
 	<param name="has_compressed_images" value="false"/>
-	<param name="max_number_of_frames" value="100000"/>
+	<param name="max_number_of_frames" value="10001608"/>
   </node>
 
 </launch>

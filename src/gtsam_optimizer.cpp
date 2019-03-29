@@ -173,8 +173,8 @@ namespace tagslam {
                     << " factors: " << newGraph_.size());
     std::cout << "------------ new values:  " << std::endl;
     newValues_.print();
-    std::cout << "------------ new factors: " << std::endl;
-    newGraph_.print();
+//    std::cout << "------------ new factors: " << std::endl;
+//    newGraph_.print();
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
       gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
@@ -197,6 +197,7 @@ namespace tagslam {
       //values_.print();
       //values_.print();
       //fullGraph_.print();
+#define DEBUG_BEFORE_AFTER      
 #ifdef DEBUG_BEFORE_AFTER   
     for (const auto &v : newValues_) {
       std::cout << "----- before: " << std::endl;
@@ -215,6 +216,36 @@ namespace tagslam {
     return (lastError_);
   }
 
+
+  void GTSAMOptimizer::setPose(ValueKey k, const Transform &pose) {
+    values_.at<gtsam::Pose3>(k) = gtsam_utils::to_gtsam(pose);
+  }
+
+  static void print_large_errors(const std::string &label,
+                                 const gtsam::ExpressionFactorGraph &g,
+                                 const gtsam::Values &v, double thresh) {
+    for (const auto i: g) {
+      if (i->error(v) > thresh) {
+        std::cout << label << " BIG ERROR: " << i->error(v) << std::endl;
+        std::cout << label << " factor: " << std::endl;
+        i->print();  std::cout <<  std::endl << "   values for it: " << std::endl;
+        for (const auto &k: i->keys()) {
+          v.at(k).print();
+          std::cout << std::endl;
+        }
+      }
+    }
+  }
+
+  double GTSAMOptimizer::errorFull() {
+    gtsam::ExpressionFactorGraph  testGraph = fullGraph_;
+    testGraph += newGraph_;
+    gtsam::Values testValues = values_;
+    testValues.insert(newValues_);
+    print_large_errors("errorFull", testGraph, testValues, 10.0);
+    return (testGraph.error(testValues));
+  }
+
   double GTSAMOptimizer::optimizeFull(bool force) {
     ROS_DEBUG_STREAM("optimizing full(" << force << ") new fac: " <<
                      newGraph_.size() << ", new val: " << newValues_.size());
@@ -224,7 +255,7 @@ namespace tagslam {
     }
     fullGraph_ += newGraph_;
     values_.insert(newValues_);
-    
+    print_large_errors("before full opt", fullGraph_, values_, 10.0);
     gtsam::LevenbergMarquardtParams lmp;
     lmp.setVerbosity(verbosity_);
     lmp.setMaxIterations(100);

@@ -283,6 +283,10 @@ namespace tagslam {
           PoseValuePtr vp =
             std::dynamic_pointer_cast<value::Pose>(g.getVertex(srcv));
           if (vp) {
+            if (vp->isOptimized()) {
+              std::cout << "    refreshing pose for key: " << vp->getKey() << std::endl;
+              vp->setPose(g.getOptimizedPose(srcv));
+            }
             VertexDesc destv = vp->attachTo(this);  // makes copy of vp
             if (vp->isOptimized()) {
               // known pose, so can already add it to optimizer
@@ -291,10 +295,11 @@ namespace tagslam {
               AbsolutePosePriorFactorPtr
                 pp(new factor::AbsolutePosePrior(
                      vp->getTime(),
-                     PoseWithNoise(vp->getPose(), PoseNoise2::make(0.01, 0.01)), vp->getName()));
+                     PoseWithNoise(vp->getPose(), PoseNoise2::make(0.01, 0.01), true), vp->getName()));
               add(pp);
               addToOptimizer(pp.get());
               ROS_DEBUG_STREAM("adding prior to free pose: " << *pp);
+              std::cout << pp->getPoseWithNoise().getPose() << std::endl;
             }
             //ROS_DEBUG_STREAM("attached: " << *graph_[destv]);
             //graph_[destv]->addToOptimizer(this);
@@ -342,8 +347,8 @@ namespace tagslam {
   }
 
   void Graph::initializeFrom(const Graph &sg) {
-    ROS_DEBUG_STREAM("initializingFrom()");
     // first initialize all values and add to optimizer
+    int numTransferredPoses(0);
     for (auto vi = boost::vertices(sg.graph_); vi.first != vi.second; ++vi.first) {
       PoseValuePtr   psp = std::dynamic_pointer_cast<value::Pose>(sg.graph_[*vi.first]);
       if (psp) {
@@ -361,6 +366,7 @@ namespace tagslam {
           ROS_DEBUG_STREAM("transferring pose from graph: " << pdp->getLabel());
           pdp->setPose(psp->getPose());
           pdp->addToOptimizer(this);
+          numTransferredPoses++;
         }
       }
     }
@@ -373,6 +379,12 @@ namespace tagslam {
         VertexDesc dv = find(sp->getId());
         if (is_valid(dv)) {
           getVertex(dv)->addToOptimizer(this);
+#if 0          
+          if (numTransferredPoses <= 1 && fooCnt_ > 2100) {
+            double error = optimizer_->errorFull();
+            ROS_DEBUG_STREAM(fooCnt_ << " error after factor: " << error);
+          }
+#endif          
         } else {
           ROS_ERROR_STREAM("no orig vertex found for: " << *sp);
           throw std::runtime_error("no orig vertex found");
@@ -405,6 +417,12 @@ namespace tagslam {
 
   VertexDesc Graph::findPose(const ros::Time &t, const string &name) const {
     return (find(value::Pose::id(t, name)));
+  }
+
+  void Graph::setOptimizedPose(const VertexDesc v,
+                               const Transform &pose) {
+    PoseValueConstPtr psrc = std::dynamic_pointer_cast<const value::Pose>(graph_[v]);
+    optimizer_->setPose(psrc->getKey(), pose);
   }
 
   void Graph::print(const std::string &prefix) const {

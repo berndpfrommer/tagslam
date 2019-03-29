@@ -51,9 +51,9 @@ namespace tagslam {
     profiler_.reset();
     double error;
     if (optimizeFullGraph_) {
-      error = graph_.optimize();
-    } else {
       error = graph_.optimizeFull();
+    } else {
+      error = graph_.optimize();
     }
     profiler_.record("optimize");
     return (error);
@@ -294,13 +294,35 @@ namespace tagslam {
       ROS_INFO_STREAM("no new factors activated!");
       return;
     }
+    ROS_DEBUG_STREAM("^^^^^^^^^^ checking complete graph for error before doing anything! ^^^^^^^^^^");
+    double terr = graph_.getError();
+    std::cout << "full graph total error: " <<  terr << std::endl;
+    
     std::vector<GraphPtr> subGraphs;
     initializeSubgraphs(&subGraphs, sv);
     optimizeSubgraphs(subGraphs);
     initializeFromSubgraphs(subGraphs);
     double err = optimize();
     ROS_INFO_STREAM("after new factors optimizer error: " << err);
-
+#if 0
+    ++fooCnt;
+    ROS_DEBUG_STREAM("fooCnt: " << fooCnt);
+    if (fooCnt == 1335) {
+      Graph &sg = *subGraphs[0];
+      VertexDesc vds = sg.findPose(t, "body:rig");
+      VertexDesc vd  = graph_.findPose(t, "body:rig");
+      if (Graph::is_valid(vds) && Graph::is_valid(vd)) {
+        Transform pose = graph_.getOptimizedPose(vd);
+        sg.setOptimizedPose(vds, pose);
+        ROS_INFO_STREAM("transferred pose: " << std::endl << pose);
+        ROS_INFO_STREAM("subgraph error: " << sg.getError());
+      } else {
+        ROS_DEBUG_STREAM("POSE NOT FOUND!!!: " << vds << " " << vd);
+      }
+    }
+#endiif    
+    
+    std::cout << profiler_ << std::endl;
 #if 0    
     for (const auto &kv: times_) {
       ROS_DEBUG_STREAM("time: " << kv.first);
@@ -439,10 +461,14 @@ namespace tagslam {
     switch (idx) {
     case 0: { // T_0 = T_1 * delta T^-1
       T[idx]->setPose(T[1]->getPose() * deltaPose.inverse());
+      std::cout << "filling pose T[0] from relative pose prior:" << std::endl
+                << T[0]->getPose() << std::endl << T[1]->getPose() << std::endl;
       T[idx]->addToOptimizer(graph);
       break; }
     case 1: { // T_1 = T_0 * delta T
       T[idx]->setPose(T[0]->getPose() * deltaPose);
+      std::cout << "filling pose T[1] from relative pose prior:" << std::endl
+                << T[0]->getPose() << std::endl << T[1]->getPose() << std::endl;
       T[idx]->addToOptimizer(graph);
       break; }
     case -1: {
@@ -471,6 +497,7 @@ namespace tagslam {
       subGraphs->push_back(GraphPtr(new Graph()));
       Graph &subGraph = *(subGraphs->back());
       std::list<VertexDesc> vset;
+      // This makes a deep copy, hopefully
       subGraph.copyFrom(graph_, vs, &vset);
       subGraph.print("init subgraph");
       for (const auto &v: vset) { //loop over factors
@@ -497,7 +524,9 @@ namespace tagslam {
           RelativePosePriorFactorPtr rp =
           std::dynamic_pointer_cast<factor::RelativePosePrior>(fvp);
           if (rp && !rp->isOptimized()) {
+            // first fill in pose via deltaPose
             setValueFromRelativePosePrior(&subGraph, v, rp->getPoseWithNoise().getPose());
+            // then add factor
             rp->addToOptimizer(&subGraph);
           } else {
             ROS_DEBUG_STREAM("skipping factor: " << subGraph.info(v));

@@ -58,6 +58,11 @@ namespace tagslam {
                    const Transform &pose, bool poseIsValid);
 
     Transform getOptimizedPose(const VertexDesc &v) const;
+    // for debugging, allow to switch individual pose in opt
+    void      setOptimizedPose(const VertexDesc v,
+                               const Transform &pose);
+    // for debugging, compute error on graph
+    double    getError() { return (optimizer_->errorFull()); }
     void      plotDebug(const ros::Time &t, const string &tag);
     void      transferOptimizedPose(const VertexDesc &v);
     void      transferOptimizedValues();
@@ -67,7 +72,7 @@ namespace tagslam {
     void  initializeFrom(const Graph &sg);
     void  print(const std::string &pre = "") const;
     
-    // use operator overloading for this
+    // TODO use operator [] overloading for this
     VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
     
     VertexDesc findPose(const ros::Time &t, const string &name) const;
