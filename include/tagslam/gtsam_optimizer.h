@@ -38,6 +38,7 @@ namespace tagslam {
       ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) override;
     gtsam::ExpressionFactorGraph  &getGraph() { return (newGraph_); }
     void setPose(ValueKey k, const Transform &pose) override;
+    
   private:
     inline ValueKey generateKey() { return (++key_); } // starts at 1!
     typedef std::unordered_map<std::string, std::shared_ptr<Cal3FS2>> EquiModelMap;

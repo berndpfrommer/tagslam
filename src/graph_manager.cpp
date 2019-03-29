@@ -21,7 +21,6 @@
 #include <fstream>
 #include <queue>
 #include <map>
-#include <sstream>
 
 //#define DEBUG_GRAPH
 
@@ -286,12 +285,17 @@ namespace tagslam {
   void
   GraphManager::processNewFactors(const ros::Time &t,
                            const std::vector<VertexDesc> &facs) {
-    ROS_DEBUG_STREAM("&&&&&&&&&&&&&&&&&&&&&&&&&&&&& got new factors for t = " << t);
+    ROS_DEBUG_STREAM("&&&&&&&&&&&&&&&&&&&&&&&&&&&&& got " << facs.size() << " new factors for t = " << t);
     SubGraph found;
     std::vector<std::list<VertexDesc>> sv;
+    if (facs.size() == 0) {
+      ROS_DEBUG_STREAM("no new factors!");
+      numNoFactors_++;
+      return;
+    }
     sv = findSubgraphs(t, facs, &found);
     if (sv.empty()) {
-      ROS_INFO_STREAM("no new factors activated!");
+      ROS_DEBUG_STREAM("no new factors activated!");
       return;
     }
     ROS_DEBUG_STREAM("^^^^^^^^^^ checking complete graph for error before doing anything! ^^^^^^^^^^");
@@ -320,7 +324,7 @@ namespace tagslam {
         ROS_DEBUG_STREAM("POSE NOT FOUND!!!: " << vds << " " << vd);
       }
     }
-#endiif    
+#endif    
     
     std::cout << profiler_ << std::endl;
 #if 0    
@@ -354,7 +358,9 @@ namespace tagslam {
       }
       //std::cout << profiler_ << std::endl;
       //std::cout.flush();
+      graph_.transferOptimizedValues();
     }
+    ROS_INFO_STREAM("graph after update: " << graph_.getStats() << " no factors: " << numNoFactors_);
   }
 
   void

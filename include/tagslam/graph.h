@@ -71,6 +71,7 @@ namespace tagslam {
                    std::list<VertexDesc> *vdest);
     void  initializeFrom(const Graph &sg);
     void  print(const std::string &pre = "") const;
+    std::string getStats() const;
     
     // TODO use operator [] overloading for this
     VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
@@ -86,7 +87,6 @@ namespace tagslam {
     }
     static void transfer_optimized_pose(Graph *destGraph, const VertexDesc &destVertex,
                                         const Graph &srcGraph, const VertexDesc &srcVertex);
-
 
   private:
     inline VertexDesc find(const VertexId &id) const {

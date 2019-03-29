@@ -14,6 +14,9 @@
 #include <boost/graph/graphviz.hpp>
 #include <boost/graph/graph_utility.hpp>
 
+
+#include <sstream>
+
 namespace tagslam {
 
   using boost::irange;
@@ -430,6 +433,24 @@ namespace tagslam {
       ROS_DEBUG_STREAM(prefix << " " << graph_[*vi.first]->getLabel());
     }
   }
+
+  std::string Graph::getStats() const {
+    int numFac(0), numOptFac(0), numVal(0), numOptVal(0);
+    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
+      const VertexConstPtr vp = graph_[*vi.first];
+      if (vp->isOptimized()) {
+        if (vp->isValue()) { numOptVal++;
+        } else { numOptFac++; }
+      } else {
+        if (vp->isValue()) { numVal++;
+        } else { numFac++; }
+      }
+    }
+    std::stringstream ss;
+    ss << "fac: " << numFac + numOptFac << " opt vals: " << numOptVal << " unopt vals: " << numVal;
+    return (ss.str());
+  }
+
   // static method!
   std::string Graph::tag_name(int tagid) {
     return (string("tag:") + std::to_string(tagid));

@@ -106,5 +106,6 @@ namespace tagslam {
     Graph              graph_;
     TimeToVertexesMap  times_;
     Profiler           profiler_;
+    size_t             numNoFactors_{0};
   };
 }

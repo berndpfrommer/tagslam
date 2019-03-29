@@ -197,7 +197,7 @@ namespace tagslam {
       //values_.print();
       //values_.print();
       //fullGraph_.print();
-#define DEBUG_BEFORE_AFTER      
+//#define DEBUG_BEFORE_AFTER      
 #ifdef DEBUG_BEFORE_AFTER   
     for (const auto &v : newValues_) {
       std::cout << "----- before: " << std::endl;
@@ -255,7 +255,7 @@ namespace tagslam {
     }
     fullGraph_ += newGraph_;
     values_.insert(newValues_);
-    print_large_errors("before full opt", fullGraph_, values_, 10.0);
+    //print_large_errors("before full opt", fullGraph_, values_, 10.0);
     gtsam::LevenbergMarquardtParams lmp;
     lmp.setVerbosity(verbosity_);
     lmp.setMaxIterations(100);
