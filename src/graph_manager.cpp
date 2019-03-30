@@ -287,79 +287,6 @@ namespace tagslam {
     profiler_.record("initialzeFromSubgraphs");
   }
 
-  void
-  GraphManager::processNewFactors(const ros::Time &t,
-                           const std::vector<VertexDesc> &facs) {
-    ROS_DEBUG_STREAM("&&&&&&&&&&&&&&&&&&&&&&&&&&&&& got " << facs.size() << " new factors for t = " << t);
-    SubGraph found;
-    std::vector<std::deque<VertexDesc>> sv;
-    if (facs.size() == 0) {
-      ROS_DEBUG_STREAM("no new factors!");
-      numNoFactors_++;
-      return;
-    }
-    sv = findSubgraphs(t, facs, &found);
-    if (sv.empty()) {
-      ROS_DEBUG_STREAM("no new factors activated!");
-      return;
-    }
-    ROS_DEBUG_STREAM("^^^^^^^^^^ checking complete graph for error before doing anything! ^^^^^^^^^^");
-    double err = graph_.getError();
-    
-    std::vector<GraphPtr> subGraphs;
-    initializeSubgraphs(&subGraphs, sv);
-    optimizeSubgraphs(subGraphs);
-    initializeFromSubgraphs(subGraphs);
-    err = optimize();
-    ROS_INFO_STREAM("after new factors optimizer error: " << err);
-    
-    std::cout << profiler_ << std::endl;
- 
-    ROS_DEBUG_STREAM("&-&-&-&-&-&-&-& done with new factors for t = " << t);
-    while (!times_.empty()) {
-      auto it = times_.rbegin();
-      const ros::Time key = it->first;
-      ROS_DEBUG_STREAM("++++++++++ handling old factors for t = " << key);
-      sv = findSubgraphs(key, it->second, &found);
-      initializeSubgraphs(&subGraphs, sv);
-      optimizeSubgraphs(subGraphs);
-      initializeFromSubgraphs(subGraphs);
-      optimize(); // run global optimization 
-      // now remove factors that have been used
-      ROS_DEBUG_STREAM("removing used factors...");
-      for (auto ii = times_[key].begin(); ii != times_[key].end();) {
-        if (contains(found.factors, *ii)) {
-          ROS_DEBUG_STREAM("removing used factor " << graph_.info(*ii) << " for time "  << key);
-          ii = times_[key].erase(ii);
-        } else {
-          ++ii;
-        }
-      }
-      if (times_[key].empty()) {
-        ROS_DEBUG_STREAM("all elements gone for time " << key);
-        times_.erase(key);
-      }
-      //std::cout << profiler_ << std::endl;
-      //std::cout.flush();
-      graph_.transferOptimizedValues();
-    }
-    ROS_INFO_STREAM("graph after update: " << graph_.getStats() << " no factors: " << numNoFactors_);
-  }
-
-  void
-  GraphManager::exploreSubGraph(const ros::Time &t,
-                         VertexDesc start,
-                         SubGraph *subGraph, SubGraph *found) {
-    std::deque<VertexDesc> factorsToExamine;
-    factorsToExamine.push_back(start);
-    while (!factorsToExamine.empty()) {
-      VertexDesc exFac = factorsToExamine.front();
-      factorsToExamine.pop_front();
-      // examine() may append new factors to factorsToExamine
-      examine(t, exFac, &factorsToExamine, found, subGraph);
-    }
-  }
-
   static int find_connected_poses(const Graph &graph,
                                   VertexDesc v,
                                   std::vector<PoseValuePtr> *poses,
@@ -469,7 +396,57 @@ namespace tagslam {
     ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
     return (idx);
   }
-                                               
+
+
+  static bool initialize_subgraph(Graph *graph,
+                                  const std::deque<VertexDesc> &factors) {
+    for (const auto &v: factors) { //loop over factors
+      VertexPtr  fvp = graph->getVertex(v);
+      TagProjectionFactorPtr fp =
+        std::dynamic_pointer_cast<factor::TagProjection>(fvp);
+      if (fp) {
+        // do homography for this vertex, add new values to graph and the optimizer!
+        const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
+        ROS_DEBUG_STREAM("computing pose for factor " << fvp->getLabel());
+        auto tf = pnp::pose_from_4(fp->getImageCorners(),
+                                   fp->getTag()->getObjectCorners(),
+                                   ci.getK(), ci.getDistortionModel(), ci.getD());
+        ROS_DEBUG_STREAM("got homography: " << tf.second << std::endl << tf.first);
+        if (tf.second) {
+          set_value_from_tag_projection(graph, v, tf.first);
+          if (!fp->isOptimized()) {
+            // add factor and values to optimizer
+            fp->setIsValid(true);
+            fp->addToOptimizer(graph);
+          }
+        }
+      } else {
+        RelativePosePriorFactorPtr rp =
+          std::dynamic_pointer_cast<factor::RelativePosePrior>(fvp);
+        if (rp && !rp->isOptimized()) {
+          // first fill in pose via deltaPose
+          set_value_from_relative_pose_prior(graph, v, rp->getPoseWithNoise().getPose());
+          // then add factor
+          rp->addToOptimizer(graph);
+        } else {
+          ROS_DEBUG_STREAM("skipping factor: " << graph->info(v));
+        }
+      }
+    }
+    // test that all values have been covered
+    bool allOptimized(true);
+    for (const auto &fac: factors) {
+      std::vector<VertexDesc> values = graph->getConnected(fac);
+      for (const auto &v: values) {
+        if (graph->getVertex(v)->isOptimized()) {
+          allOptimized = false;
+          break;
+        }
+      }
+    }
+    return (allOptimized);
+  }
+
   void GraphManager::initializeSubgraphs(
     std::vector<GraphPtr> *subGraphs,
     const std::vector<std::deque<VertexDesc>> &verts) {
@@ -478,50 +455,93 @@ namespace tagslam {
     subGraphs->clear();
     for (const auto &vs: verts) {  // iterate over all subgraphs
       ROS_DEBUG_STREAM("---------- subgraph of size: " << vs.size());
-      subGraphs->push_back(GraphPtr(new Graph()));
-      Graph &subGraph = *(subGraphs->back());
+      GraphPtr sg(new Graph());
+      Graph &subGraph = *sg;
       std::deque<VertexDesc> vset;
       // This makes a deep copy, hopefully
       subGraph.copyFrom(graph_, vs, &vset);
       subGraph.print("init subgraph");
-      for (const auto &v: vset) { //loop over factors
-        VertexPtr  fvp = subGraph.getVertex(v);
-        TagProjectionFactorPtr fp =
-          std::dynamic_pointer_cast<factor::TagProjection>(fvp);
-        if (fp) {
-          // do homography for this vertex, add new values to graph and the optimizer!
-          const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
-          ROS_DEBUG_STREAM("computing pose for factor " << fvp->getLabel());
-          auto tf = pnp::pose_from_4(fp->getImageCorners(),
-                                     fp->getTag()->getObjectCorners(),
-                                     ci.getK(), ci.getDistortionModel(), ci.getD());
-          ROS_DEBUG_STREAM("got homography: " << tf.second << std::endl << tf.first);
-          if (tf.second) {
-            set_value_from_tag_projection(&subGraph, v, tf.first);
-            if (!fp->isOptimized()) {
-              // add factor and values to optimizer
-              fp->setIsValid(true);
-              fp->addToOptimizer(&subGraph);
-            }
-          }
-        } else {
-          RelativePosePriorFactorPtr rp =
-          std::dynamic_pointer_cast<factor::RelativePosePrior>(fvp);
-          if (rp && !rp->isOptimized()) {
-            // first fill in pose via deltaPose
-            set_value_from_relative_pose_prior(&subGraph, v, rp->getPoseWithNoise().getPose());
-            // then add factor
-            rp->addToOptimizer(&subGraph);
-          } else {
-            ROS_DEBUG_STREAM("skipping factor: " << subGraph.info(v));
-          }
-        }
-      }
+      initialize_subgraph(&subGraph, vset);
+      subGraphs->push_back(sg);
     }
     profiler_.record("initializeSubgraphs");
   }
 
+  void
+  GraphManager::processNewFactors(const ros::Time &t,
+                           const std::vector<VertexDesc> &facs) {
+    ROS_DEBUG_STREAM("&&&&&&&&&&&&&&&&&&&&&&&&&&&&& got " << facs.size() << " new factors for t = " << t);
+    SubGraph found;
+    std::vector<std::deque<VertexDesc>> sv;
+    if (facs.size() == 0) {
+      ROS_DEBUG_STREAM("no new factors!");
+      numNoFactors_++;
+      return;
+    }
+    sv = findSubgraphs(t, facs, &found);
+    if (sv.empty()) {
+      ROS_DEBUG_STREAM("no new factors activated!");
+      return;
+    }
+    ROS_DEBUG_STREAM("^^^^^^^^^^ checking complete graph for error before doing anything! ^^^^^^^^^^");
+    double err = graph_.getError();
+    
+    std::vector<GraphPtr> subGraphs;
+    
+    initializeSubgraphs(&subGraphs, sv);
+    optimizeSubgraphs(subGraphs);
+    initializeFromSubgraphs(subGraphs);
+    err = optimize();
+    ROS_INFO_STREAM("after new factors optimizer error: " << err);
+    
+    std::cout << profiler_ << std::endl;
  
+    ROS_DEBUG_STREAM("&-&-&-&-&-&-&-& done with new factors for t = " << t);
+    while (!times_.empty()) {
+      auto it = times_.rbegin();
+      const ros::Time key = it->first;
+      ROS_DEBUG_STREAM("++++++++++ handling old factors for t = " << key);
+      sv = findSubgraphs(key, it->second, &found);
+      initializeSubgraphs(&subGraphs, sv);
+      optimizeSubgraphs(subGraphs);
+      initializeFromSubgraphs(subGraphs);
+      optimize(); // run global optimization 
+      // now remove factors that have been used
+      ROS_DEBUG_STREAM("removing used factors...");
+      for (auto ii = times_[key].begin(); ii != times_[key].end();) {
+        if (contains(found.factors, *ii)) {
+          ROS_DEBUG_STREAM("removing used factor " << graph_.info(*ii) << " for time "  << key);
+          ii = times_[key].erase(ii);
+        } else {
+          ++ii;
+        }
+      }
+      if (times_[key].empty()) {
+        ROS_DEBUG_STREAM("all elements gone for time " << key);
+        times_.erase(key);
+      }
+      //std::cout << profiler_ << std::endl;
+      //std::cout.flush();
+      graph_.transferOptimizedValues();
+    }
+    ROS_INFO_STREAM("graph after update: " << graph_.getStats() << " no factors: " << numNoFactors_);
+  }
+
+  void
+  GraphManager::exploreSubGraph(const ros::Time &t,
+                         VertexDesc start,
+                         SubGraph *subGraph, SubGraph *found) {
+    std::deque<VertexDesc> factorsToExamine;
+    factorsToExamine.push_back(start);
+    while (!factorsToExamine.empty()) {
+      VertexDesc exFac = factorsToExamine.front();
+      factorsToExamine.pop_front();
+      // examine() may append new factors to factorsToExamine
+      examine(t, exFac, &factorsToExamine, found, subGraph);
+    }
+  }
+
+
 
   double GraphManager::reoptimize() {
     double err = graph_.optimizeFull(true /*force*/);

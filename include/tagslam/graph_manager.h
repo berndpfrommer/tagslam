@@ -84,12 +84,12 @@ namespace tagslam {
     findSubgraphs(const ros::Time &t,
                   const std::vector<VertexDesc> &fac,
                   SubGraph *found);
-    void exploreSubGraph(const ros::Time &t,
-                         VertexDesc start,
-                         SubGraph *subGraph, SubGraph *found);
     void initializeSubgraphs(
           std::vector<GraphPtr> *subGraphs,
           const std::vector<std::deque<VertexDesc>> &verts);
+    void exploreSubGraph(const ros::Time &t,
+                         VertexDesc start,
+                         SubGraph *subGraph, SubGraph *found);
     void optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
     void initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
 
