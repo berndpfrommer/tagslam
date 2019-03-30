@@ -397,6 +397,27 @@ namespace tagslam {
     return (idx);
   }
 
+  static void enumerate(std::vector<std::deque<VertexDesc>> *all,
+                        const std::deque<VertexDesc> &prefix,
+                        const std::deque<VertexDesc> &remain) {
+    all->push_back(remain); /// XXX
+    return;
+    int n = remain.size();
+    if (n == 0) {
+      all->push_back(prefix);
+    } else {
+      for (int i = 0; i < n; i++) {
+        std::deque<VertexDesc> newPrefix(prefix);
+        newPrefix.push_back(remain[i]);
+        std::deque<VertexDesc> newRemain(remain.begin(), remain.begin() + i);
+        newRemain.insert(newRemain.end(), remain.begin() + i + 1, remain.end());
+        newPrefix.push_back(remain[i]);
+        std::cout << prefix.size() + remain.size() << " changes to -> "
+                  << newPrefix.size() + newRemain.size() << std::endl;
+        enumerate(all, newPrefix, newRemain);
+      }
+    }
+  }
 
   static bool initialize_subgraph(Graph *graph,
                                   const std::deque<VertexDesc> &factors) {
@@ -438,7 +459,7 @@ namespace tagslam {
     for (const auto &fac: factors) {
       std::vector<VertexDesc> values = graph->getConnected(fac);
       for (const auto &v: values) {
-        if (graph->getVertex(v)->isOptimized()) {
+        if (!graph->getVertex(v)->isOptimized()) {
           allOptimized = false;
           break;
         }
@@ -455,14 +476,31 @@ namespace tagslam {
     subGraphs->clear();
     for (const auto &vs: verts) {  // iterate over all subgraphs
       ROS_DEBUG_STREAM("---------- subgraph of size: " << vs.size());
-      GraphPtr sg(new Graph());
-      Graph &subGraph = *sg;
-      std::deque<VertexDesc> vset;
-      // This makes a deep copy, hopefully
-      subGraph.copyFrom(graph_, vs, &vset);
-      subGraph.print("init subgraph");
-      initialize_subgraph(&subGraph, vset);
-      subGraphs->push_back(sg);
+      std::vector<std::deque<VertexDesc>> orderings;
+      enumerate(&orderings, std::deque<VertexDesc>(), vs);
+      double errMin = 1e10;
+      GraphPtr bestGraph;
+      for (const auto &factors: orderings) {
+        GraphPtr sg(new Graph());
+        Graph &subGraph = *sg;
+        std::deque<VertexDesc> vset;
+        // This makes a deep copy, hopefully
+        subGraph.copyFrom(graph_, factors, &vset);
+        subGraph.print("init subgraph");
+        if (initialize_subgraph(&subGraph, vset)) {
+          ROS_DEBUG_STREAM("found good subgraph!");
+          double err =  subGraph.optimizeFull();
+          if (err >= 0 && err < errMin) {
+            errMin = err;
+            bestGraph = sg;
+          }
+        } else {
+          ROS_DEBUG_STREAM("subgraph rejected!");
+        }
+      }
+      if (bestGraph) {
+        subGraphs->push_back(bestGraph);
+      }
     }
     profiler_.record("initializeSubgraphs");
   }
