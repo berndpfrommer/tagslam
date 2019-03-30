@@ -63,7 +63,7 @@ namespace tagslam {
                      const PoseWithNoise &deltaPose);
   private:
     struct SubGraph {
-      typedef std::list<VertexDesc> FactorCollection;
+      typedef std::deque<VertexDesc> FactorCollection;
       typedef std::set<VertexDesc>  ValueCollection;
       FactorCollection  factors;
       ValueCollection   values;
@@ -78,26 +78,18 @@ namespace tagslam {
                            const string &name,
                            const PoseWithNoise &pn);
     void examine(const ros::Time &t, VertexDesc fac,
-                 std::list<VertexDesc> *factorsToExamine,
+                 std::deque<VertexDesc> *factorsToExamine,
                  SubGraph *found, SubGraph *sg);
-    std::vector<std::list<VertexDesc>>
+    std::vector<std::deque<VertexDesc>>
     findSubgraphs(const ros::Time &t,
                   const std::vector<VertexDesc> &fac,
                   SubGraph *found);
     void exploreSubGraph(const ros::Time &t,
                          VertexDesc start,
                          SubGraph *subGraph, SubGraph *found);
-    int findConnectedPoses(const Graph &graph,
-                           VertexDesc v,
-                           std::vector<PoseValuePtr> *poses,
-                           std::vector<VertexDesc> *conn);
-    void setValueFromTagProjection(Graph *graph,
-                                   VertexDesc v, const Transform &T_c_o);
-    int  setValueFromRelativePosePrior(Graph *graph,
-                                       VertexDesc v, const Transform &deltaPose);
     void initializeSubgraphs(
           std::vector<GraphPtr> *subGraphs,
-          const std::vector<std::list<VertexDesc>> &verts);
+          const std::vector<std::deque<VertexDesc>> &verts);
     void optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
     void initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
 

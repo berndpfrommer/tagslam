@@ -28,7 +28,7 @@ namespace tagslam {
 
   using boost::irange;
 
-  static bool contains(std::list<VertexDesc> &c,
+  static bool contains(std::deque<VertexDesc> &c,
                        const VertexDesc &v) {
     return (std::find(c.begin(), c.end(), v) != c.end());
   }
@@ -163,14 +163,14 @@ namespace tagslam {
 
   void
   GraphManager::examine(const ros::Time &t, VertexDesc fac,
-                 std::list<VertexDesc> *factorsToExamine,
+                 std::deque<VertexDesc> *factorsToExamine,
                  SubGraph *found, SubGraph *sg) {
     ROS_DEBUG_STREAM("examining factor: " << graph_.info(fac));
     // find out if this factor allows us to determine a new value
     std::vector<VertexDesc> conn = graph_.getConnected(fac);
     int numEdges(0), numValid(0);
     VertexDesc valueVertex;
-    std::list<VertexDesc> values;
+    std::deque<VertexDesc> values;
     for (const auto vv: conn) {
       VertexConstPtr vvp = graph_.getVertex(vv);
       ValueConstPtr   vp = std::dynamic_pointer_cast<const value::Value>(vvp);
@@ -239,12 +239,12 @@ namespace tagslam {
     }
   }
 
-  std::vector<std::list<VertexDesc>>
+  std::vector<std::deque<VertexDesc>>
   GraphManager::findSubgraphs(const ros::Time &t,
                        const std::vector<VertexDesc> &facs,
                        SubGraph *found) {
     profiler_.reset();
-    std::vector<std::list<VertexDesc>> sv;
+    std::vector<std::deque<VertexDesc>> sv;
     ROS_DEBUG_STREAM("======================= finding subgraphs for t = " << t);
     // first look over the new factors
     for (const auto &fac: facs) {
@@ -292,7 +292,7 @@ namespace tagslam {
                            const std::vector<VertexDesc> &facs) {
     ROS_DEBUG_STREAM("&&&&&&&&&&&&&&&&&&&&&&&&&&&&& got " << facs.size() << " new factors for t = " << t);
     SubGraph found;
-    std::vector<std::list<VertexDesc>> sv;
+    std::vector<std::deque<VertexDesc>> sv;
     if (facs.size() == 0) {
       ROS_DEBUG_STREAM("no new factors!");
       numNoFactors_++;
@@ -350,7 +350,7 @@ namespace tagslam {
   GraphManager::exploreSubGraph(const ros::Time &t,
                          VertexDesc start,
                          SubGraph *subGraph, SubGraph *found) {
-    std::list<VertexDesc> factorsToExamine;
+    std::deque<VertexDesc> factorsToExamine;
     factorsToExamine.push_back(start);
     while (!factorsToExamine.empty()) {
       VertexDesc exFac = factorsToExamine.front();
@@ -360,12 +360,10 @@ namespace tagslam {
     }
   }
 
-  int
-  GraphManager::findConnectedPoses(const Graph &graph,
-                                   VertexDesc v,
-                                   std::vector<PoseValuePtr> *poses,
-                                   std::vector<VertexDesc> *conn) {
-    //ROS_DEBUG_STREAM("finding connected poses for: " << graph.info(v));
+  static int find_connected_poses(const Graph &graph,
+                                  VertexDesc v,
+                                  std::vector<PoseValuePtr> *poses,
+                                  std::vector<VertexDesc> *conn) {
     int missingIdx(-1), edgeNum(0), numMissing(0);
     *conn = graph.getConnected(v);
     poses->clear();
@@ -391,12 +389,11 @@ namespace tagslam {
     return (missingIdx);
   }
 
-  void
-  GraphManager::setValueFromTagProjection(Graph *graph,
-                                          VertexDesc v, const Transform &T_c_o)  {
+  static void set_value_from_tag_projection(Graph *graph,
+                                            VertexDesc v, const Transform &T_c_o)  {
     std::vector<PoseValuePtr> T;
     std::vector<VertexDesc> conn;
-    int idx = findConnectedPoses(*graph, v, &T, &conn);
+    int idx = find_connected_poses(*graph, v, &T, &conn);
     switch (idx) {
     case 0: { // T_r_c = T_r_w * T_w_b * T_b_o * T_o_c
       T[idx]->setPose(T[1]->getPose().inverse() * T[2]->getPose() *
@@ -429,7 +426,7 @@ namespace tagslam {
       return;
       break; }
     default: {
-      ROS_DEBUG_STREAM("factor has multiple missing values!");
+      ROS_DEBUG_STREAM("factor has multiple missing values: " << graph->getVertex(v)->getLabel());
       return;
       break; }
     }
@@ -437,12 +434,11 @@ namespace tagslam {
     ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
   }
 
-  int
-  GraphManager::setValueFromRelativePosePrior(
+  static int set_value_from_relative_pose_prior(
     Graph *graph, VertexDesc v, const Transform &deltaPose) {
     std::vector<PoseValuePtr> T;
     std::vector<VertexDesc> conn;
-    int idx = findConnectedPoses(*graph, v, &T, &conn);
+    int idx = find_connected_poses(*graph, v, &T, &conn);
     if (T.size()  != 2) {
       ROS_ERROR_STREAM("rel pose prior has wrong num connected: " << T.size());
       throw std::runtime_error("rel pose prior has wrong num conn");
@@ -473,11 +469,10 @@ namespace tagslam {
     ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
     return (idx);
   }
-
                                                
   void GraphManager::initializeSubgraphs(
     std::vector<GraphPtr> *subGraphs,
-    const std::vector<std::list<VertexDesc>> &verts) {
+    const std::vector<std::deque<VertexDesc>> &verts) {
     profiler_.reset();
     ROS_DEBUG_STREAM("----------- initializing " << verts.size() << " subgraphs");
     subGraphs->clear();
@@ -485,7 +480,7 @@ namespace tagslam {
       ROS_DEBUG_STREAM("---------- subgraph of size: " << vs.size());
       subGraphs->push_back(GraphPtr(new Graph()));
       Graph &subGraph = *(subGraphs->back());
-      std::list<VertexDesc> vset;
+      std::deque<VertexDesc> vset;
       // This makes a deep copy, hopefully
       subGraph.copyFrom(graph_, vs, &vset);
       subGraph.print("init subgraph");
@@ -502,7 +497,7 @@ namespace tagslam {
                                      ci.getK(), ci.getDistortionModel(), ci.getD());
           ROS_DEBUG_STREAM("got homography: " << tf.second << std::endl << tf.first);
           if (tf.second) {
-            setValueFromTagProjection(&subGraph, v, tf.first);
+            set_value_from_tag_projection(&subGraph, v, tf.first);
             if (!fp->isOptimized()) {
               // add factor and values to optimizer
               fp->setIsValid(true);
@@ -514,7 +509,7 @@ namespace tagslam {
           std::dynamic_pointer_cast<factor::RelativePosePrior>(fvp);
           if (rp && !rp->isOptimized()) {
             // first fill in pose via deltaPose
-            setValueFromRelativePosePrior(&subGraph, v, rp->getPoseWithNoise().getPose());
+            set_value_from_relative_pose_prior(&subGraph, v, rp->getPoseWithNoise().getPose());
             // then add factor
             rp->addToOptimizer(&subGraph);
           } else {

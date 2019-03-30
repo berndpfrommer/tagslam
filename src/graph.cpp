@@ -272,8 +272,8 @@ namespace tagslam {
   }
 
   void
-  Graph::copyFrom(const Graph &g, const std::list<VertexDesc> &srcfacs,
-                  std::list<VertexDesc> *destfacs) {
+  Graph::copyFrom(const Graph &g, const std::deque<VertexDesc> &srcfacs,
+                  std::deque<VertexDesc> *destfacs) {
     ROS_DEBUG_STREAM("copying from...");
     std::set<VertexDesc> copiedVals;
     // first copy all values
