@@ -72,7 +72,7 @@ namespace tagslam {
     double pixelNoise, maxSubgraphError;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
     graphManager_.setPixelNoise(pixelNoise);
-    nh_.param<double>("max_subgraph_error", maxSubgraphError, 15.0);
+    nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
     graphManager_.setMaxSubgraphError(maxSubgraphError);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graphManager_.setOptimizeFullGraph(optFullGraph);

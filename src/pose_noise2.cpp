@@ -22,8 +22,8 @@ namespace tagslam {
   static const Matrix6d sqrt_info_to_sigma(const Matrix6d &R) {
     // TODO: test this! Is it working at all???
     // Could be just as well R * R.transpose()
-    const Matrix6d rsq = R.transpose() * R;
-    return (rsq.inverse());
+    const Matrix6d rsqi = (R.transpose() * R).inverse();
+    return (rsqi);
   }
 
   // static method

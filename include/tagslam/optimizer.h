@@ -17,9 +17,10 @@ namespace tagslam {
 
     virtual double optimize() = 0;
     virtual double optimizeFull(bool force = false) = 0;
+    virtual void   transferFullOptimization() = 0;
     virtual double errorFull() = 0;
     virtual double getError(FactorKey k) const = 0;
-
+    virtual double getMaxError() const = 0;
     virtual void setErrorThreshold(double th) = 0;
     virtual void setVerbosity(const std::string &v) = 0;
 

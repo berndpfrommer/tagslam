@@ -163,11 +163,22 @@ namespace tagslam {
     return (keys);
   }
 
+  double GTSAMOptimizer::getMaxError() const {
+    double me(0);
+    for (const auto i: fullGraph_) {
+      double e = i->error(values_);
+      if (e > me) {
+        me = e;
+      }
+    }
+    return (me);
+  }
+
   double GTSAMOptimizer::optimize() {
     ROS_DEBUG_STREAM("optimizer new values: " << newValues_.size()
                     << " factors: " << newGraph_.size());
-    std::cout << "------------ new values:  " << std::endl;
-    newValues_.print();
+//    std::cout << "------------ new values:  " << std::endl;
+//    newValues_.print();
 //    std::cout << "------------ new factors: " << std::endl;
 //    newGraph_.print();
     if (newGraph_.size() > 0) {
@@ -228,6 +239,10 @@ namespace tagslam {
           v.at(k).print();
           std::cout << std::endl;
         }
+      } else {
+        //std::cout << label << " SMALL ERROR: " << i->error(v) << std::endl;
+        //std::cout << label << " factor: " << std::endl;
+        //i->print();  std::cout <<  std::endl << std::endl;
       }
     }
   }
@@ -237,7 +252,7 @@ namespace tagslam {
     testGraph += newGraph_;
     gtsam::Values testValues = values_;
     testValues.insert(newValues_);
-    print_large_errors("errorFull", testGraph, testValues, 10.0);
+    //print_large_errors("errorFull", testGraph, testValues, 10.0);
     return (testGraph.error(testValues));
   }
 
@@ -272,6 +287,11 @@ namespace tagslam {
     newGraph_.erase(newGraph_.begin(), newGraph_.end());
     newValues_.clear();
     return (lastError_);
+  }
+
+  void GTSAMOptimizer::transferFullOptimization() {
+    isam2_ = make_isam2();
+    isam2_->update(fullGraph_, values_);
   }
 
   double GTSAMOptimizer::getError(FactorKey k) const {

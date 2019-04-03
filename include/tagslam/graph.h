@@ -63,9 +63,11 @@ namespace tagslam {
                                const Transform &pose);
     // for debugging, compute error on graph
     double    getError() { return (optimizer_->errorFull()); }
+    double    getMaxError() { return (optimizer_->getMaxError()); }
     void      plotDebug(const ros::Time &t, const string &tag);
     void      transferOptimizedPose(const VertexDesc &v);
     void      transferOptimizedValues();
+    void      transferFullOptimization() { optimizer_->transferFullOptimization(); }
 
     void  copyFrom(const Graph &g, const std::deque<VertexDesc> &vsrc,
                    std::deque<VertexDesc> *vdest);

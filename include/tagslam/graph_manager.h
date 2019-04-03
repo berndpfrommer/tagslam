@@ -90,7 +90,7 @@ namespace tagslam {
     void exploreSubGraph(const ros::Time &t,
                          VertexDesc start,
                          SubGraph *subGraph, SubGraph *found);
-    void optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
+    double optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
     void initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
 
     
@@ -101,6 +101,9 @@ namespace tagslam {
     TimeToVertexesMap  times_;
     Profiler           profiler_;
     size_t             numNoFactors_{0};
+    int                numIncrementalOpt_{0};
+    int                maxNumIncrementalOpt_{100};
     double             maxSubgraphError_{15.0};
+    double             subgraphError_{0};
   };
 }

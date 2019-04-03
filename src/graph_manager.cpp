@@ -52,7 +52,15 @@ namespace tagslam {
     if (optimizeFullGraph_) {
       error = graph_.optimizeFull();
     } else {
-      error = graph_.optimize();
+      if (numIncrementalOpt_ < maxNumIncrementalOpt_) {
+        error = graph_.optimize();
+        numIncrementalOpt_++;
+      } else {
+        ROS_INFO_STREAM("max count reached, running full optimization!");
+        error = graph_.optimizeFull();
+        graph_.transferFullOptimization();
+        numIncrementalOpt_ = 0;
+      }
     }
     profiler_.record("optimize");
     return (error);
@@ -262,15 +270,18 @@ namespace tagslam {
     return (sv);
   }
 
-  void
+  double
   GraphManager::optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs) {
     profiler_.reset();
+    double totErr(0);
     for (auto &sg: subGraphs) {
       double err =  sg->optimizeFull();
       ROS_INFO_STREAM("error for subgraph optim: " << err);
       sg->transferOptimizedValues();
+      totErr += err;
     }
     profiler_.record("optimizeSubgraphs");
+    return (totErr);
   }
 
   void
@@ -316,7 +327,7 @@ namespace tagslam {
     return (missingIdx);
   }
 
-  static void set_value_from_tag_projection(Graph *graph,
+  static bool set_value_from_tag_projection(Graph *graph,
                                             VertexDesc v, const Transform &T_c_o)  {
     std::vector<PoseValuePtr> T;
     std::vector<VertexDesc> conn;
@@ -350,18 +361,19 @@ namespace tagslam {
       Eigen::AngleAxisd aa;
       aa.fromRotationMatrix(poseDiff.rotation());
       ROS_DEBUG_STREAM("dup factor with mismatch angle: " << aa.angle() << " len: " << poseDiff.translation().norm());
-      return;
+      return (true);
       break; }
     default: {
       ROS_DEBUG_STREAM("factor has multiple missing values: " << graph->getVertex(v)->getLabel());
-      return;
+      return (false);
       break; }
     }
     ROS_DEBUG_STREAM("tag proj setting value of " << T[idx]->getLabel());
     ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
+    return (true);
   }
 
-  static int set_value_from_relative_pose_prior(
+  static bool set_value_from_relative_pose_prior(
     Graph *graph, VertexDesc v, const Transform &deltaPose) {
     std::vector<PoseValuePtr> T;
     std::vector<VertexDesc> conn;
@@ -373,35 +385,38 @@ namespace tagslam {
     switch (idx) {
     case 0: { // T_0 = T_1 * delta T^-1
       T[idx]->setPose(T[1]->getPose() * deltaPose.inverse());
-      std::cout << "filling pose T[0] from relative pose prior:" << std::endl
-                << T[0]->getPose() << std::endl << T[1]->getPose() << std::endl;
       T[idx]->addToOptimizer(graph);
       break; }
     case 1: { // T_1 = T_0 * delta T
       T[idx]->setPose(T[0]->getPose() * deltaPose);
-      std::cout << "filling pose T[1] from relative pose prior:" << std::endl
-                << T[0]->getPose() << std::endl << T[1]->getPose() << std::endl;
       T[idx]->addToOptimizer(graph);
       break; }
     case -1: {
       ROS_DEBUG_STREAM("delta pose factor has no missing values!");
-      return (idx);
+      return (true);
       break; }
     default: {
       ROS_DEBUG_STREAM("delta factor has multiple missing values!");
-      return (idx);
+      return (false);
       break; }
     }
     ROS_DEBUG_STREAM("rel pos setting value of " << T[idx]->getLabel());
     ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
-    return (idx);
+    return (true);
   }
 
   static void enumerate(std::vector<std::deque<VertexDesc>> *all,
                         const std::deque<VertexDesc> &prefix,
                         const std::deque<VertexDesc> &remain) {
-    all->push_back(remain); /// XXX
-    return;
+    //all->push_back(remain);
+    //return;
+    int n = remain.size();
+    for (int i = 0; i < n; i++) {
+      std::deque<VertexDesc> p(remain.begin() + i, remain.end());
+      p.insert(p.end(), remain.begin(), remain.begin() + i);
+      all->push_back(p);
+    }
+#ifdef ALL_PERMUTATIONS    
     int n = remain.size();
     if (n == 0) {
       all->push_back(prefix);
@@ -411,12 +426,13 @@ namespace tagslam {
         newPrefix.push_back(remain[i]);
         std::deque<VertexDesc> newRemain(remain.begin(), remain.begin() + i);
         newRemain.insert(newRemain.end(), remain.begin() + i + 1, remain.end());
-        newPrefix.push_back(remain[i]);
-        std::cout << prefix.size() + remain.size() << " changes to -> "
-                  << newPrefix.size() + newRemain.size() << std::endl;
+        std::cout << prefix.size() << " + " << remain.size() << " changes to -> "
+                  << newPrefix.size() << " + " << newRemain.size() << std::endl;
         enumerate(all, newPrefix, newRemain);
       }
     }
+#endif    
+    ROS_INFO_STREAM("made " << all->size() << " enumerations");
   }
 
   static bool initialize_subgraph(Graph *graph,
@@ -434,7 +450,9 @@ namespace tagslam {
                                    ci.getK(), ci.getDistortionModel(), ci.getD());
         ROS_DEBUG_STREAM("got homography: " << tf.second << std::endl << tf.first);
         if (tf.second) {
-          set_value_from_tag_projection(graph, v, tf.first);
+          if (!set_value_from_tag_projection(graph, v, tf.first)) {
+            return (false); // init failed!
+          }
           if (!fp->isOptimized()) {
             // add factor and values to optimizer
             fp->setIsValid(true);
@@ -446,7 +464,9 @@ namespace tagslam {
           std::dynamic_pointer_cast<factor::RelativePosePrior>(fvp);
         if (rp && !rp->isOptimized()) {
           // first fill in pose via deltaPose
-          set_value_from_relative_pose_prior(graph, v, rp->getPoseWithNoise().getPose());
+          if (!set_value_from_relative_pose_prior(graph, v, rp->getPoseWithNoise().getPose())) {
+            return (false); // init failed
+          }
           // then add factor
           rp->addToOptimizer(graph);
         } else {
@@ -480,6 +500,8 @@ namespace tagslam {
       enumerate(&orderings, std::deque<VertexDesc>(), vs);
       double errMin = 1e10;
       GraphPtr bestGraph;
+      ROS_DEBUG_STREAM("number of orderings: " << orderings.size());
+      int numOrderingsTried(0);
       for (const auto &factors: orderings) {
         GraphPtr sg(new Graph());
         Graph &subGraph = *sg;
@@ -488,11 +510,18 @@ namespace tagslam {
         subGraph.copyFrom(graph_, factors, &vset);
         subGraph.print("init subgraph");
         if (initialize_subgraph(&subGraph, vset)) {
-          ROS_DEBUG_STREAM("found good subgraph!");
           double err =  subGraph.optimizeFull();
-          if (err >= 0 && err < errMin) {
-            errMin = err;
+          double maxErr = subGraph.getMaxError();
+          numOrderingsTried++;
+          ROS_DEBUG_STREAM("ordering " << numOrderingsTried << " has error: " << err << " " << maxErr);
+          if (maxErr >= 0 && maxErr < errMin) {
+            errMin = maxErr;
             bestGraph = sg;
+            ROS_DEBUG_STREAM("subgraph " << numOrderingsTried << " has minimum error: " << errMin);
+            if (maxErr < maxSubgraphError_) {
+              ROS_DEBUG_STREAM("breaking early due to low error");
+              break;
+            }
           }
         } else {
           ROS_DEBUG_STREAM("subgraph rejected!");
@@ -500,6 +529,9 @@ namespace tagslam {
       }
       if (bestGraph) {
         subGraphs->push_back(bestGraph);
+        ROS_DEBUG_STREAM("best subgraph init found after " << numOrderingsTried << " attempts with error: " << errMin);
+      } else {
+        ROS_WARN_STREAM("could not initialize subgraph!");
       }
     }
     profiler_.record("initializeSubgraphs");
@@ -521,16 +553,16 @@ namespace tagslam {
       ROS_DEBUG_STREAM("no new factors activated!");
       return;
     }
-    ROS_DEBUG_STREAM("^^^^^^^^^^ checking complete graph for error before doing anything! ^^^^^^^^^^");
-    double err = graph_.getError();
+    // ROS_DEBUG_STREAM("^^^^^^^^^^ checking complete graph for error before doing anything! ^^^^^^^^^^");
+    // double err = graph_.getError();
     
     std::vector<GraphPtr> subGraphs;
     
     initializeSubgraphs(&subGraphs, sv);
-    optimizeSubgraphs(subGraphs);
+    subgraphError_ += optimizeSubgraphs(subGraphs);
     initializeFromSubgraphs(subGraphs);
-    err = optimize();
-    ROS_INFO_STREAM("after new factors optimizer error: " << err);
+    double err = optimize();
+    ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
     
     std::cout << profiler_ << std::endl;
  
@@ -541,9 +573,10 @@ namespace tagslam {
       ROS_DEBUG_STREAM("++++++++++ handling old factors for t = " << key);
       sv = findSubgraphs(key, it->second, &found);
       initializeSubgraphs(&subGraphs, sv);
-      optimizeSubgraphs(subGraphs);
+      subgraphError_ += optimizeSubgraphs(subGraphs);
       initializeFromSubgraphs(subGraphs);
-      optimize(); // run global optimization 
+      err = optimize(); // run global optimization
+      ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
       // now remove factors that have been used
       ROS_DEBUG_STREAM("removing used factors...");
       for (auto ii = times_[key].begin(); ii != times_[key].end();) {
@@ -558,8 +591,8 @@ namespace tagslam {
         ROS_DEBUG_STREAM("all elements gone for time " << key);
         times_.erase(key);
       }
-      //std::cout << profiler_ << std::endl;
-      //std::cout.flush();
+      std::cout << profiler_ << std::endl;
+      std::cout.flush();
       graph_.transferOptimizedValues();
     }
     ROS_INFO_STREAM("graph after update: " << graph_.getStats() << " no factors: " << numNoFactors_);

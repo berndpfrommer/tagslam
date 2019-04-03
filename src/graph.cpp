@@ -287,7 +287,6 @@ namespace tagslam {
             std::dynamic_pointer_cast<value::Pose>(g.getVertex(srcv));
           if (vp) {
             if (vp->isOptimized()) {
-              std::cout << "    refreshing pose for key: " << vp->getKey() << std::endl;
               vp->setPose(g.getOptimizedPose(srcv));
             }
             VertexDesc destv = vp->attachTo(this);  // makes copy of vp
@@ -298,11 +297,11 @@ namespace tagslam {
               AbsolutePosePriorFactorPtr
                 pp(new factor::AbsolutePosePrior(
                      vp->getTime(),
-                     PoseWithNoise(vp->getPose(), PoseNoise2::make(0.01, 0.01), true), vp->getName()));
+                     PoseWithNoise(vp->getPose(), PoseNoise2::make(0.0001, 0.0001), true), vp->getName()));
               add(pp);
               addToOptimizer(pp.get());
               ROS_DEBUG_STREAM("adding prior to free pose: " << *pp);
-              std::cout << pp->getPoseWithNoise().getPose() << std::endl;
+              //std::cout << pp->getPoseWithNoise().getPose() << std::endl;
             }
             //ROS_DEBUG_STREAM("attached: " << *graph_[destv]);
             //graph_[destv]->addToOptimizer(this);
