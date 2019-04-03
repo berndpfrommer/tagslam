@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 2.8.3)
 project(tagslam)
 
 add_definitions(-std=c++11 -g -Wall)
-#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
+#include(cotire)
 
 find_package(catkin REQUIRED COMPONENTS
   cmake_modules
@@ -120,16 +121,18 @@ src/gtsam_distortion/Cal3DS3.cpp
 )
 target_link_libraries(tagslam2 ${catkin_LIBRARIES}  ${Boost_LIBRARIES}
 ${GTSAM_LIBRARIES})
+#cotire(tagslam2)
 
 # -- nodelet ---
 add_library(tagslam2_nodelet src/tagslam2_nodelet.cpp)
 target_link_libraries(tagslam2_nodelet tagslam2 ${catkin_LIBRARIES})
 add_dependencies(tagslam2_nodelet ${catkin_EXPORTED_TARGETS})
+#cotire(tagslam2_nodelet)
 
 # -- node ---
 add_executable(tagslam2_node src/tagslam2_node.cpp)
 target_link_libraries(tagslam2_node tagslam2 ${catkin_LIBRARIES})
-
+#cotire(tagslam2_node)
 
 install(FILES nodelet_plugins.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
