@@ -289,10 +289,11 @@ namespace tagslam {
     profiler_.reset();
     for (const auto &sg: subGraphs) {
       double err = sg->optimizeFull();
-      if (err < maxSubgraphError_) {
+      double maxErr = sg->getMaxError();
+      if (maxErr < maxSubgraphError_) {
         graph_.initializeFrom(*sg);
       } else { 
-        ROS_WARN_STREAM("dropping subgraph with error: " << err);
+        ROS_WARN_STREAM("dropping subgraph with error: " << err << " " << maxErr);
       }
     }
     profiler_.record("initialzeFromSubgraphs");
@@ -563,6 +564,7 @@ namespace tagslam {
     initializeFromSubgraphs(subGraphs);
     double err = optimize();
     ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
+    graph_.transferOptimizedValues();
     
     std::cout << profiler_ << std::endl;
  
