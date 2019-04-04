@@ -13,6 +13,7 @@
 #include "tagslam/initial_pose_graph.h"
 #include "tagslam/profiler.h"
 #include <ros/ros.h>
+#include <rosbag/bag.h>
 #include <tf/transform_broadcaster.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
@@ -140,7 +141,8 @@ namespace tagslam {
                                         const std::vector<OdometryConstPtr> &msgvec3);
 
     bool subscribe();
-    void broadcastTransforms(const std::vector<PoseInfo> &poses);
+    void broadcastTransforms(const ros::Time &t,
+                             const std::vector<PoseInfo> &poses);
     void broadcastBodyPoses(const ros::Time &t);
     void broadcastCameraPoses(const ros::Time &t);
     void broadcastTagPoses(const ros::Time &t);
@@ -247,6 +249,7 @@ namespace tagslam {
     std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
     std::unordered_map<std::string, Rig>          frameIdToRig_;
     Profiler                                      profiler_;
+    rosbag::Bag                                   outBag_;
   };
 
 }

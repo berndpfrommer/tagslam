@@ -10,7 +10,6 @@
 #include "tagslam/rigid_body.h"
 #include <flex_sync/sync.h>
 #include <XmlRpcException.h>
-#include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <cv_bridge/cv_bridge.h>
 #include <nav_msgs/Odometry.h>
@@ -48,6 +47,9 @@ namespace tagslam {
   }
 
   bool TagSlam::initialize() {
+    std::string outbagName;
+    nh_.param<std::string>("outbag", outbagName, "out.bag");
+    outBag_.open(outbagName, rosbag::bagmode::Write);
     double pixNoise;
     nh_.param<double>("corner_measurement_error", pixNoise, 2.0);
     nh_.param<double>("initial_maximum_relative_pixel_error", maxInitErr_, 0.02);
@@ -115,6 +117,7 @@ namespace tagslam {
     if (!bagFile.empty()) {
       playFromBag(bagFile);
       tagGraph_.printDistances();
+      outBag_.close();
       ros::shutdown();
     }
     return (true);
@@ -1139,13 +1142,13 @@ namespace tagslam {
       PoseEstimate pe = tagGraph_.getCameraPose(cam);
       if (pe.isValid()) {
         camPoseInfo.push_back(PoseInfo(pe, t,body_frame_id(cam->rig->name), cam->frame_id));
-        camOdomPub_[cam_idx].publish(make_odom(t, body_frame_id(cam->rig->name),
-                                               cam->frame_id, pe.getPose()));
+        auto msg = make_odom(t, body_frame_id(cam->rig->name),
+                             cam->frame_id, pe.getPose());
+        camOdomPub_[cam_idx].publish(msg);
       }
     }
-    broadcastTransforms(camPoseInfo);
+    broadcastTransforms(t, camPoseInfo);
   }
-
   
   void TagSlam::broadcastBodyPoses(const ros::Time &t) {
     std::vector<PoseInfo> bodyPoseInfo;
@@ -1156,15 +1159,16 @@ namespace tagslam {
         bodyPoseInfo.push_back(PoseInfo(pe, t, fixedFrame_, frame_id));
       }
     }
-    broadcastTransforms(bodyPoseInfo);
+    broadcastTransforms(t, bodyPoseInfo);
     // publish odom for dynamic bodies
     for (const auto body_idx : irange(0ul, dynamicBodies_.size())) {
       const auto rb = dynamicBodies_[body_idx];
       const PoseEstimate &pe = rb->poseEstimate;
       if (pe.isValid()) {
         const string frame_id = body_frame_id(rb->name);
-        bodyOdomPub_[body_idx].publish(
-          make_odom(t, fixedFrame_, frame_id, pe.getPose()));
+        nav_msgs::Odometry msg = make_odom(t, fixedFrame_, frame_id, pe.getPose());
+        bodyOdomPub_[body_idx].publish(msg);
+        outBag_.write<nav_msgs::Odometry>("odom/body_" + rb->name, t, msg);
       }
     }
   }
@@ -1181,17 +1185,23 @@ namespace tagslam {
                                            body_frame_id(rb->name), frame_id));
           }
         }
-        broadcastTransforms(tagPoseInfo);
+        broadcastTransforms(t, tagPoseInfo);
       }
     }
   }
 
-  void TagSlam::broadcastTransforms(const std::vector<PoseInfo> &poses) {
+  void TagSlam::broadcastTransforms(const ros::Time &t,
+                                    const std::vector<PoseInfo> &poses) {
+    tf::tfMessage tfMsg;
+    geometry_msgs::TransformStamped tfm;
     for (const auto &p: poses) {
       const auto &tf = gtsam_pose_to_tf(p.pose);
-      tfBroadcaster_.sendTransform(tf::StampedTransform(tf, p.time,
-                                                        p.parent_frame_id, p.frame_id));
+      auto tfs = tf::StampedTransform(tf, p.time, p.parent_frame_id, p.frame_id);
+      tf::transformStampedTFToMsg(tfs, tfm);
+      tfMsg.transforms.push_back(tfm);
+      tfBroadcaster_.sendTransform(tfs);
     }
+    outBag_.write<tf::tfMessage>("/tf", t, tfMsg);
   }
 
   

@@ -11,7 +11,6 @@
 
 #include <cv_bridge/cv_bridge.h>
 
-#include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <rosgraph_msgs/Clock.h>
 #include <tf_conversions/tf_eigen.h>
@@ -65,6 +64,9 @@ namespace tagslam {
   }
 
   bool TagSlam2::initialize() {
+    std::string outbagName;
+    nh_.param<std::string>("outbag", outbagName, "out.bag");
+    outBag_.open(outbagName, rosbag::bagmode::Write);
     cameras_ = Camera2::parse_cameras("cameras", nh_);
     bool optFullGraph;
     nh_.param<bool>("optimize_full_graph", optFullGraph, false);
@@ -119,6 +121,7 @@ namespace tagslam {
     sleep(1.0);
     playFromBag(bagFile);
     //graphManager_.plotDebug(ros::Time(0), "final");
+    outBag_.close();
     return (true);
   }
 
@@ -232,6 +235,8 @@ namespace tagslam {
   }
 
   void TagSlam2::publishTransforms(const ros::Time &t) {
+    tf::tfMessage tfMsg;
+    geometry_msgs::TransformStamped tfm;
     for (const auto &body: bodies_) {
       Transform bodyTF;
       const string &bodyFrameId = body->getFrameId();
@@ -239,16 +244,21 @@ namespace tagslam {
       if (graphManager_.getPose(ts, Graph::body_name(body->getName()), &bodyTF)) {
         //ROS_INFO_STREAM("publishing pose for body "
         // << body->getName() << std::endl << bodyTF);
-        tfBroadcaster_.sendTransform(
-          tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId));
+        tf::StampedTransform btf = tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId);
+        tf::transformStampedTFToMsg(btf, tfm);
+        tfMsg.transforms.push_back(tfm);
+        tfBroadcaster_.sendTransform(btf);
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
           if (graphManager_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
             const std::string frameId = "tag_" + std::to_string(tag->getId());
-            //ROS_INFO_STREAM("publishing pose for tag "
-            //<< tag->getId() << std::endl << tagTF);
-            tfBroadcaster_.sendTransform(
-              tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId));
+            auto ttf = tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId);
+            tfBroadcaster_.sendTransform(ttf);
+            //ROS_INFO_STREAM("publishing pose for tag " << tag->getId() << std::endl << tagTF);
+            tf::transformStampedTFToMsg(ttf, tfm);
+            tfMsg.transforms.push_back(tfm);
+          } else {
+            //ROS_INFO_STREAM(t<< " no pose for tag " << tag->getId());
           }
         }
       } else {
@@ -259,11 +269,14 @@ namespace tagslam {
       Transform camTF;
       if (graphManager_.getPose(ros::Time(0), Graph::cam_name(cam->getName()), &camTF)) {
         const string &rigFrameId = cam->getRig()->getFrameId();
-        tfBroadcaster_.sendTransform(
-          tf::StampedTransform(to_tftf(camTF), t, rigFrameId, cam->getFrameId()));
+        auto ctf = tf::StampedTransform(to_tftf(camTF), t, rigFrameId, cam->getFrameId());
+        tfBroadcaster_.sendTransform(ctf);
+        tf::transformStampedTFToMsg(ctf, tfm);
+        tfMsg.transforms.push_back(tfm);
         ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
       }
     }
+    outBag_.write<tf::tfMessage>("/tf", t, tfMsg);
   }
 
   void TagSlam2::playFromBag(const string &fname) {
@@ -336,8 +349,9 @@ namespace tagslam {
       Transform pose;
       if (graphManager_.getPose(t, Graph::body_name(body->getName()), &pose)) {
         //ROS_INFO_STREAM("publishing odom for body " << body->getName() << std::endl << pose);
-        odomPub_[body_idx].publish(
-          make_odom(t, fixedFrame_, body->getOdomFrameId(), pose));
+        auto msg = make_odom(t, fixedFrame_, body->getOdomFrameId(), pose);
+        odomPub_[body_idx].publish(msg);
+        outBag_.write<nav_msgs::Odometry>("odom/body_" + body->getName(), t, msg);
       }
     }
   }
