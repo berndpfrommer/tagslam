@@ -22,14 +22,13 @@ def compare_transforms(t1, p1, f1, t2, p2, f2):
     i2 = 0
     for i1 in range(0, t1.shape[0]):
         t = t1[i1]
-        while t2[i2] < t and i2 < t2.shape[0]:
+        while i2 < t2.shape[0] and t2[i2] < t:
             i2 = i2 + 1
         if i2 == t2.shape[0]:
             print 'reached end searching for ', t
             break
         if t2[i2] != t:
             print '%s --' % (str(t))
-            print 'no matching time stamp for ', t
         else:
 #            print 'found matching time stamp ', t2[i2], ' ', t
             for tf1 in p1[i1]:
@@ -39,7 +38,7 @@ def compare_transforms(t1, p1, f1, t2, p2, f2):
                     if f1+tf1[0] == f2+tf2[0] and tf1[1] == tf2[1]:
                         d = np.matmul(np.linalg.inv(tf1[2]),tf2[2])
                         angle, n, pt = tf.transformations.rotation_from_matrix(d)
-                        print '%s %-12s - %-12s ang: %8.5f  disp: %8.5f' % (str(t), tf1[0], tf1[1], angle, np.linalg.norm(d[3,0:3]))
+                        print '%s %-12s - %-12s ang: %8.5f  disp: %10.7f' % (str(t), tf1[0], tf1[1], angle, np.linalg.norm(d[0:3,3]))
                         foundMatch = True
                 if not foundMatch:
                     pass
@@ -47,9 +46,10 @@ def compare_transforms(t1, p1, f1, t2, p2, f2):
             
 def compare_poses(t1, p1, t2, p2):
     i2 = 0
+    print t2.shape
     for i1 in range(0, t1.shape[0]):
         t = t1[i1]
-        while t2[i2] < t and i2 < t2.shape[0]:
+        while i2 < t2.shape[0] and t2[i2] < t:
             i2 = i2 + 1
         if i2 == t2.shape[0]:
             print 'reached end searching for ', t
@@ -60,7 +60,7 @@ def compare_poses(t1, p1, t2, p2):
         else:
             p1inv = p1[i1].Inverse()
             delta = p1inv * p2[i2]
-            print '%s rot angle: %8.5f  disp: %8.5f' % (str(t), delta.M.GetRotAngle()[0], delta.p.Norm())
+            print '%s rot angle: %8.5f  disp: %10.7f' % (str(t), delta.M.GetRotAngle()[0], delta.p.Norm())
 
 def read_poses(fname, topic):
     bag = rosbag.Bag(fname, 'r')
