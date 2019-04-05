@@ -21,12 +21,12 @@ namespace tagslam {
     virtual double errorFull() = 0;
     virtual double getError(FactorKey k) const = 0;
     virtual double getMaxError() const = 0;
-    virtual void setErrorThreshold(double th) = 0;
-    virtual void setVerbosity(const std::string &v) = 0;
-
-
+    virtual void   setErrorThreshold(double th) = 0;
+    virtual void   setVerbosity(const std::string &v) = 0;
     // retrieves the optimized pose for a given key
     virtual Transform getPose(ValueKey key) = 0;
+    // retrieves marginal for given key
+    virtual PoseNoise2 getMarginal(const ValueKey k) = 0;
     // adds the starting guess for a new value (e.g. camera pose)
     virtual ValueKey addPose(const Transform &pose) = 0;
     // relative pose prior, i.e. err = ||Pose(key1) - deltaPose * Pose(key2)||

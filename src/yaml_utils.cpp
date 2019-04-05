@@ -5,6 +5,7 @@
 #include "tagslam/yaml_utils.h"
 #include <boost/range/irange.hpp>
 #include <XmlRpcException.h>
+#include <Eigen/Geometry>
 
 namespace tagslam {
   using boost::irange;
@@ -174,6 +175,36 @@ namespace tagslam {
       write_vec(of, pps, r(0), r(1), r(2));
       of << prefix << "R:" << std::endl;
       const auto &R = n->R();
+      of << prefix << "  [ ";
+      for (const auto i: irange(0l, R.rows())) {
+        for (const auto j: irange(0l, R.cols())) {
+          of << R(i, j);
+          if (i != R.rows() - 1 || j != R.cols() - 1) {
+            of << ", ";
+          }
+        }
+        if (i != R.rows() - 1) {
+          of << std::endl << prefix << "    ";
+        }
+      }
+      of << " ]" << std::endl;
+    }
+
+    void write_pose_with_covariance(std::ostream &of,
+                                    const std::string &prefix,
+                                    const Transform &pose,
+                                    const PoseNoise2 &n) {
+      Eigen::AngleAxisd aa;
+      aa.fromRotationMatrix(pose.rotation());
+      Eigen::Vector3d r = aa.angle() * aa.axis();
+      Eigen::Vector3d t = pose.translation();
+      const std::string pps = prefix + "  ";
+      of << prefix << "position:" << std::endl;
+      write_vec(of, pps, t(0), t(1), t(2));
+      of << prefix << "rotvec:" << std::endl;
+      write_vec(of, pps, r(0), r(1), r(2));
+      of << prefix << "R:" << std::endl;
+      const auto R = n.convertToR();
       of << prefix << "  [ ";
       for (const auto i: irange(0l, R.rows())) {
         for (const auto j: irange(0l, R.cols())) {

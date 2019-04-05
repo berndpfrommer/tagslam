@@ -49,6 +49,8 @@ namespace tagslam {
     void plotDebug(const ros::Time &t, const string &tag);
     void addBody(const Body &body);
     bool getPose(const ros::Time &t, const string &id, Transform *tf) const;
+    PoseWithNoise getCameraPoseWithNoise(const Camera2ConstPtr &cam) const;
+
     void addTag(const Tag2 &tag);
     void processNewFactors(const ros::Time &t,
                            const std::vector<VertexDesc> &facs);

@@ -6,12 +6,12 @@
 #include "tagslam/gtsam_utils.h"
 #include "tagslam/vertex.h"
 #include "tagslam/cal3ds2u.h"
-#include <boost/graph/filtered_graph.hpp>
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/slam/expressions.h>
+#include <gtsam/nonlinear/Marginals.h>
 #include <boost/range/irange.hpp>
 
 namespace tagslam {
@@ -287,6 +287,18 @@ namespace tagslam {
     newGraph_.erase(newGraph_.begin(), newGraph_.end());
     newValues_.clear();
     return (lastError_);
+  }
+
+  PoseNoise2 GTSAMOptimizer::getMarginal(const ValueKey k)  {
+    auto it = covariances_.find(k);
+    if (it == covariances_.end()) {
+      gtsam::Marginals marginals(fullGraph_, values_);
+      it = covariances_.insert(
+        std::map<OptimizerKey,
+        gtsam::Matrix>::value_type(k, marginals.marginalCovariance(k))).first;
+    }
+    const Matrix6d mat = it->second;
+    return (PoseNoise2(mat));
   }
 
   void GTSAMOptimizer::transferFullOptimization() {

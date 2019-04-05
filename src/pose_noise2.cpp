@@ -3,6 +3,7 @@
  */
 
 #include "tagslam/pose_noise2.h"
+#include <Eigen/Cholesky>
 
 #include <iostream>
 
@@ -34,6 +35,15 @@ namespace tagslam {
 
   Eigen::Matrix<double, 6, 1> PoseNoise2::getDiagonal() const {
     return (noise.diagonal());
+  }
+  
+  Matrix6d PoseNoise2::convertToR() const {
+    //Sigma = R * R^T
+    // Cholesky decomposition: sigma = L * L.transpose();
+    const Matrix6d ni = noise.inverse();
+    Eigen::LLT<Matrix6d> llt(ni);
+    const Matrix6d U = llt.matrixU();
+    return (U);
   }
 
   std::ostream &operator<<(std::ostream &os, const PoseNoise2 &pn) {

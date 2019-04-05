@@ -468,6 +468,16 @@ namespace tagslam {
     return (errMap);
   }
 
+
+  PoseNoise2 Graph::getPoseNoise(const VertexDesc &v) const {
+    PoseValueConstPtr  vp = std::dynamic_pointer_cast<const value::Pose>(graph_[v]);
+    if (!vp) {
+      ROS_ERROR_STREAM("cannot get pose noise for invalid vertex: " << v);
+      throw std::runtime_error("cannot get pose noise for invalid vertex");
+    }
+    return (PoseNoise2(optimizer_->getMarginal(vp->getKey())));
+  }
+ 
   // static method!
   std::string Graph::tag_name(int tagid) {
     return (string("tag:") + std::to_string(tagid));

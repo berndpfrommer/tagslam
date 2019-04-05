@@ -87,7 +87,7 @@ namespace tagslam {
     void publishAll(const ros::Time &t);
     bool replay(std_srvs::Trigger::Request& req,
                 std_srvs::Trigger::Response &res);
-
+    void writeCameraPoses(const string &fname) const;
     // ------ variables --------
     ros::NodeHandle      nh_;
     GraphManager         graphManager_;

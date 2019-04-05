@@ -106,6 +106,16 @@ namespace tagslam {
     return (true);
   }
 
+  PoseWithNoise
+  GraphManager::getCameraPoseWithNoise(const Camera2ConstPtr &cam) const {
+    PoseWithNoise pwn;
+    VertexDesc v = graph_.findPose(ros::Time(0), Graph::cam_name(cam->getName()));
+    if (!Graph::is_valid(v) || !graph_.isOptimized(v)) {
+      return (PoseWithNoise());
+    }
+    return (PoseWithNoise(graph_.getOptimizedPose(v), graph_.getPoseNoise(v), true));
+  }
+  
   VertexDesc
   GraphManager::addPrior(const ros::Time &t, const string &name,
                          const PoseWithNoise &pn) {
@@ -613,7 +623,6 @@ namespace tagslam {
       examine(t, exFac, &factorsToExamine, found, subGraph);
     }
   }
-
 
 
   double GraphManager::reoptimize() {

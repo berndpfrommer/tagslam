@@ -10,6 +10,7 @@
 #include "tagslam/geometry.h"
 
 #include <Eigen/Dense>
+#include <Eigen/Geometry>
 #include <ros/ros.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Point3.h>
@@ -39,6 +40,10 @@ namespace tagslam {
                                     const std::string &prefix,
                                     const gtsam::Pose3 &pose,
                                     const PoseNoise &n);
+    void write_pose_with_covariance(std::ostream &of,
+                                    const std::string &prefix,
+                                    const Transform &pose,
+                                    const PoseNoise2 &n);
     template <typename T>
     T parse(XmlRpc::XmlRpcValue xml, const std::string key, const T &def) {
       if (xml.hasMember(key)) {

@@ -46,7 +46,6 @@ def compare_transforms(t1, p1, f1, t2, p2, f2):
             
 def compare_poses(t1, p1, t2, p2):
     i2 = 0
-    print t2.shape
     for i1 in range(0, t1.shape[0]):
         t = t1[i1]
         while i2 < t2.shape[0] and t2[i2] < t:
@@ -56,7 +55,6 @@ def compare_poses(t1, p1, t2, p2):
             break
         if t2[i2] != t:
             print '%s --' % (str(t))
-            print 'no matching time stamp for ', t
         else:
             p1inv = p1[i1].Inverse()
             delta = p1inv * p2[i2]

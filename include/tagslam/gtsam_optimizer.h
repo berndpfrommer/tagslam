@@ -27,6 +27,7 @@ namespace tagslam {
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
     void      setVerbosity(const std::string &v) { verbosity_ = v;}
     Transform getPose(ValueKey key) override;
+    PoseNoise2 getMarginal(const ValueKey k) override;
     ValueKey  addPose(const Transform &pose) override;
     FactorKey addRelativePosePrior(ValueKey key1, ValueKey key2,
                                    const PoseWithNoise &deltaPose) override;
@@ -63,5 +64,6 @@ namespace tagslam {
     RadTanModelMap                radTanModelMap_;
     EquiModelMap                  equiModelMap_;
     PixelNoiseMap                 pixelNoiseMap_;
+    std::map<OptimizerKey, gtsam::Matrix> covariances_;
   };
 }

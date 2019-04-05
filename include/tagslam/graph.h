@@ -58,6 +58,8 @@ namespace tagslam {
                    const Transform &pose, bool poseIsValid);
 
     Transform getOptimizedPose(const VertexDesc &v) const;
+    PoseNoise2 getPoseNoise(const VertexDesc &v) const;
+
     // for debugging, allow to switch individual pose in opt
     void      setOptimizedPose(const VertexDesc v,
                                const Transform &pose);

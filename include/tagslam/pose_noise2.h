@@ -18,6 +18,7 @@ namespace tagslam {
     Eigen::Matrix<double,6,1>  getDiagonal() const;
     const Matrix6d            &getSigmaMatrix() const { return (noise); }
     bool                       getIsDiagonal() const { return (isDiagonal); }
+    Matrix6d                   convertToR() const;
     static PoseNoise2 make(const Point3d &angle,  const Point3d &pos);
     static PoseNoise2 make(double a, double p);
     static PoseNoise2 makeFromR(const Matrix6d &r);

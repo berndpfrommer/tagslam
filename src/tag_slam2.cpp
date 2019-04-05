@@ -8,6 +8,7 @@
 #include "tagslam/body_defaults.h"
 #include "tagslam/body.h"
 #include "tagslam/odometry_processor.h"
+#include "tagslam/yaml_utils.h"
 
 #include <cv_bridge/cv_bridge.h>
 
@@ -122,6 +123,10 @@ namespace tagslam {
     playFromBag(bagFile);
     //graphManager_.plotDebug(ros::Time(0), "final");
     outBag_.close();
+    std::string camPoseFile;
+    nh_.param<string>("camera_poses_out_file",
+                      camPoseFile, "camera_poses.yaml");
+    writeCameraPoses(camPoseFile);
     return (true);
   }
 
@@ -464,6 +469,19 @@ namespace tagslam {
     }
     return (it->second);
   }
+  
+  void TagSlam2::writeCameraPoses(const string &fname) const {
+    std::ofstream f(fname);
+    for (const auto &cam : cameras_) {
+      f << cam->getName() << ":" << std::endl;
+      PoseWithNoise pwn = graphManager_.getCameraPoseWithNoise(cam);
+      if (pwn.isValid()) {
+        yaml_utils::write_pose_with_covariance(f, "  ", pwn.getPose(),
+                                               pwn.getNoise());
+      }
+    }
+  }
+    
 
   void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
                              std::vector<VertexDesc> *factors) {
