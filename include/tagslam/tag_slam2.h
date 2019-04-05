@@ -111,5 +111,6 @@ namespace tagslam {
     Profiler             profiler_;
     std::list<ros::Time> times_;
     rosbag::Bag          outBag_;
+    std::string          outBagName_;
   };
 }

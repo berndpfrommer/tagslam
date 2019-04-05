@@ -65,9 +65,8 @@ namespace tagslam {
   }
 
   bool TagSlam2::initialize() {
-    std::string outbagName;
-    nh_.param<std::string>("outbag", outbagName, "out.bag");
-    outBag_.open(outbagName, rosbag::bagmode::Write);
+    nh_.param<std::string>("outbag", outBagName_, "out.bag");
+    outBag_.open(outBagName_, rosbag::bagmode::Write);
     cameras_ = Camera2::parse_cameras("cameras", nh_);
     bool optFullGraph;
     nh_.param<bool>("optimize_full_graph", optFullGraph, false);
@@ -225,6 +224,7 @@ namespace tagslam {
   bool TagSlam2::replay(std_srvs::Trigger::Request& req,
                         std_srvs::Trigger::Response &res) {
     ROS_INFO_STREAM("replaying!");
+    outBag_.open(outBagName_, rosbag::bagmode::Write);
     ros::Time t0(0);
     for (const auto &t: times_) {
       publishAll(t);
@@ -236,6 +236,7 @@ namespace tagslam {
     res.message = "replayed " + std::to_string(times_.size());
     res.success = true;
     ROS_INFO_STREAM("finished replaying " << times_.size());
+    outBag_.close();
     return (true);
   }
 
@@ -247,8 +248,7 @@ namespace tagslam {
       const string &bodyFrameId = body->getFrameId();
       const ros::Time ts = body->isStatic() ? ros::Time(0) : t;
       if (graphManager_.getPose(ts, Graph::body_name(body->getName()), &bodyTF)) {
-        //ROS_INFO_STREAM("publishing pose for body "
-        // << body->getName() << std::endl << bodyTF);
+        //ROS_INFO_STREAM("publishing pose for body " << body->getName() << std::endl << bodyTF);
         tf::StampedTransform btf = tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId);
         tf::transformStampedTFToMsg(btf, tfm);
         tfMsg.transforms.push_back(tfm);
@@ -278,7 +278,7 @@ namespace tagslam {
         tfBroadcaster_.sendTransform(ctf);
         tf::transformStampedTFToMsg(ctf, tfm);
         tfMsg.transforms.push_back(tfm);
-        ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
+        //ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
       }
     }
     outBag_.write<tf::tfMessage>("/tf", t, tfMsg);
