@@ -24,7 +24,7 @@ namespace tagslam {
     // these two settings were absolutely necessary to
     // make ISAM2 work.
     //p.relinearizeThreshold = 0.01;
-    p.relinearizeThreshold = 0.05;
+    p.relinearizeThreshold = 0.02;
     p.relinearizeSkip = 1;
     std::shared_ptr<gtsam::ISAM2> isam2(new gtsam::ISAM2(p));
     return (isam2);
@@ -173,10 +173,32 @@ namespace tagslam {
     }
     return (me);
   }
+  
+  double GTSAMOptimizer::checkForLargeErrors(double thresh) const {
+    double me(0);
+    for (const auto i: fullGraph_) {
+      double e = i->error(values_);
+      if (e > me) {
+        me = e;
+      }
+      if (e > thresh) {
+        ROS_DEBUG_STREAM("graph has large err: " << i->error(values_));
+        std::cout << " factor: " << std::endl;
+        i->print();  std::cout <<  std::endl << "   values for it: " << std::endl;
+        for (const auto &k: i->keys()) {
+          values_.at(k).print();
+          std::cout << std::endl;
+        }
 
-  double GTSAMOptimizer::optimize() {
-    ROS_DEBUG_STREAM("optimizer new values: " << newValues_.size()
-                    << " factors: " << newGraph_.size());
+      }
+        
+    }
+    return (me);
+  }
+
+  double GTSAMOptimizer::optimize(double deltaError) {
+    ROS_DEBUG_STREAM("incremental optimize new values: " << newValues_.size()
+                     << " factors: " << newGraph_.size() << " delta: " << deltaError);
 //    std::cout << "------------ new values:  " << std::endl;
 //    newValues_.print();
 //    std::cout << "------------ new factors: " << std::endl;
@@ -188,12 +210,12 @@ namespace tagslam {
       for (int i = 0; i < maxIter_ - 1; i++) {
         res = isam2_->update();
         // if either there is small improvement
-        if (*res.errorAfter < lastError_ + errorThreshold_ ||
-            fabs(*res.errorAfter - prevErr) < errorThreshold_ * 0.1) {
-          ROS_DEBUG_STREAM("stopped after iteration " << i << " now: " << *res.errorAfter << " last: " << lastError_ << " prev: " << prevErr);
+        if (*res.errorAfter < lastError_ + deltaError
+            || fabs(*res.errorAfter - prevErr) < 0.01) {
+          ROS_DEBUG_STREAM("stopped after iteration " << i << " now: " << *res.errorAfter << " change: " << *res.errorAfter - prevErr << " last: " << lastError_);
           break;
         } else {
-          ROS_DEBUG_STREAM("new err: " << *res.errorAfter << " vs last: " << lastError_);
+          ROS_DEBUG_STREAM("new err: " << *res.errorAfter << " vs last: " << lastError_ << " +delta: " << lastError_ + deltaError);
         }
         prevErr = *res.errorAfter;
       }
@@ -265,6 +287,7 @@ namespace tagslam {
     }
     fullGraph_ += newGraph_;
     values_.insert(newValues_);
+
     //print_large_errors("before full opt", fullGraph_, values_, 10.0);
     gtsam::LevenbergMarquardtParams lmp;
     lmp.setVerbosity(verbosity_);
@@ -307,7 +330,21 @@ namespace tagslam {
   }
 
   double GTSAMOptimizer::getError(FactorKey k) const {
-    double err = fullGraph_.at(k)->error(values_);
+    gtsam::ExpressionFactorGraph  testGraph = fullGraph_;
+    testGraph += newGraph_;
+    gtsam::Values testValues = values_;
+    testValues.insert(newValues_);
+    const auto i = testGraph.at(k);
+    double err = i->error(testValues);
+    if (err > 100.0) {
+      std::cout << " FACTOR WITH LARGE ERROR: " << err << std::endl;
+      std::cout << " factor: " << std::endl;
+      i->print();  std::cout <<  std::endl << "   values for it: " << std::endl;
+      for (const auto &k: i->keys()) {
+        testValues.at(k).print();
+        std::cout << std::endl;
+      }
+    }
     return (err);
   }
 

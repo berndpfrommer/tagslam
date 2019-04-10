@@ -17,6 +17,7 @@
 #include <boost/graph/graphviz.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <vector>
+#include <cmath>
 #include <algorithm>
 #include <fstream>
 #include <queue>
@@ -46,14 +47,20 @@ namespace tagslam {
     std::cout.flush();
   }
 
-  double GraphManager::optimize() {
+  double GraphManager::optimize(double thresh) {
     profiler_.reset();
     double error;
     if (optimizeFullGraph_) {
       error = graph_.optimizeFull();
+      const auto errMap = graph_.getErrorMap();
+      for (const auto &v: errMap) {
+        if (v.first > 20.0) {
+          ROS_INFO_STREAM("POSTOPT ERROR  " << v.first << " " << *(graph_.getVertex(v.second)));
+        }
+      }
     } else {
       if (numIncrementalOpt_ < maxNumIncrementalOpt_) {
-        error = graph_.optimize();
+        error = graph_.optimize(thresh);
         numIncrementalOpt_++;
       } else {
         ROS_INFO_STREAM("max count reached, running full optimization!");
@@ -294,19 +301,22 @@ namespace tagslam {
     return (totErr);
   }
 
-  void
+  double
   GraphManager::initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs) {
     profiler_.reset();
+    double totalError(0);
     for (const auto &sg: subGraphs) {
       double err = sg->optimizeFull();
       double maxErr = sg->getMaxError();
       if (maxErr < maxSubgraphError_) {
+        totalError += err;
         graph_.initializeFrom(*sg);
       } else { 
         ROS_WARN_STREAM("dropping subgraph with error: " << err << " " << maxErr);
       }
     }
     profiler_.record("initialzeFromSubgraphs");
+    return (totalError);
   }
 
   static int find_connected_poses(const Graph &graph,
@@ -446,7 +456,12 @@ namespace tagslam {
     ROS_INFO_STREAM("made " << all->size() << " enumerations");
   }
 
-  static bool initialize_subgraph(Graph *graph,
+  void GraphManager::setAngleLimit(double angDeg) {
+    angleLimit_ = std::sin(angDeg / 180.0 * M_PI);
+    
+  }
+
+  static bool initialize_subgraph(Graph *graph, double angleLimit,
                                   const std::deque<VertexDesc> &factors) {
     for (const auto &v: factors) { //loop over factors
       VertexPtr  fvp = graph->getVertex(v);
@@ -459,16 +474,28 @@ namespace tagslam {
         auto tf = pnp::pose_from_4(fp->getImageCorners(),
                                    fp->getTag()->getObjectCorners(),
                                    ci.getK(), ci.getDistortionModel(), ci.getD());
-        ROS_DEBUG_STREAM("got homography: " << tf.second << std::endl << tf.first);
         if (tf.second) {
-          if (!set_value_from_tag_projection(graph, v, tf.first)) {
-            return (false); // init failed!
+          // viewing angle is determined by position of camera in tag
+          // coordinates
+          Eigen::Vector3d camPositionInObjFrame = tf.first.inverse().translation();
+          camPositionInObjFrame.normalize();
+          double sina = camPositionInObjFrame(2);
+          if (sina > angleLimit) {
+            double ang = std::asin(sina) / M_PI * 180;
+            ROS_DEBUG_STREAM("got homography with angle " << ang << std::endl << tf.first);
+            if (!set_value_from_tag_projection(graph, v, tf.first)) {
+              return (false); // init failed!
+            }
+            if (!fp->isOptimized()) {
+              // add factor and values to optimizer
+              fp->setIsValid(true);
+              fp->addToOptimizer(graph);
+            }
+          } else {
+            ROS_DEBUG_STREAM("dropping factor " << graph->info(v) << " because of too small sin(ang): " << sina);
           }
-          if (!fp->isOptimized()) {
-            // add factor and values to optimizer
-            fp->setIsValid(true);
-            fp->addToOptimizer(graph);
-          }
+        } else {
+          ROS_WARN_STREAM("could not find valid homography!!");
         }
       } else {
         RelativePosePriorFactorPtr rp =
@@ -512,35 +539,44 @@ namespace tagslam {
       double errMin = 1e10;
       GraphPtr bestGraph;
       ROS_DEBUG_STREAM("number of orderings: " << orderings.size());
-      int numOrderingsTried(0);
+      int ord(0);
       for (const auto &factors: orderings) {
+        ord++;
         GraphPtr sg(new Graph());
         Graph &subGraph = *sg;
         std::deque<VertexDesc> vset;
         // This makes a deep copy, hopefully
         subGraph.copyFrom(graph_, factors, &vset);
         subGraph.print("init subgraph");
-        if (initialize_subgraph(&subGraph, vset)) {
+        if (initialize_subgraph(&subGraph, angleLimit_, vset)) {
+          const auto errMap = subGraph.getErrorMap();
           double err =  subGraph.optimizeFull();
           double maxErr = subGraph.getMaxError();
-          numOrderingsTried++;
-          ROS_DEBUG_STREAM("ordering " << numOrderingsTried << " has error: " << err << " " << maxErr);
+          ROS_DEBUG_STREAM("ordering " << ord << " has error: " << err << " " << maxErr);
           if (maxErr >= 0 && maxErr < errMin) {
             errMin = maxErr;
             bestGraph = sg;
-            ROS_DEBUG_STREAM("subgraph " << numOrderingsTried << " has minimum error: " << errMin);
+            ROS_DEBUG_STREAM("subgraph " << ord << " has minimum error: " << errMin);
             if (maxErr < maxSubgraphError_) {
               ROS_DEBUG_STREAM("breaking early due to low error");
               break;
+            } else {
+              ROS_DEBUG_STREAM("error map for subgraph: ");
+              for (const auto &ev: errMap) {
+                //if (ev.first > 20.0) {
+                  ROS_INFO_STREAM("SUBGRAPH ERROR_MAP  " << ev.first << " " << *(subGraph.getVertex(ev.second)));
+                  //}
+              }
+
             }
           }
         } else {
-          ROS_DEBUG_STREAM("subgraph rejected!");
+          ROS_DEBUG_STREAM("subgraph rejected for ordering " << ord);
         }
       }
       if (bestGraph) {
         subGraphs->push_back(bestGraph);
-        ROS_DEBUG_STREAM("best subgraph init found after " << numOrderingsTried << " attempts with error: " << errMin);
+        ROS_DEBUG_STREAM("best subgraph init found after " << ord << " attempts with error: " << errMin);
       } else {
         ROS_WARN_STREAM("could not initialize subgraph!");
       }
@@ -570,9 +606,12 @@ namespace tagslam {
     std::vector<GraphPtr> subGraphs;
     
     initializeSubgraphs(&subGraphs, sv);
-    subgraphError_ += optimizeSubgraphs(subGraphs);
-    initializeFromSubgraphs(subGraphs);
-    double err = optimize();
+    optimizeSubgraphs(subGraphs);
+    double serr = initializeFromSubgraphs(subGraphs);
+    subgraphError_ += serr;
+    
+    double err = optimize(serr);
+    
     ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
     graph_.transferOptimizedValues();
     
@@ -585,9 +624,10 @@ namespace tagslam {
       ROS_DEBUG_STREAM("++++++++++ handling old factors for t = " << key);
       sv = findSubgraphs(key, it->second, &found);
       initializeSubgraphs(&subGraphs, sv);
-      subgraphError_ += optimizeSubgraphs(subGraphs);
-      initializeFromSubgraphs(subGraphs);
-      err = optimize(); // run global optimization
+      optimizeSubgraphs(subGraphs);
+      serr = initializeFromSubgraphs(subGraphs);
+      subgraphError_ += serr;
+      err = optimize(serr); // run global optimization
       ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
       // now remove factors that have been used
       ROS_DEBUG_STREAM("removing used factors...");

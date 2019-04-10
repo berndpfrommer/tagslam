@@ -47,8 +47,8 @@ namespace tagslam {
     optimizer_.reset(new GTSAMOptimizer());
   }
 
-  double Graph::optimize() {
-    return (optimizer_->optimize());
+  double Graph::optimize(double thresh) {
+    return (optimizer_->optimize(thresh));
   }
   
   double Graph::optimizeFull(bool force) {
@@ -297,10 +297,10 @@ namespace tagslam {
               AbsolutePosePriorFactorPtr
                 pp(new factor::AbsolutePosePrior(
                      vp->getTime(),
-                     PoseWithNoise(vp->getPose(), PoseNoise2::make(0.0001, 0.0001), true), vp->getName()));
+                     PoseWithNoise(vp->getPose(), PoseNoise2::make(0.002, 0.002), true), vp->getName()));
               add(pp);
               addToOptimizer(pp.get());
-              ROS_DEBUG_STREAM("adding prior to free pose: " << *pp);
+              //ROS_DEBUG_STREAM("adding prior to free pose: " << *pp);
               //std::cout << pp->getPoseWithNoise().getPose() << std::endl;
             }
             //ROS_DEBUG_STREAM("attached: " << *graph_[destv]);
@@ -430,6 +430,12 @@ namespace tagslam {
   void Graph::print(const std::string &prefix) const {
     for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
       ROS_DEBUG_STREAM(prefix << " " << graph_[*vi.first]->getLabel());
+      if (graph_[*vi.first]->isValue()) {
+        PoseValueConstPtr  vp = std::dynamic_pointer_cast<const value::Pose>(graph_[*vi.first]);
+        if (vp) {
+          std::cout << " has pose: " << std::endl << vp->getPose() << std::endl;
+        }
+      }
     }
   }
 

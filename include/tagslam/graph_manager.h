@@ -35,7 +35,9 @@ namespace tagslam {
     void setPixelNoise(double pn) { pixelNoise_ = pn; }
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
-    double optimize();
+    void setAngleLimit(double angDeg);
+
+    double optimize(double thresh);
     double reoptimize();
     VertexDesc addPose(const ros::Time &t, const string &name,
                           const Transform &pose, bool poseIsValid);
@@ -93,7 +95,7 @@ namespace tagslam {
                          VertexDesc start,
                          SubGraph *subGraph, SubGraph *found);
     double optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
-    void initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
+    double initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
 
     
     // ------ variables --------------
@@ -107,5 +109,6 @@ namespace tagslam {
     int                maxNumIncrementalOpt_{100};
     double             maxSubgraphError_{15.0};
     double             subgraphError_{0};
+    double             angleLimit_{0};
   };
 }

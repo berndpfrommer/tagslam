@@ -18,7 +18,7 @@ namespace tagslam {
     GTSAMOptimizer();
     ~GTSAMOptimizer();
     // ---- implement Optimizer interface
-    double    optimize() override;
+    double    optimize(double deltaError) override;
     double    optimizeFull(bool force = false) override;
     void      transferFullOptimization() override;
     double    errorFull() override;
@@ -49,7 +49,7 @@ namespace tagslam {
     typedef std::unordered_map<double, gtsam::noiseModel::Isotropic::shared_ptr> PixelNoiseMap;
     std::shared_ptr<Cal3FS2> getEquiModel(const std::string &cname, const CameraIntrinsics2 &ci);
     std::shared_ptr<Cal3DS3> getRadTanModel(const std::string &cname, const CameraIntrinsics2 &ci);
-
+    double checkForLargeErrors(double thresh) const;
     // ------------ variables ------------
     ValueKey                      key_{0};
     std::string                   verbosity_;

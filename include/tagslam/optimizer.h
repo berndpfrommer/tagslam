@@ -15,7 +15,7 @@ namespace tagslam {
     Optimizer() {}
     virtual ~Optimizer() {};
 
-    virtual double optimize() = 0;
+    virtual double optimize(double deltaError) = 0;
     virtual double optimizeFull(bool force = false) = 0;
     virtual void   transferFullOptimization() = 0;
     virtual double errorFull() = 0;

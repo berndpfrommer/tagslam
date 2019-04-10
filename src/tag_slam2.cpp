@@ -71,9 +71,11 @@ namespace tagslam {
     bool optFullGraph;
     nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
-    double pixelNoise, maxSubgraphError;
+    double pixelNoise, maxSubgraphError, angleLimit;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
     graphManager_.setPixelNoise(pixelNoise);
+    nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
+    graphManager_.setAngleLimit(angleLimit);
     nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
     graphManager_.setMaxSubgraphError(maxSubgraphError);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
@@ -107,7 +109,7 @@ namespace tagslam {
       return (false);
     }
     //
-    graphManager_.optimize();
+    graphManager_.optimize(0);
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
@@ -501,6 +503,7 @@ namespace tagslam {
           auto fac = graphManager_.addProjectionFactor(t, tagPtr, cameras_[i],
                                                        img_corners);
           double sz = find_size_of_tag(img_corners);
+          ROS_DEBUG_STREAM("cam " << cameras_[i]->getName() << " obs tag " << tag.id << " with size: " << sz);
           sortedFactors.insert(MMap::value_type(sz, fac));
         }
       }

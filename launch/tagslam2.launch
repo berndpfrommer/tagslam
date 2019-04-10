@@ -10,6 +10,7 @@
   <arg name="calibration_file" default="$(arg config_dir)/cameras.yaml"/>
   <arg name="camera_poses_file" default="$(arg config_dir)/camera_poses.yaml"/>
   <arg name="bag" default="$(arg data_dir)/tag_detections.bag"/>
+  <arg name="max_number_of_frames" default="1000000"/>
 
   <!--
   <node pkg="nodelet" type="nodelet" name="tagslam2" args="standalone tagslam/TagSlam2"
@@ -39,9 +40,10 @@
 	<param name="bag_start_time" value="0"/>
 	<param name="bag_file" value="$(arg bag)"/>
 	<param name="optimize_full_graph" value="true"/>
-	<param name="max_subgraph_error" value="150.0"/>
+	<param name="max_subgraph_error" value="50.0"/>
 	<param name="has_compressed_images" value="false"/>
-	<param name="max_number_of_frames" value="1300"/>
+	<param name="minimum_viewing_angle" value="20.0"/>
+	<param name="max_number_of_frames" value="$(arg max_number_of_frames)"/>
   </node>
 
 </launch>

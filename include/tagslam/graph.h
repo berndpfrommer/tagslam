@@ -38,7 +38,7 @@ namespace tagslam {
     inline bool isOptimized(const VertexDesc &v) const {
       return (graph_[v]->isOptimized()); }
     string info(const VertexDesc &v) const;
-    double optimize();
+    double optimize(double thresh);
     double optimizeFull(bool force = false);
     std::vector<VertexDesc> getConnected(const VertexDesc &v) const;
   

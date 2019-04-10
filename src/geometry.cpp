@@ -4,9 +4,11 @@
 
 #include "tagslam/geometry.h"
 
+#include <iostream>
+
 namespace tagslam {
   Transform make_transform(const Eigen::Matrix3d &rot, const Point3d &trans) {
-    Transform tf;
+    Transform tf = Transform::Identity();
     tf.linear()      = rot;
     tf.translation() = trans;
     return (tf);
