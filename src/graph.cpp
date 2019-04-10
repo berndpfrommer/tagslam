@@ -239,12 +239,12 @@ namespace tagslam {
 
   VertexDesc
   Graph::addPose(const ros::Time &t, const string &name,
-                 const Transform &pose, bool poseIsValid) {
+                 const Transform &pose, bool poseIsValid, bool isCameraPose) {
     if (hasId(value::Pose::id(t, name))) {
       ROS_ERROR_STREAM("duplicate pose inserted: " << t << " " << name);
       throw (std::runtime_error("duplicate pose inserted"));
     }
-    PoseValuePtr pv(new value::Pose(t, pose, name, poseIsValid));
+    PoseValuePtr pv(new value::Pose(t, pose, name, poseIsValid, isCameraPose));
     return (insertVertex(pv));
   }
 
@@ -294,10 +294,11 @@ namespace tagslam {
               // known pose, so can already add it to optimizer
               getVertex(destv)->addToOptimizer(this);
               // already established poses must be pinned down with a prior
+              double ns = vp->isCameraPose() ? 0.1 : 0.001;
               AbsolutePosePriorFactorPtr
                 pp(new factor::AbsolutePosePrior(
                      vp->getTime(),
-                     PoseWithNoise(vp->getPose(), PoseNoise2::make(0.002, 0.002), true), vp->getName()));
+                     PoseWithNoise(vp->getPose(), PoseNoise2::make(ns, ns), true), vp->getName()));
               add(pp);
               addToOptimizer(pp.get());
               //ROS_DEBUG_STREAM("adding prior to free pose: " << *pp);

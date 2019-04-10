@@ -80,7 +80,7 @@ namespace tagslam {
       if (body.getPoseWithNoise().isValid()) {
         const PoseWithNoise &pn = body.getPoseWithNoise();
         string name = Graph::body_name(body.getName());
-        addPoseWithPrior(t0, name, pn);
+        addPoseWithPrior(t0, name, pn, false);
       }
     } 
     // add associated tags as vertices
@@ -96,9 +96,9 @@ namespace tagslam {
     const string name = Graph::tag_name(tag.getId());
     const ros::Time t0(0);
     if (tag.getPoseWithNoise().isValid()) {
-      addPoseWithPrior(t0, name, tag.getPoseWithNoise());
+      addPoseWithPrior(t0, name, tag.getPoseWithNoise(), false);
     } else {
-      graph_.addPose(t0, name, tag.getPoseWithNoise().getPose(), false);
+      graph_.addPose(t0, name, tag.getPoseWithNoise().getPose(), false, false);
     }
   }
 
@@ -147,8 +147,8 @@ namespace tagslam {
   
   VertexDesc
   GraphManager::addPoseWithPrior(const ros::Time &t, const string &name,
-                                 const PoseWithNoise &pn) {
-    VertexDesc v = graph_.addPose(t, name, pn.getPose(), true);
+                                 const PoseWithNoise &pn, bool isCamPose) {
+    VertexDesc v = graph_.addPose(t, name, pn.getPose(), true, isCamPose);
     graph_.getVertex(v)->addToOptimizer(&graph_);
     VertexDesc pv = addPrior(t, name, pn);
     return (pv);
@@ -156,12 +156,13 @@ namespace tagslam {
 
   VertexDesc
   GraphManager::addPose(const ros::Time &t, const string &name,
-                        const Transform &pose, bool poseIsValid) {
+                        const Transform &pose, bool poseIsValid,
+                        bool isCamPose) {
     if (graph_.hasPose(t, name)) {
       ROS_ERROR_STREAM("duplicate pose added, id: " << t << " " << name);
       throw std::runtime_error("duplicate pose added!");
     }
-    VertexDesc npv = graph_.addPose(t, name, pose, poseIsValid);
+    VertexDesc npv = graph_.addPose(t, name, pose, poseIsValid, isCamPose);
     return (npv);
   }
 

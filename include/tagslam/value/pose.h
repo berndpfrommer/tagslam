@@ -16,8 +16,9 @@ namespace tagslam {
       Pose(const ros::Time    &t    = ros::Time(0),
            const Transform    &p    = Transform::Identity(),
            const std::string  &name = "",
-           bool               valid = false) :
-        Value(name, t, valid), pose_(p) {}
+           bool               valid = false,
+           bool                 icp = false) :
+        Value(name, t, valid), pose_(p), isCameraPose_(icp) {}
       std::string getLabel() const override;
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<Pose>(new Pose(*this))); }
@@ -30,11 +31,14 @@ namespace tagslam {
         pose_  = pose;
         setIsValid(true);
       }
+      bool isCameraPose() const { return (isCameraPose_); }
+      void setIsCameraPose(bool c) {  isCameraPose_ = c; }
       static VertexId id(const ros::Time &t, const std::string &n) {
         return (make_id(t, n));
       }
     private:
       Transform pose_;
+      bool      isCameraPose_{false};
     };
   }
   typedef std::shared_ptr<value::Pose> PoseValuePtr;

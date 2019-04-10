@@ -96,7 +96,7 @@ namespace tagslam {
       if (!pwn.isValid()) {
         ROS_INFO_STREAM("camera " << cam->getName() << " has no pose!");
         graphManager_.addPose(ros::Time(0), Graph::cam_name(cam->getName()),
-                       Transform::Identity(), false);
+                              Transform::Identity(), false, true/*camPose*/);
       } else {
         camHasKnownPose = true;
         ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");

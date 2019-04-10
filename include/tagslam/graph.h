@@ -55,7 +55,8 @@ namespace tagslam {
     void addToOptimizer(const VertexDesc &v);
 
     VertexDesc addPose(const ros::Time &t, const string &name,
-                   const Transform &pose, bool poseIsValid);
+                       const Transform &pose, bool poseIsValid,
+                       bool isCamPose = false);
 
     Transform getOptimizedPose(const VertexDesc &v) const;
     PoseNoise2 getPoseNoise(const VertexDesc &v) const;
