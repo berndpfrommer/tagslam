@@ -48,6 +48,7 @@ namespace tagslam {
                                          const Tag2ConstPtr &tag,
                                          const Camera2ConstPtr &cam,
                                          const geometry_msgs::Point *imgCorners);
+    VertexDesc addRelativePosePrior(const  RelativePosePriorFactorPtr &fac);
 
     void plotDebug(const ros::Time &t, const string &tag);
     void addBody(const Body &body);

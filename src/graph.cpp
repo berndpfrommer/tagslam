@@ -116,7 +116,7 @@ namespace tagslam {
       throw std::runtime_error("no rig pose found!");
     }
 
-    VertexDesc vcp = find(value::Pose::id(ros::Time(0),
+    VertexDesc vcp = find(value::Pose::id(pf->getTime(),
                                       Graph::cam_name(pf->getCamera()->getName())));
     if (!is_valid(vcp)) {
       ROS_ERROR_STREAM("no camera pose found for: " << pf->getLabel());

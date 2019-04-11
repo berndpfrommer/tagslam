@@ -187,6 +187,10 @@ namespace tagslam {
     return (graph_.add(fac));
   }
 
+  VertexDesc GraphManager::addRelativePosePrior(const  RelativePosePriorFactorPtr &fac) {
+    return (graph_.add(fac));
+  }
+
   void
   GraphManager::examine(const ros::Time &t, VertexDesc fac,
                  std::deque<VertexDesc> *factorsToExamine,

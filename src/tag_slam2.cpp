@@ -496,14 +496,27 @@ namespace tagslam {
 
     for (const auto i: irange(0ul, cameras_.size())) {
       const ros::Time &t = tagMsgs[i]->header.stamp;
+      const auto &cam = cameras_[i];
+      if (!tagMsgs[i]->apriltags.empty()) {
+        // insert time-dependent camera pose
+        graphManager_.addPose(t, Graph::cam_name(cam->getName()),
+                              Transform::Identity(), false, true/*camPose*/);
+        // and tie it to the time-independent camera pose
+        // with a relative prior
+        const PoseWithNoise pn(Transform::Identity(), PoseNoise2::make(0.01, 0.01), true);
+        string  name = Graph::cam_name(cam->getName());
+        RelativePosePriorFactorPtr fac(new factor::RelativePosePrior(t, ros::Time(0), pn, name));
+        VertexDesc v = graphManager_.addRelativePosePrior(fac);
+        sortedFactors.insert(MMap::value_type(1e10, v));
+      }
       for (const auto &tag: tagMsgs[i]->apriltags) {
         Tag2ConstPtr tagPtr = findTag(tag.id);
         if (tagPtr) {
           const geometry_msgs::Point *img_corners = &(tag.corners[0]);
-          auto fac = graphManager_.addProjectionFactor(t, tagPtr, cameras_[i],
+          auto fac = graphManager_.addProjectionFactor(t, tagPtr, cam,
                                                        img_corners);
           double sz = find_size_of_tag(img_corners);
-          ROS_DEBUG_STREAM("cam " << cameras_[i]->getName() << " obs tag " << tag.id << " with size: " << sz);
+          ROS_DEBUG_STREAM("cam " << cam->getName() << " obs tag " << tag.id << " with size: " << sz);
           sortedFactors.insert(MMap::value_type(sz, fac));
         }
       }
@@ -511,7 +524,7 @@ namespace tagslam {
       for (const auto &tag: tagMsgs[i]->apriltags) {
         ss << " " << tag.id;
       }
-      ROS_INFO_STREAM("frame " << frameNum_ << " " << cameras_[i]->getName()
+      ROS_INFO_STREAM("frame " << frameNum_ << " " << cam->getName()
                       << " sees tags: " << ss.str());
     }
     for (auto it = sortedFactors.rbegin(); it != sortedFactors.rend(); ++it) {
