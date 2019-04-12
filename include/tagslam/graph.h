@@ -92,7 +92,7 @@ namespace tagslam {
     }
     static void transfer_optimized_pose(Graph *destGraph, const VertexDesc &destVertex,
                                         const Graph &srcGraph, const VertexDesc &srcVertex);
-
+    void printUnoptimized() const;
   private:
     inline VertexDesc find(const VertexId &id) const {
       const auto it = idToVertex_.find(id);

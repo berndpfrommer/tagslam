@@ -678,6 +678,7 @@ namespace tagslam {
     for (const auto &v: errMap) {
       ROS_INFO_STREAM("  " << v.first << " " << *(graph_.getVertex(v.second)));
     }
+    graph_.printUnoptimized();
     return (err);
   }
 

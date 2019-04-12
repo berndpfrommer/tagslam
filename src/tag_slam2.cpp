@@ -122,6 +122,7 @@ namespace tagslam {
 
     sleep(1.0);
     playFromBag(bagFile);
+    graphManager_.reoptimize();
     //graphManager_.plotDebug(ros::Time(0), "final");
     outBag_.close();
     std::string camPoseFile;
@@ -319,7 +320,6 @@ namespace tagslam {
       bag.close();
     }
     ROS_INFO_STREAM("done processing bag!");
-    graphManager_.reoptimize();
   }
 
   void TagSlam2::syncCallback(
@@ -363,6 +363,15 @@ namespace tagslam {
     }
   }
 
+  static bool any_tags_visible(const std::vector<TagArrayConstPtr> &tagmsgs) {
+    for (const auto &msg: tagmsgs) {
+      if (!msg->apriltags.empty()) {
+        return (true);
+      }
+    }
+    return (false);
+  }
+
   void TagSlam2::processTagsAndOdom(
     const std::vector<TagArrayConstPtr> &tagmsgs,
     const std::vector<OdometryConstPtr> &odommsgs) {
@@ -373,11 +382,12 @@ namespace tagslam {
 
     const ros::Time t = tagmsgs.empty() ?
       odommsgs[0]->header.stamp : tagmsgs[0]->header.stamp;
-
-    // add unknown poses for all non-static bodies
-    for (const auto &body: nonstaticBodies_) {
-      graphManager_.addPose(t, Graph::body_name(body->getName()),
-                     Transform::Identity(), false);
+    if (any_tags_visible(tagmsgs) || !odommsgs.empty()) {
+      // if we have any measurements, add unknown poses for all non-static bodies
+      for (const auto &body: nonstaticBodies_) {
+        graphManager_.addPose(t, Graph::body_name(body->getName()),
+                              Transform::Identity(), false);
+      }
     }
     std::vector<VertexDesc> factors;
     profiler_.reset();

@@ -458,6 +458,15 @@ namespace tagslam {
     return (ss.str());
   }
 
+  void Graph::printUnoptimized() const {
+    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
+      const VertexConstPtr vp = graph_[*vi.first];
+      if (!vp->isOptimized()) {
+        ROS_INFO_STREAM("unoptimized: " << vp->getLabel());
+      }
+    }
+  }
+
   Graph::ErrorToVertexMap Graph::getErrorMap() const {
     ErrorToVertexMap errMap;
     for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
