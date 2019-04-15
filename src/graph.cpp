@@ -433,9 +433,6 @@ namespace tagslam {
       ROS_DEBUG_STREAM(prefix << " " << graph_[*vi.first]->getLabel());
       if (graph_[*vi.first]->isValue()) {
         PoseValueConstPtr  vp = std::dynamic_pointer_cast<const value::Pose>(graph_[*vi.first]);
-        if (vp) {
-          std::cout << " has pose: " << std::endl << vp->getPose() << std::endl;
-        }
       }
     }
   }

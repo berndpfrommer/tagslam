@@ -29,6 +29,7 @@ namespace tagslam {
     const string &getFrameId()    const { return (frameId_); }
     const string &getRigName()    const { return (rigName_); }
     const std::shared_ptr<Body> getRig() const { return (rig_); }
+    const PoseNoise2 &getWiggle() const { return (wiggle_); }
     const CameraIntrinsics2& getIntrinsics() const { return (intrinsics_); }
     void setRig(const std::shared_ptr<Body> &rig) { rig_ = rig; }
     
@@ -47,6 +48,7 @@ namespace tagslam {
     string                rigName_;    // name of rig body
     std::shared_ptr<Body> rig_;        // pointer to rig body
     CameraIntrinsics2     intrinsics_; // intrinsic calibration
+    PoseNoise2            wiggle_;     // how rigid the ext calib is
   };
 
   using Camera2Ptr      = Camera2::Camera2Ptr;

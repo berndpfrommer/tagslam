@@ -513,7 +513,7 @@ namespace tagslam {
                               Transform::Identity(), false, true/*camPose*/);
         // and tie it to the time-independent camera pose
         // with a relative prior
-        const PoseWithNoise pn(Transform::Identity(), PoseNoise2::make(0.01, 0.01), true);
+        const PoseWithNoise pn(Transform::Identity(), cam->getWiggle(), true);
         string  name = Graph::cam_name(cam->getName());
         RelativePosePriorFactorPtr fac(new factor::RelativePosePrior(t, ros::Time(0), pn, name));
         VertexDesc v = graphManager_.addRelativePosePrior(fac);

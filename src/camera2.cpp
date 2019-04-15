@@ -27,6 +27,10 @@ namespace tagslam {
     if (!nh.getParam(p + "rig_body", cam.rigName_)) {
       bombout("rig_body", prefix); }
     nh.param<string>(p + "frame_id", cam.frameId_, cam.name_);
+    double wiggleRot(0.00001), wiggleTrans(0.00001);
+    nh.getParam(p + "wiggle_rotation", wiggleRot);
+    nh.getParam(p + "wiggle_translation", wiggleTrans);
+    cam.wiggle_ = PoseNoise2::make(wiggleRot, wiggleTrans);
     return (cam);
   }
 

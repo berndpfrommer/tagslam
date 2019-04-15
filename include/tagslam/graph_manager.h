@@ -98,7 +98,6 @@ namespace tagslam {
                          SubGraph *subGraph, SubGraph *found);
     double optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
     double initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
-
     
     // ------ variables --------------
     double             pixelNoise_{1.0};

@@ -442,22 +442,6 @@ namespace tagslam {
       p.insert(p.end(), remain.begin(), remain.begin() + i);
       all->push_back(p);
     }
-#ifdef ALL_PERMUTATIONS    
-    int n = remain.size();
-    if (n == 0) {
-      all->push_back(prefix);
-    } else {
-      for (int i = 0; i < n; i++) {
-        std::deque<VertexDesc> newPrefix(prefix);
-        newPrefix.push_back(remain[i]);
-        std::deque<VertexDesc> newRemain(remain.begin(), remain.begin() + i);
-        newRemain.insert(newRemain.end(), remain.begin() + i + 1, remain.end());
-        std::cout << prefix.size() << " + " << remain.size() << " changes to -> "
-                  << newPrefix.size() << " + " << newRemain.size() << std::endl;
-        enumerate(all, newPrefix, newRemain);
-      }
-    }
-#endif    
     ROS_INFO_STREAM("made " << all->size() << " enumerations");
   }
 
@@ -468,7 +452,24 @@ namespace tagslam {
 
   static bool initialize_subgraph(Graph *graph, double angleLimit,
                                   const std::deque<VertexDesc> &factors) {
+    std::deque<VertexDesc> remainingFactors;
+    // first see if we can already initialize via
+    // any relative pose priors, since they are
+    // generally more reliable
     for (const auto &v: factors) { //loop over factors
+      RelativePosePriorFactorPtr rp =
+        std::dynamic_pointer_cast<factor::RelativePosePrior>(graph->getVertex(v));
+      if (rp && !rp->isOptimized() &&
+          set_value_from_relative_pose_prior(graph, v, rp->getPoseWithNoise().getPose())) {
+        rp->addToOptimizer(graph);
+        ROS_DEBUG_STREAM("pre-init factor: " << graph->getVertex(v));
+      } else {
+        remainingFactors.push_back(v);
+      }
+    }
+    
+    // now do anything else
+    for (const auto &v: remainingFactors) { //loop over factors
       VertexPtr  fvp = graph->getVertex(v);
       TagProjectionFactorPtr fp =
         std::dynamic_pointer_cast<factor::TagProjection>(fvp);
@@ -568,11 +569,8 @@ namespace tagslam {
             } else {
               ROS_DEBUG_STREAM("error map for subgraph: ");
               for (const auto &ev: errMap) {
-                //if (ev.first > 20.0) {
-                  ROS_INFO_STREAM("SUBGRAPH ERROR_MAP  " << ev.first << " " << *(subGraph.getVertex(ev.second)));
-                  //}
+                ROS_INFO_STREAM("SUBGRAPH ERROR_MAP  " << ev.first << " " << *(subGraph.getVertex(ev.second)));
               }
-
             }
           }
         } else {
