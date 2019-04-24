@@ -5,6 +5,7 @@
 #pragma once
 
 #include "tagslam/graph_manager.h"
+#include "tagslam/graph_updater.h"
 #include "tagslam/camera2.h"
 #include "tagslam/profiler.h"
 #include "tagslam/odometry_processor.h"
@@ -91,6 +92,7 @@ namespace tagslam {
     // ------ variables --------
     ros::NodeHandle      nh_;
     GraphManager         graphManager_;
+    GraphUpdater         graphUpdater_;
     Camera2Vec           cameras_;
     BodyVec              bodies_;
     BodyVec              nonstaticBodies_;

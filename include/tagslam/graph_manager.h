@@ -36,6 +36,7 @@ namespace tagslam {
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
     void setAngleLimit(double angDeg);
+    GraphPtr getGraph() { return (graph_); }
 
     double optimize(double thresh);
     double reoptimize();
@@ -102,7 +103,7 @@ namespace tagslam {
     // ------ variables --------------
     double             pixelNoise_{1.0};
     bool               optimizeFullGraph_;
-    Graph              graph_;
+    GraphPtr           graph_;
     TimeToVertexesMap  times_;
     Profiler           profiler_;
     size_t             numNoFactors_{0};

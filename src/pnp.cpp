@@ -227,7 +227,6 @@ namespace tagslam {
       bool hasGoodR1 = R1.at<double>(2,2) < 0;
       bool hasGoodR2 = R2.at<double>(2,2) < 0;
       bool use1 = hasGoodR1 && (fabs(N1.at<double>(2)) > fabs(N2.at<double>(2)) || !hasGoodR2);
-      bool use2 = hasGoodR2 && (fabs(N1.at<double>(2)) < fabs(N2.at<double>(2)) || !hasGoodR1);
       *R = use1 ? R1 : R2;
       cv::Mat N    = use1 ? N1 : N2;
       cv::Mat Traw = use1 ? T1 : T2;

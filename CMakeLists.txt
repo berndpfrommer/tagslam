@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(tagslam)
 
-add_definitions(-std=c++11 -g -Wall)
+add_definitions(-std=c++11 -g -Wall -Wno-misleading-indentation -Wno-int-in-bool-context)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
 #include(cotire)
 
@@ -116,6 +116,7 @@ src/odometry_processor.cpp
 src/pnp.cpp
 src/profiler.cpp
 src/graph_manager.cpp
+src/graph_updater.cpp
 src/gtsam_distortion/Cal3FS2.cpp
 src/gtsam_distortion/Cal3DS3.cpp
 )

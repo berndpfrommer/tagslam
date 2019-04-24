@@ -74,12 +74,17 @@ namespace tagslam {
     double pixelNoise, maxSubgraphError, angleLimit;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
     graphManager_.setPixelNoise(pixelNoise);
+    graphUpdater_.setGraph(graphManager_.getGraph());
+    graphUpdater_.setPixelNoise(pixelNoise);
     nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
     graphManager_.setAngleLimit(angleLimit);
+    graphUpdater_.setAngleLimit(angleLimit);
     nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
     graphManager_.setMaxSubgraphError(maxSubgraphError);
+    graphUpdater_.setMaxSubgraphError(maxSubgraphError);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graphManager_.setOptimizeFullGraph(optFullGraph);
+    graphUpdater_.setOptimizeFullGraph(optFullGraph);
     readBodies();
     bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
@@ -400,7 +405,7 @@ namespace tagslam {
 #endif
     processTags(tagmsgs, &factors);
     profiler_.record("processTags");
-    graphManager_.processNewFactors(t, factors);
+    graphUpdater_.processNewFactors(t, factors);
     profiler_.record("processNewFactors");
     //graphManager_.plotDebug(tagMsgs[0]->header.stamp, "factors");
     times_.push_back(t);
