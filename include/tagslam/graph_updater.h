@@ -34,7 +34,6 @@ namespace tagslam {
     typedef std::deque<VertexDesc> VertexDeque;
     // ---------------------
     void setGraph(const GraphPtr &g)   { graph_ = g; }
-    void setPixelNoise(double pn)      { pixelNoise_ = pn; }
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
     void setAngleLimit(double angDeg);
@@ -62,7 +61,6 @@ namespace tagslam {
     double initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
     
     // ------ variables --------------
-    double             pixelNoise_{1.0};
     bool               optimizeFullGraph_;
     GraphPtr           graph_;
     TimeToVertexesMap  times_;

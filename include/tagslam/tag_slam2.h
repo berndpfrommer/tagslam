@@ -6,6 +6,7 @@
 
 #include "tagslam/graph_manager.h"
 #include "tagslam/graph_updater.h"
+#include "tagslam/graph.h"
 #include "tagslam/camera2.h"
 #include "tagslam/profiler.h"
 #include "tagslam/odometry_processor.h"
@@ -91,6 +92,7 @@ namespace tagslam {
     void writeCameraPoses(const string &fname) const;
     // ------ variables --------
     ros::NodeHandle      nh_;
+    GraphPtr             graph_;
     GraphManager         graphManager_;
     GraphUpdater         graphUpdater_;
     Camera2Vec           cameras_;

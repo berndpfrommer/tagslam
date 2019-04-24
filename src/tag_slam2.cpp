@@ -65,6 +65,8 @@ namespace tagslam {
   }
 
   bool TagSlam2::initialize() {
+    graph_.reset(new Graph());
+    graph_->setVerbosity("TERMINATION");
     nh_.param<std::string>("outbag", outBagName_, "out.bag");
     outBag_.open(outBagName_, rosbag::bagmode::Write);
     cameras_ = Camera2::parse_cameras("cameras", nh_);
@@ -74,16 +76,14 @@ namespace tagslam {
     double pixelNoise, maxSubgraphError, angleLimit;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
     graphManager_.setPixelNoise(pixelNoise);
-    graphUpdater_.setGraph(graphManager_.getGraph());
-    graphUpdater_.setPixelNoise(pixelNoise);
+    graphManager_.setGraph(graph_);
+
+    graphUpdater_.setGraph(graph_);
     nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
-    graphManager_.setAngleLimit(angleLimit);
     graphUpdater_.setAngleLimit(angleLimit);
     nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
-    graphManager_.setMaxSubgraphError(maxSubgraphError);
     graphUpdater_.setMaxSubgraphError(maxSubgraphError);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
-    graphManager_.setOptimizeFullGraph(optFullGraph);
     graphUpdater_.setOptimizeFullGraph(optFullGraph);
     readBodies();
     bool camHasKnownPose(false);
@@ -114,7 +114,8 @@ namespace tagslam {
       return (false);
     }
     //
-    graphManager_.optimize(0);
+    //graphManager_.optimize(0);
+    graph_->optimize(0);
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
@@ -127,7 +128,14 @@ namespace tagslam {
 
     sleep(1.0);
     playFromBag(bagFile);
-    graphManager_.reoptimize();
+    graph_->optimizeFull(true /*force*/);
+    graph_->transferOptimizedValues();
+    const auto errMap = graph_->getErrorMap();
+    ROS_INFO_STREAM("----------- error map: -----------");
+    for (const auto &v: errMap) {
+      ROS_INFO_STREAM("  " << v.first << " " << *(graph_->getVertex(v.second)));
+    }
+    graph_->printUnoptimized();
     //graphManager_.plotDebug(ros::Time(0), "final");
     outBag_.close();
     std::string camPoseFile;
