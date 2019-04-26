@@ -71,6 +71,7 @@ namespace tagslam {
       throw std::runtime_error("pose missing!");
     }
     VertexDesc fv = insertVertex(fac);
+    factors_.push_back(fv);
     boost::add_edge(fv, cp, GraphEdge(0), graph_);
     return (fv);
   }
@@ -84,6 +85,7 @@ namespace tagslam {
       throw std::runtime_error("pose missing!");
     }
     VertexDesc fv = insertVertex(p);
+    factors_.push_back(fv);
     boost::add_edge(fv, pp, GraphEdge(0), graph_);
     boost::add_edge(fv, cp, GraphEdge(1), graph_);
     return (fv);
@@ -120,6 +122,7 @@ namespace tagslam {
       throw std::runtime_error("no camera pose found!");
     }
     VertexDesc v = insertVertex(pf);
+    factors_.push_back(v);
     boost::add_edge(v, vcp, GraphEdge(0), graph_); // T_r_c
     boost::add_edge(v, vrp, GraphEdge(1), graph_); // T_w_r
     boost::add_edge(v, vbp, GraphEdge(2), graph_); // T_w_b
@@ -266,7 +269,7 @@ namespace tagslam {
 
 
   Transform Graph::getOptimizedPose(const VertexDesc &v) const {
-    PoseValueConstPtr  vp = std::dynamic_pointer_cast<value::Pose>(graph_[v]);
+    PoseValueConstPtr vp = std::dynamic_pointer_cast<value::Pose>(graph_[v]);
     if (!vp) {
       ROS_ERROR_STREAM("vertex is not pose: " << info(v));
       throw std::runtime_error("vertex is not pose");
@@ -279,21 +282,20 @@ namespace tagslam {
   void
   Graph::copyFrom(const Graph &g, const std::deque<VertexDesc> &srcfacs,
                   std::deque<VertexDesc> *destfacs) {
-    ROS_DEBUG_STREAM("copying from...");
     std::set<VertexDesc> copiedVals;
     // first copy all values
     for (const auto &srcf: srcfacs) { // loop through factors
-      ROS_DEBUG_STREAM(" copying for factor " << g.info(srcf));
+      //ROS_DEBUG_STREAM(" copying for factor " << g.info(srcf));
       for (const auto &srcv: g.getConnected(srcf)) {
         if (copiedVals.count(srcv) == 0) { // avoid duplication
-          ROS_DEBUG_STREAM("  copying value " << *g.getVertex(srcv));
+          //ROS_DEBUG_STREAM("  copying value " << *g.getVertex(srcv));
           copiedVals.insert(srcv);
           GraphVertex srcvp  = g.getVertex(srcv);
           GraphVertex destvp = srcvp->clone();
-          destvp->attach(destvp, this);
+          destvp->attach(destvp, this); // add new value to graph
           if (g.isOptimized(srcv)) {
             // Already established poses must be pinned down with a prior
-            // If it's a camera pose, give it more wiggle
+            // If it's a camera pose, give it more flexibility
             PoseValuePtr srcpp =
               std::dynamic_pointer_cast<value::Pose>(srcvp);
             Transform pose = g.getOptimizedPose(srcv);

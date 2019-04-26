@@ -336,6 +336,7 @@ namespace tagslam {
     testValues.insert(newValues_);
     const auto i = testGraph.at(k);
     double err = i->error(testValues);
+#if 0    
     if (err > 100.0) {
       std::cout << " FACTOR WITH LARGE ERROR: " << err << std::endl;
       std::cout << " factor: " << std::endl;
@@ -345,6 +346,7 @@ namespace tagslam {
         std::cout << std::endl;
       }
     }
+#endif    
     return (err);
   }
 

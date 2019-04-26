@@ -27,17 +27,18 @@ namespace tagslam {
   public:
     Graph();
     typedef std::multimap<double, VertexDesc> ErrorToVertexMap;
-    inline bool hasId(const VertexId &id) const {
-      return (idToVertex_.count(id) != 0); }
-    bool hasPose(const ros::Time &t,
-                 const std::string &name) const;
-    inline bool isOptimized(const VertexDesc &v) const {
+    
+    bool hasId(const VertexId &id) const { return (idToVertex_.count(id)!=0);}
+    bool hasPose(const ros::Time &t, const std::string &name) const;
+    bool isOptimized(const VertexDesc &v) const {
       return (optimized_.find(v) != optimized_.end());
     }
     string info(const VertexDesc &v) const;
     double optimize(double thresh);
     double optimizeFull(bool force = false);
-    std::vector<VertexDesc> getConnected(const VertexDesc &v) const;
+
+    const VertexVec &getFactors() const { return (factors_); }
+    VertexVec getConnected(const VertexDesc &v) const;
 
     VertexDesc add(const PoseValuePtr &p);
     VertexDesc add(const RelativePosePriorFactorPtr &p);
@@ -61,7 +62,8 @@ namespace tagslam {
     double    getError() { return (optimizer_->errorFull()); }
     double    getMaxError() { return (optimizer_->getMaxError()); }
     void      plotDebug(const ros::Time &t, const string &tag);
-    void      transferFullOptimization() { optimizer_->transferFullOptimization(); }
+    void      transferFullOptimization() {
+      optimizer_->transferFullOptimization(); }
     void setVerbosity(const string &v) {
       optimizer_->setVerbosity(v);
     }
@@ -73,9 +75,9 @@ namespace tagslam {
     void  print(const std::string &pre = "") const;
     std::string getStats() const;
     
-    // TODO use operator [] overloading for this
     VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
-    
+    VertexPtr operator[](const VertexDesc f) const { return (graph_[f]); }
+
     VertexDesc findPose(const ros::Time &t, const string &name) const;
     ErrorToVertexMap getErrorMap() const;
     // static methods
@@ -103,6 +105,7 @@ namespace tagslam {
 
     // ------ variables --------------
     BoostGraph                 graph_;
+    VertexVec                  factors_;
     IdToVertexMap              idToVertex_;
     VertexToOptMap             optimized_;
     std::shared_ptr<Optimizer> optimizer_;

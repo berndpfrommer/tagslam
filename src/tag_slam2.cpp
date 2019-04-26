@@ -66,7 +66,7 @@ namespace tagslam {
 
   bool TagSlam2::initialize() {
     graph_.reset(new Graph());
-    graph_->setVerbosity("TERMINATION");
+    graph_->setVerbosity("SILENT");
     nh_.param<std::string>("outbag", outBagName_, "out.bag");
     outBag_.open(outBagName_, rosbag::bagmode::Write);
     cameras_ = Camera2::parse_cameras("cameras", nh_);
@@ -80,7 +80,7 @@ namespace tagslam {
 
     graphUpdater_.setGraph(graph_);
     nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
-    graphUpdater_.setAngleLimit(angleLimit);
+    graphUpdater_.setMinimumViewingAngle(angleLimit);
     nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
     graphUpdater_.setMaxSubgraphError(maxSubgraphError);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
@@ -114,7 +114,6 @@ namespace tagslam {
       return (false);
     }
     //
-    //graphManager_.optimize(0);
     graph_->optimize(0);
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
@@ -128,6 +127,9 @@ namespace tagslam {
 
     sleep(1.0);
     playFromBag(bagFile);
+    std::cout << profiler_ << std::endl;
+    std::cout.flush();
+    graphUpdater_.printPerformance();
     graph_->optimizeFull(true /*force*/);
     const auto errMap = graph_->getErrorMap();
     ROS_INFO_STREAM("----------- error map: -----------");
@@ -417,8 +419,6 @@ namespace tagslam {
     times_.push_back(t);
     publishAll(t);
     profiler_.record("publishAll");
-    std::cout << profiler_ << std::endl;
-    std::cout.flush();
     frameNum_++;
   }
 
@@ -537,7 +537,6 @@ namespace tagslam {
           auto fac = graphManager_.addProjectionFactor(t, tagPtr, cam,
                                                        img_corners);
           double sz = find_size_of_tag(img_corners);
-          ROS_DEBUG_STREAM("cam " << cam->getName() << " obs tag " << tag.id << " with size: " << sz);
           sortedFactors.insert(MMap::value_type(sz, fac));
         }
       }

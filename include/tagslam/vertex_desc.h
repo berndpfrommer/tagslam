@@ -5,7 +5,9 @@
 #pragma once
 
 #include "tagslam/boost_graph.h"
+#include <vector>
 
 namespace tagslam {
   typedef BoostGraphVertex VertexDesc;
+  typedef std::vector<VertexDesc> VertexVec;
 }

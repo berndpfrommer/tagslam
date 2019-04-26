@@ -30,18 +30,16 @@ namespace tagslam {
   class GraphUpdater {
     using string = std::string;
   public:
-    typedef std::vector<VertexDesc> VertexVec;
     typedef std::deque<VertexDesc> VertexDeque;
     // ---------------------
     void setGraph(const GraphPtr &g)   { graph_ = g; }
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
-    void setAngleLimit(double angDeg);
+    void setMinimumViewingAngle(double angDeg);
 
     void processNewFactors(const ros::Time &t,
                            const VertexVec &facs);
-    double optimize(double thresh);
-
+    void printPerformance();
   private:
     typedef std::map<ros::Time, VertexVec> TimeToVertexesMap;
     void examine(const ros::Time &t, VertexDesc fac,
@@ -64,16 +62,16 @@ namespace tagslam {
                                SubGraph *covered);
     void eraseStoredFactors(const ros::Time &t,
                             const SubGraph::FactorCollection &covered);
-
+    double optimize(double thresh);
     // ------ variables --------------
     bool               optimizeFullGraph_;
     GraphPtr           graph_;
-    TimeToVertexesMap  times_;
+    TimeToVertexesMap  oldFactors_;
     Profiler           profiler_;
     double             maxSubgraphError_{15.0};
     int                numIncrementalOpt_{0};
     int                maxNumIncrementalOpt_{100};
     double             subgraphError_{0};
-    double             angleLimit_{0};
+    double             minimumViewingAngle_{0};
   };
 }

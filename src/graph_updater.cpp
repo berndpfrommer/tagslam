@@ -19,7 +19,6 @@ namespace tagslam {
 
   using boost::irange;
   typedef GraphUpdater::VertexDeque VertexDeque;
-  typedef GraphUpdater::VertexVec VertexVec;
 
   static bool contains(const std::deque<VertexDesc> &c, const VertexDesc &v) {
     return (std::find(c.begin(), c.end(), v) != c.end());
@@ -53,7 +52,7 @@ namespace tagslam {
   GraphUpdater::examine(const ros::Time &t, VertexDesc fac,
                         VertexDeque *factorsToExamine,
                         SubGraph *covered, SubGraph *newSubGraph) {
-    ROS_DEBUG_STREAM("examining factor: " << graph_->info(fac));
+    //ROS_DEBUG_STREAM("examining factor: " << graph_->info(fac));
     VertexDesc valueVertex;
     VertexDeque values;
     int numDetermined =
@@ -86,10 +85,10 @@ namespace tagslam {
             if (fp->getTime() == t || fp->getTime() == ros::Time(0)) {
               factorsToExamine->push_front(fv);
             } else {
-              TimeToVertexesMap::iterator it = times_.find(fp->getTime());
-              if (it == times_.end()) {
+              TimeToVertexesMap::iterator it = oldFactors_.find(fp->getTime());
+              if (it == oldFactors_.end()) {
                 ROS_DEBUG_STREAM("   first vertex at time: " << fp->getTime());
-                it = times_.insert(
+                it = oldFactors_.insert(
                   TimeToVertexesMap::value_type(fp->getTime(),
                                                 VertexVec())).first;
               }
@@ -116,9 +115,24 @@ namespace tagslam {
         newSubGraph->factors.push_back(fac);
       }
     } else {
-      ROS_DEBUG_STREAM(" factor does not establish new values!");
+      ROS_DEBUG_STREAM(" factor does not establish new values: " << graph_->info(fac));
     }
   }
+  
+  void
+  GraphUpdater::exploreSubGraph(const ros::Time &t,
+                         VertexDesc start,
+                         SubGraph *subGraph, SubGraph *covered) {
+    VertexDeque factorsToExamine;
+    factorsToExamine.push_back(start);
+    while (!factorsToExamine.empty()) {
+      VertexDesc exFac = factorsToExamine.front();
+      factorsToExamine.pop_front();
+      // examine() may append new factors to factorsToExamine
+      examine(t, exFac, &factorsToExamine, covered, subGraph);
+    }
+  }
+
 
   std::vector<VertexDeque>
   GraphUpdater::findSubgraphs(const ros::Time &t, const VertexVec &facs,
@@ -283,7 +297,6 @@ namespace tagslam {
   }
 
   static void enumerate(std::vector<VertexDeque> *all,
-                        const VertexDeque &prefix,
                         const VertexDeque &remain) {
     //all->push_back(remain);
     //return;
@@ -296,105 +309,132 @@ namespace tagslam {
     ROS_INFO_STREAM("made " << all->size() << " enumerations");
   }
 
-  void GraphUpdater::setAngleLimit(double angDeg) {
-    angleLimit_ = std::sin(angDeg / 180.0 * M_PI);
-    
+  void GraphUpdater::setMinimumViewingAngle(double angDeg) {
+    minimumViewingAngle_ = angDeg;
   }
 
-  static bool initialize_subgraph(Graph *graph, double angleLimit,
-                                  const VertexDeque &factors) {
-    // first intialize poses from absolute pose priors
-    for (const auto &v: factors) { //loop over factors
-      const VertexPtr vp = graph->getVertex(v);
-      AbsolutePosePriorFactorConstPtr ap =
-        std::dynamic_pointer_cast<const factor::AbsolutePosePrior>(vp);
-      if (ap && !graph->isOptimized(v)) {
-        VertexVec T;
-        int idx = find_connected_poses(*graph, v, &T);
-        if (idx == 0) {
-          ROS_DEBUG_STREAM("added abs pose prior: " << vp);
-          graph->addToOptimizer(T[idx], ap->getPoseWithNoise().getPose());
-          ap->addToOptimizer(graph);
-        }
-      }
-    }
-    VertexDeque remainingFactors;
+  static double viewing_angle(const Transform &tf) {
+    // viewing angle is determined by position of camera in tag coord
+    Eigen::Vector3d camPositionInObjFrame = tf.inverse().translation();
+    camPositionInObjFrame.normalize();
+    const double sina = camPositionInObjFrame(2); // z component = sin(angle);
+    return (std::asin(sina) / M_PI * 180);
+  }
 
-    // first see if we can already initialize via
-    // any relative pose priors, since they are
-    // generally more reliable
-    for (const auto &v: factors) { //loop over factors
-      const VertexPtr vp = graph->getVertex(v);
-      RelativePosePriorFactorPtr rp =
-        std::dynamic_pointer_cast<factor::RelativePosePrior>(vp);
-      if (rp && !graph->isOptimized(v) &&
-          set_value_from_relative_pose_prior(
-            graph, v, rp->getPoseWithNoise().getPose())) {
-        ROS_DEBUG_STREAM("pre-init factor: " << vp);
-        rp->addToOptimizer(graph);
-      } else {
-        remainingFactors.push_back(v);
+  static bool init_from_abs_pose_prior(Graph *g, const VertexDesc &v) {
+    AbsolutePosePriorFactorConstPtr ap =
+      std::dynamic_pointer_cast<const factor::AbsolutePosePrior>((*g)[v]);
+    if (ap && !g->isOptimized(v)) {
+      VertexVec T;
+      int idx = find_connected_poses(*g, v, &T);
+      if (idx == 0) {
+        ROS_DEBUG_STREAM("using abs pose prior: " << g->info(v));
+        g->addToOptimizer(T[idx], ap->getPoseWithNoise().getPose());
+        ap->addToOptimizer(g);
+        return (true);
       }
     }
-    
-    // now do everything else
-    for (const auto &v: remainingFactors) { //loop over factors
-      VertexPtr  fvp = graph->getVertex(v);
-      TagProjectionFactorPtr fp =
-        std::dynamic_pointer_cast<factor::TagProjection>(fvp);
-      if (fp) {
-        // do homography for this vertex, add new values to graph and the optimizer!
-        const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
-        ROS_DEBUG_STREAM("computing pose for factor " << fvp->getLabel());
-        auto tf = pnp::pose_from_4(fp->getImageCorners(),
-                                   fp->getTag()->getObjectCorners(),
-                                   ci.getK(), ci.getDistortionModel(), ci.getD());
-        if (tf.second) {
-          // viewing angle is determined by position of camera in tag
-          // coordinates
-          Eigen::Vector3d camPositionInObjFrame = tf.first.inverse().translation();
-          camPositionInObjFrame.normalize();
-          double sina = camPositionInObjFrame(2);
-          if (sina > angleLimit) {
-            double ang = std::asin(sina) / M_PI * 180;
-            ROS_DEBUG_STREAM("got homography with angle " << ang << std::endl << tf.first);
-            if (!set_value_from_tag_projection(graph, v, tf.first)) {
-              return (false); // init failed!
-            }
-            if (!graph->isOptimized(v)) {
-              // add factor and values to optimizer
-              fp->addToOptimizer(graph);
-            }
+    return (false);
+  }
+
+  static bool init_from_rel_pose_prior(Graph *g, const VertexDesc &v) {
+    RelativePosePriorFactorPtr rp =
+      std::dynamic_pointer_cast<factor::RelativePosePrior>((*g)[v]);
+    if (!rp || g->isOptimized(v)) {
+      return (false);
+    }
+    if (set_value_from_relative_pose_prior(
+          g, v, rp->getPoseWithNoise().getPose())) {
+      ROS_DEBUG_STREAM("using rel pose prior: " << g->info(v));
+      rp->addToOptimizer(g);
+      return (true);
+    } else {
+      ROS_DEBUG_STREAM("cannot use rel pose prior: " << g->info(v));
+    }
+    return (false);
+  }
+
+  static bool init_from_proj_factor(Graph *g, const VertexDesc &v,
+                                    double minAngle) {
+    auto fp = std::dynamic_pointer_cast<factor::TagProjection>((*g)[v]);
+    if (!fp) {
+      return (false);
+    }
+    // do homography for this vertex
+    const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
+    ROS_DEBUG_STREAM("computing pose for factor " << g->info(v));
+    auto rv = pnp::pose_from_4(fp->getImageCorners(),
+                               fp->getTag()->getObjectCorners(),
+                               ci.getK(), ci.getDistortionModel(), ci.getD());
+    if (rv.second) { // got valid homography
+      // viewing angle is determined by position of camera in tag coord
+      const Transform &tf = rv.first;
+      double ang = viewing_angle(tf);
+      if (ang > minAngle) {
+        ROS_DEBUG_STREAM("homography view angle: " << ang << std::endl << tf);
+        if (set_value_from_tag_projection(g, v, tf)) {
+          if (!g->isOptimized(v)) {
+            // add factor to optimizer. The values are already there.
+            fp->addToOptimizer(g);
           } else {
-            ROS_DEBUG_STREAM("dropping factor " << graph->info(v) << " because of too small sin(ang): " << sina);
+            ROS_DEBUG_STREAM("SHOULD NEVER HAPPEN: " << g->info(v));
+            throw std::runtime_error("internal error");
+            return (false);
           }
         } else {
-          ROS_WARN_STREAM("could not find valid homography!!");
+          return (false); // not enough info to pin down pose!
         }
       } else {
-        RelativePosePriorFactorPtr rp =
-          std::dynamic_pointer_cast<factor::RelativePosePrior>(fvp);
-        if (rp && !graph->isOptimized(v)) {
-          // first fill in pose via deltaPose
-          if (!set_value_from_relative_pose_prior(
-                graph, v,rp->getPoseWithNoise().getPose())) {
-            return (false); // init failed
-          }
-          // then add factor
-          rp->addToOptimizer(graph);
-        } else {
-          // these will usually be 
-          //ROS_DEBUG_STREAM("skipping factor: " << graph->info(v));
-        }
+        ROS_INFO_STREAM("drop " << g->info(v) << " small angle: " << ang);
+        return (false);
+      }
+    } else {
+      ROS_WARN_STREAM("could not find valid homography!!");
+      return (false);
+    }
+    return (true);
+  }
+
+  static bool initialize_subgraph(Graph *g, double minViewAngle) {
+    // first intialize poses from absolute pose priors since
+    // those are the most reliable.
+    VertexVec unhandled1;
+    for (const auto &v: g->getFactors()) {
+      if (init_from_abs_pose_prior(g, v)) {
+        continue;
+      }
+      unhandled1.push_back(v);
+    }
+    // then initialize based on relative pose priors, which
+    // are usually more reliable than projections
+    VertexVec unhandled2;
+    for (const auto &v: unhandled1) {
+      if (!init_from_rel_pose_prior(g, v)) {
+        unhandled2.push_back(v);
+      }
+    }
+    // Now initialize based on projections *and* relative pose priors.
+    // Relative pose priors must be considered again because for example
+    // a projection factor may reveal the pose of a camera, which then will
+    // allow the relative pose prior factor (to the extrinsic
+    // camera calibration!) to become useful in determining the
+    // camera-to-rig pose.
+    for (const auto &v: unhandled2) {
+      if (init_from_proj_factor(g, v, minViewAngle)) {
+        continue;
+      }
+      if (init_from_rel_pose_prior(g, v)) {
+        continue;
       }
     }
     // test that all values have been covered
     bool allOptimized(true);
-    for (const auto &fac: factors) {
-      VertexVec values = graph->getConnected(fac);
+    for (const auto &fac: g->getFactors()) {
+      VertexVec values = g->getConnected(fac);
       for (const auto &v: values) {
-        if (!graph->isOptimized(v)) {
+        if (!g->isOptimized(v)) {
           allOptimized = false;
+          ROS_DEBUG_STREAM("found unopt factor: " << g->info(v));
           break;
         }
       }
@@ -402,16 +442,16 @@ namespace tagslam {
     return (allOptimized);
   }
 
-  void GraphUpdater::initializeSubgraphs(
-    std::vector<GraphPtr> *subGraphs,
-    const std::vector<VertexDeque> &verts) {
+  void
+  GraphUpdater::initializeSubgraphs(std::vector<GraphPtr> *subGraphs,
+                                    const std::vector<VertexDeque> &verts) {
     profiler_.reset();
-    ROS_DEBUG_STREAM("----------- initializing " << verts.size() << " subgraphs");
+    ROS_DEBUG_STREAM("------ initializing " << verts.size() << " subgraphs");
     subGraphs->clear();
     for (const auto &vs: verts) {  // iterate over all subgraphs
       ROS_DEBUG_STREAM("---------- subgraph of size: " << vs.size());
       std::vector<VertexDeque> orderings;
-      enumerate(&orderings, VertexDeque(), vs);
+      enumerate(&orderings, vs);
       double errMin = 1e10;
       GraphPtr bestGraph;
       ROS_DEBUG_STREAM("number of orderings: " << orderings.size());
@@ -421,10 +461,10 @@ namespace tagslam {
         GraphPtr sg(new Graph());
         Graph &subGraph = *sg;
         VertexDeque vset;
-        // This makes a deep copy, hopefully
+        // This makes a deep copy
         subGraph.copyFrom(*graph_, factors, &vset);
         subGraph.print("init subgraph");
-        if (initialize_subgraph(&subGraph, angleLimit_, vset)) {
+        if (initialize_subgraph(&subGraph, minimumViewingAngle_)) {
           const auto errMap = subGraph.getErrorMap();
           double err =  subGraph.optimizeFull();
           double maxErr = subGraph.getMaxError();
@@ -501,15 +541,43 @@ namespace tagslam {
     double err = optimize(serr);
     ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
                     ", full graph error: " << err);
-    std::cout << profiler_ << std::endl;
     eraseStoredFactors(t, covered->factors);
     return (true);
   }
 
+  void
+  GraphUpdater::processNewFactors(const ros::Time &t, const VertexVec &facs) {
+    if (facs.empty()) {
+      ROS_DEBUG_STREAM("no new factors received!");
+      return;
+    }
+    // "covered" keeps track of what part of the graph has already
+    // been operated on during this update cycle
+    SubGraph covered;
+    bool oldFactorsActivated = applyFactorsToGraph(t, facs, &covered);
+    if (!oldFactorsActivated) {
+      ROS_DEBUG_STREAM("no old factors activated!");
+      return;
+    }
+    // The new measurements may have established previously
+    // unknown poses (e.g. tag poses), thereby "activating"
+    // factors that were useless before.
+    while (!oldFactors_.empty()) {
+      // work on the most recent factors
+      const auto it = oldFactors_.rbegin();
+      const ros::Time oldTime = it->first;
+      ROS_DEBUG_STREAM("++++++++ handling " << it->second.size()
+                       << " old factors for t = " << oldTime);
+      applyFactorsToGraph(oldTime, it->second, &covered);
+    }
+    ROS_INFO_STREAM("graph after update: " << graph_->getStats());
+  }
+
   void GraphUpdater::eraseStoredFactors(
     const ros::Time &t, const SubGraph::FactorCollection &covered) {
-    const TimeToVertexesMap::iterator it = times_.find(t);
-    if (it != times_.end()) {
+    profiler_.reset();
+    const TimeToVertexesMap::iterator it = oldFactors_.find(t);
+    if (it != oldFactors_.end()) {
       VertexVec &factors = it->second;
       // TODO: erasing individual elements from a vector
       // is inefficient. Use different structure
@@ -523,48 +591,15 @@ namespace tagslam {
         }
       }
       if (factors.empty()) {
-        times_.erase(t);
+        oldFactors_.erase(t);
       }
     }
+    profiler_.record("eraseStoredFactors");
   }
 
-  void
-  GraphUpdater::processNewFactors(const ros::Time &t, const VertexVec &facs) {
-    if (facs.size() == 0) {
-      ROS_DEBUG_STREAM("no new factors received!");
-      return;
-    }
-    // "covered" keeps track of what part of the graph has already
-    // been operated on
-    SubGraph covered;
-    bool newFactorsActivated = applyFactorsToGraph(t, facs, &covered);
-    if (!newFactorsActivated) {
-      ROS_DEBUG_STREAM("no new factors activated!");
-      return;
-    }
-    ROS_DEBUG_STREAM("&-&-&-&-&-&-&-& done with new factors for t = " << t);
-    while (!times_.empty()) {
-      const auto it = times_.rbegin(); // start with the most recent factors
-      const ros::Time oldTime = it->first;
-      ROS_DEBUG_STREAM("++++++++++ handling " << it->second.size()
-                       << " old factors for t = " << oldTime);
-      applyFactorsToGraph(oldTime, it->second, &covered);
-    }
-    ROS_INFO_STREAM("graph after update: " << graph_->getStats());
-  }
-
-  void
-  GraphUpdater::exploreSubGraph(const ros::Time &t,
-                         VertexDesc start,
-                         SubGraph *subGraph, SubGraph *covered) {
-    VertexDeque factorsToExamine;
-    factorsToExamine.push_back(start);
-    while (!factorsToExamine.empty()) {
-      VertexDesc exFac = factorsToExamine.front();
-      factorsToExamine.pop_front();
-      // examine() may append new factors to factorsToExamine
-      examine(t, exFac, &factorsToExamine, covered, subGraph);
-    }
+  void GraphUpdater::printPerformance() {
+    ROS_INFO_STREAM("updater performance:");
+    std::cout << profiler_ << std::endl;
   }
 
 }  // end of namespace
