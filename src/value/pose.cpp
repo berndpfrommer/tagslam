@@ -9,13 +9,9 @@
 
 namespace tagslam {
   namespace value {
-    VertexDesc Pose::attachTo(Graph *g) const {
-      auto v = std::shared_ptr<value::Pose>(new value::Pose(*this));
-      v->setKey(0); // clear optimizer key
-      return (g->add(v));
-    }
-    void Pose::addToOptimizer(Graph *g) {
-      g->addToOptimizer(this);
+    VertexDesc Pose::attach(const VertexPtr &vp, Graph *g) const {
+      PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>(vp);
+      return (g->add(pp));
     }
     std::string Pose::getLabel() const {
       std::stringstream ss;

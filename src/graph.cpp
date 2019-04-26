@@ -21,26 +21,23 @@ namespace tagslam {
 
   using boost::irange;
 
-  template <class G>
   class LabelWriter {
   public:
-    LabelWriter(const G &g) : graph(&g) { }
+    LabelWriter(const Graph *g) : graph_(g)  { }
     template <class VertexOrEdge>
     void operator()(std::ostream &out, const VertexOrEdge& v) const {
-      VertexConstPtr vp = (*graph)[v];
-      const std::string color =
-        vp->isOptimized() ? "green" : (vp->isValid() ? "blue" : "red");
+      VertexConstPtr vp = graph_->getVertex(v);
+      const std::string color =  graph_->isOptimized(v) ? "green" : "red";
       out << "[label=\"" << vp->getLabel() << "\", shape="
           << vp->getShape() << ", color=" << color << "]";
     }
   private:
-    const G *graph;
+    const Graph *graph_;
   };
 
-  template<class G>
-  static void plot(const std::string &fname, const G &graph) {
+  static void plot(const std::string &fname, const Graph *g) {
     std::ofstream ofile(fname);
-    boost::write_graphviz(ofile, graph, LabelWriter<G>(graph));
+    boost::write_graphviz(ofile, g->getBoostGraph(), LabelWriter(g));
   }
 
   Graph::Graph() {
@@ -142,12 +139,8 @@ namespace tagslam {
   }
 
 
-  void Graph::addToOptimizer(const VertexDesc &v) {
-    graph_[v]->addToOptimizer(this);
-  }
-
   std::vector<ValueKey>
-  Graph::getOptKeysForFactor(VertexDesc fv) const {
+  Graph::getOptKeysForFactor(VertexDesc fv, int numKeys) const {
     auto edges = boost::out_edges(fv, graph_);
     std::vector<ValueKey> optKeys;
     for (auto edgeIt = edges.first; edgeIt != edges.second; ++edgeIt) {
@@ -158,105 +151,119 @@ namespace tagslam {
         ROS_ERROR_STREAM("vertex is no pose: " << vvp->getLabel());
         throw std::runtime_error("vertex is no pose");
       }
-      if (!vp->isValid()) {
-        ROS_ERROR_STREAM("vertex is not valid: " << vvp->getLabel());
-        throw std::runtime_error("vertex is not valid");
-      }
-      if (!vp->isOptimized()) {
-        ROS_DEBUG_STREAM("vertex is not optimized: " << vvp->getLabel());
-        throw std::runtime_error("vertex is not optimized");
-      }
-      optKeys.push_back(vp->getKey());
+      optKeys.push_back(findOptimizedPoseKey(vv));
     }
+    if (optKeys.size() != (size_t)numKeys) {
+      ROS_ERROR_STREAM("wrong num values for " << info(fv) << ": "
+                       << optKeys.size() << " expected: " << numKeys);
+      throw std::runtime_error("wrong num values for factor");
+    }
+
     return (optKeys);
   }
 
-  OptimizerKey
-  Graph::addToOptimizer(factor::AbsolutePosePrior *p) {
-    if (p->isOptimized()) {
-      ROS_ERROR_STREAM("already optimized: " << p->getLabel());
-      throw std::runtime_error("already optimized!");
-    }
-    VertexDesc v = find(p->getId());
+
+  VertexDesc Graph::find(const Vertex *vp) const {
+    VertexDesc v = find(vp->getId());
     if (!is_valid(v)) {
-      ROS_ERROR_STREAM("cannot find factor " << p->getLabel());
-      throw std::runtime_error("cannot find factor");
+      ROS_ERROR_STREAM("cannot find factor " << vp->getLabel());
+      throw std::runtime_error("cannot find " + vp->getLabel());
     }
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v);
-    if (optKeys.size() != 1) {
-      ROS_ERROR_STREAM("wrong num values for " << info(v) << ": " << optKeys.size());
-      throw std::runtime_error("wrong num values for factor");
-    }
-    p->setKey(optimizer_->addAbsolutePosePrior(optKeys[0], p->getPoseWithNoise()));
-    return (p->getKey());
+    return (v);
   }
 
+  Graph::VertexToOptMap::const_iterator
+  Graph::findOptimized(const VertexDesc &v) const {
+    VertexToOptMap::const_iterator it = optimized_.find(v);
+    if (it == optimized_.end()) {
+      ROS_ERROR_STREAM("not optimized: " << info(v));
+      throw std::runtime_error("not optimized: " + info(v));
+    }
+    return (it);
+  }
 
-  OptimizerKey
-  Graph::addToOptimizer(factor::RelativePosePrior *p) {
-    if (p->isOptimized()) {
-      ROS_ERROR_STREAM("already optimized: " << p->getLabel());
-      throw std::runtime_error("already optimized!");
+  void Graph::verifyUnoptimized(const VertexDesc &v) const {
+    const VertexToOptMap::const_iterator it = optimized_.find(v);
+    if (it != optimized_.end()) {
+      ROS_ERROR_STREAM("already optimized: " << info(v));
+      throw std::runtime_error("already optimized: " + info(v));
     }
-    VertexDesc v = find(p->getId());
-    if (!is_valid(v)) {
-      ROS_ERROR_STREAM("cannot find factor " << p->getLabel());
-      throw std::runtime_error("cannot find factor");
+  }
+
+  ValueKey Graph::findOptimizedPoseKey(const VertexDesc &v) const {
+    VertexToOptMap::const_iterator it = optimized_.find(v);
+    if (it == optimized_.end()) {
+      ROS_ERROR_STREAM("cannot find opt pose: " << info(v));
+      throw std::runtime_error("cannot find opt pose: " + info(v));
     }
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v);
-    if (optKeys.size() != 2) {
-      ROS_ERROR_STREAM("wrong num values for " << info(v) << ": " << optKeys.size());
-      throw std::runtime_error("wrong num values for factor");
+    if (it->second.size() != 1) {
+      ROS_DEBUG_STREAM("pose must have one opt value: " << info(v)
+                       << " but has: " << it->second.size());
+      throw std::runtime_error("pose must have one opt value!");
     }
-    p->setKey(optimizer_->addRelativePosePrior(optKeys[0], optKeys[1], p->getPoseWithNoise()));
-    return (p->getKey());
+    return (it->second[0]);
   }
   
+  OptimizerKey
+  Graph::addToOptimizer(const factor::AbsolutePosePrior *p) {
+    VertexDesc v = find(p);
+    verifyUnoptimized(v);
+    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 1);
+    FactorKey fk =
+      optimizer_->addAbsolutePosePrior(optKeys[0], p->getPoseWithNoise());
+    optimized_.insert(
+      VertexToOptMap::value_type(v, std::vector<FactorKey>(1, fk)));
+    return (fk);
+  }
+
+
+  OptimizerKey
+  Graph::addToOptimizer(const factor::RelativePosePrior *p) {
+    VertexDesc v = find(p);
+    verifyUnoptimized(v);
+    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 2);
+    FactorKey fk = optimizer_->addRelativePosePrior(optKeys[0], optKeys[1],
+                                                    p->getPoseWithNoise());
+    optimized_.insert(
+      VertexToOptMap::value_type(v, std::vector<FactorKey>(1, fk)));
+    return (fk);
+  }
 
   std::vector<OptimizerKey>
-  Graph::addToOptimizer(factor::TagProjection *p) {
-    if (p->isOptimized()) {
-      ROS_ERROR_STREAM("already optimized: " << p->getLabel());
-      throw std::runtime_error("already optimized!");
-    }
-    VertexDesc v = find(p->getId());
-    if (!is_valid(v)) {
-      ROS_ERROR_STREAM("cannot find factor " << p->getLabel());
-      throw std::runtime_error("cannot find factor");
-    }
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v);
-    if (optKeys.size() != 4) {
-      ROS_ERROR_STREAM("wrong num values for " << info(v) << ": " << optKeys.size());
-      throw std::runtime_error("wrong num values for factor");
-    }
-    p->setKeys(
+  Graph::addToOptimizer(const factor::TagProjection *p) {
+    VertexDesc v = find(p);
+    verifyUnoptimized(v);
+    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 4);
+    std::vector<FactorKey> fks = 
       optimizer_->addTagProjectionFactor(
         p->getImageCorners(), p->getTag()->getObjectCorners(),
         p->getCamera()->getName(), p->getCamera()->getIntrinsics(),
-        p->getPixelNoise(), optKeys[0], optKeys[1], optKeys[2], optKeys[3]));
-    return (p->getKeys());
+        p->getPixelNoise(), optKeys[0], optKeys[1], optKeys[2], optKeys[3]);
+    optimized_.insert(VertexToOptMap::value_type(v, fks));
+    return (fks);
+  }
+
+  OptimizerKey
+  Graph::addToOptimizer(const VertexDesc &v, const Transform &tf) {
+    ROS_DEBUG_STREAM("adding pose to opt: " << info(v));
+    verifyUnoptimized(v);
+    ValueKey vk = optimizer_->addPose(tf);
+    auto fk = std::vector<FactorKey>(1, vk);
+    optimized_.insert(VertexToOptMap::value_type(v, fk));
+    return (vk);
   }
 
   VertexDesc
   Graph::addPose(const ros::Time &t, const string &name,
-                 const Transform &pose, bool poseIsValid, bool isCameraPose) {
+                 bool isCameraPose) {
     if (hasId(value::Pose::id(t, name))) {
       ROS_ERROR_STREAM("duplicate pose inserted: " << t << " " << name);
       throw (std::runtime_error("duplicate pose inserted"));
     }
-    PoseValuePtr pv(new value::Pose(t, pose, name, poseIsValid, isCameraPose));
+    PoseValuePtr pv(new value::Pose(t, name, isCameraPose));
     return (insertVertex(pv));
   }
 
-  OptimizerKey
-  Graph::addToOptimizer(value::Pose *p) {
-    if (p->isOptimized()) {
-      ROS_ERROR_STREAM("already optimized: " << p->getLabel());
-      throw std::runtime_error("already optimized!");
-    }
-    p->setKey(optimizer_->addPose(p->getPose()));
-    return (p->getKey());
-  }
 
   Transform Graph::getOptimizedPose(const VertexDesc &v) const {
     PoseValueConstPtr  vp = std::dynamic_pointer_cast<value::Pose>(graph_[v]);
@@ -264,13 +271,11 @@ namespace tagslam {
       ROS_ERROR_STREAM("vertex is not pose: " << info(v));
       throw std::runtime_error("vertex is not pose");
     }
-    if (!vp->isOptimized()) {
-      ROS_ERROR_STREAM("get opt pose: vertex not optimized: " << info(v));
-      throw std::runtime_error("vertex is not optimized");
-    }
-    return (optimizer_->getPose(vp->getKey()));
+    VertexToOptMap::const_iterator it = findOptimized(v);
+    return (optimizer_->getPose(it->second[0]));
   }
 
+  
   void
   Graph::copyFrom(const Graph &g, const std::deque<VertexDesc> &srcfacs,
                   std::deque<VertexDesc> *destfacs) {
@@ -283,41 +288,34 @@ namespace tagslam {
         if (copiedVals.count(srcv) == 0) { // avoid duplication
           ROS_DEBUG_STREAM("  copying value " << *g.getVertex(srcv));
           copiedVals.insert(srcv);
-          PoseValuePtr vp =
-            std::dynamic_pointer_cast<value::Pose>(g.getVertex(srcv));
-          if (vp) {
-            if (vp->isOptimized()) {
-              vp->setPose(g.getOptimizedPose(srcv));
-            }
-            VertexDesc destv = vp->attachTo(this);  // makes copy of vp
-            if (vp->isOptimized()) {
-              // known pose, so can already add it to optimizer
-              getVertex(destv)->addToOptimizer(this);
-              // already established poses must be pinned down with a prior
-              double ns = vp->isCameraPose() ? 0.1 : 0.001;
-              AbsolutePosePriorFactorPtr
-                pp(new factor::AbsolutePosePrior(
-                     vp->getTime(),
-                     PoseWithNoise(vp->getPose(), PoseNoise2::make(ns, ns), true), vp->getName()));
-              add(pp);
-              addToOptimizer(pp.get());
-              //ROS_DEBUG_STREAM("adding prior to free pose: " << *pp);
-              //std::cout << pp->getPoseWithNoise().getPose() << std::endl;
-            }
-            //ROS_DEBUG_STREAM("attached: " << *graph_[destv]);
-            //graph_[destv]->addToOptimizer(this);
-          } else {
-            ROS_ERROR_STREAM("unexpected type: " << g.getVertex(srcv)->getLabel());
-            throw (std::runtime_error("expected value, got fac"));
+          GraphVertex srcvp  = g.getVertex(srcv);
+          GraphVertex destvp = srcvp->clone();
+          destvp->attach(destvp, this);
+          if (g.isOptimized(srcv)) {
+            // Already established poses must be pinned down with a prior
+            // If it's a camera pose, give it more wiggle
+            PoseValuePtr srcpp =
+              std::dynamic_pointer_cast<value::Pose>(srcvp);
+            Transform pose = g.getOptimizedPose(srcv);
+            double ns = srcpp->isCameraPose() ? 0.1 : 0.001;
+            PoseWithNoise pwn(pose, PoseNoise2::make(ns, ns), true);
+            AbsolutePosePriorFactorPtr
+              pp(new factor::AbsolutePosePrior(destvp->getTime(), pwn,
+                                               destvp->getName()));
+            // Add pose prior to graph
+            VertexDesc destppv = add(pp);
+            destfacs->push_back(destppv);
           }
         }
       }
     }
     // now copy factors
     for (const auto &srcf: srcfacs) { // loop through factors
-      FactorPtr fp = std::dynamic_pointer_cast<factor::Factor>(g.getVertex(srcf));
+      FactorPtr fp =
+        std::dynamic_pointer_cast<factor::Factor>(g.getVertex(srcf));
       if (fp) {
-        destfacs->push_back(fp->attachTo(this));
+        GraphVertex destfp = fp->clone();
+        destfacs->push_back(destfp->attach(destfp, this));
       }
     }
   }
@@ -325,24 +323,7 @@ namespace tagslam {
   void Graph::plotDebug(const ros::Time &t, const string &tag) {
     std::stringstream ss;
     ss << tag << "_" <<  t.toNSec() << ".dot";
-    plot(ss.str(), graph_);
-  }
-
-
-  void Graph::transferOptimizedPose(const VertexDesc &v) {
-    VertexPtr vp = getVertex(v);
-    if (vp->isValue() && vp->isOptimized()) {
-      PoseValuePtr p = std::dynamic_pointer_cast<value::Pose>(vp);
-      if (p) {
-        p->setPose(optimizer_->getPose(p->getKey()));
-      }
-    }
-  }
-
-  void Graph::transferOptimizedValues() {
-    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
-      transferOptimizedPose(*vi.first);
-    }
+    plot(ss.str(), this);
   }
 
   std::string Graph::info(const VertexDesc &v) const {
@@ -352,66 +333,48 @@ namespace tagslam {
   void Graph::initializeFrom(const Graph &sg) {
     // first initialize all values and add to optimizer
     int numTransferredPoses(0);
-    for (auto vi = boost::vertices(sg.graph_); vi.first != vi.second; ++vi.first) {
-      PoseValuePtr   psp = std::dynamic_pointer_cast<value::Pose>(sg.graph_[*vi.first]);
+    for (auto vi = boost::vertices(sg.graph_); vi.first != vi.second;
+         ++vi.first) {
+      const VertexDesc sv = *vi.first;
+      PoseValuePtr psp =
+        std::dynamic_pointer_cast<value::Pose>(sg.graph_[sv]);
       if (psp) {
-        VertexDesc dv = find(psp->getId());
+        const VertexDesc dv = find(psp->getId());
         if (!is_valid(dv)) {
-          ROS_ERROR_STREAM("invalid init value: " << psp->getLabel());
-          throw std::runtime_error("invalid init value");
+          ROS_ERROR_STREAM("cannot find dest value: " << psp->getLabel());
+          throw std::runtime_error("cannot find dest value");
         }
         PoseValuePtr pdp = std::dynamic_pointer_cast<value::Pose>(graph_[dv]);
         if (!pdp) {
-          ROS_ERROR_STREAM("invalid init type: " << graph_[dv]->getLabel());
-          throw std::runtime_error("invalid init type");
+          ROS_ERROR_STREAM("invalid dest type: " << graph_[dv]->getLabel());
+          throw std::runtime_error("invalid dest type");
         }
-        if (!pdp->isOptimized()) {
-          ROS_DEBUG_STREAM("transferring pose from graph: " << pdp->getLabel());
-          pdp->setPose(psp->getPose());
-          pdp->addToOptimizer(this);
+        if (!isOptimized(dv) && sg.isOptimized(sv)) {
+          //ROS_DEBUG_STREAM("transferring pose: " << pdp->getLabel());
+          addToOptimizer(dv, sg.getOptimizedPose(sv));
           numTransferredPoses++;
         }
       }
     }
     // now add all necessary factors to optimizer
-    for (auto vi = boost::vertices(sg.graph_); vi.first != vi.second; ++vi.first) {
-      VertexPtr sp = sg.graph_[*vi.first];
-      if (std::dynamic_pointer_cast<factor::TagProjection>(sp) ||
-          std::dynamic_pointer_cast<factor::RelativePosePrior>(sp)) {
-        ROS_DEBUG_STREAM("transferring factor: " << *sp);
-        VertexDesc dv = find(sp->getId());
+    for (auto vi = boost::vertices(sg.graph_); vi.first != vi.second;
+         ++vi.first) {
+      const VertexDesc sv = *vi.first;
+      const FactorConstPtr sfp =
+        std::dynamic_pointer_cast<factor::Factor>(sg.graph_[sv]);
+      if (sfp && !std::dynamic_pointer_cast<
+          factor::AbsolutePosePrior>(sg.graph_[sv])) {
+        //ROS_DEBUG_STREAM("transferring factor: " << sg.info(sv));
+        VertexDesc dv = find(sfp->getId());
         if (is_valid(dv)) {
-          getVertex(dv)->addToOptimizer(this);
-#if 0          
-          if (numTransferredPoses <= 1 && fooCnt_ > 2100) {
-            double error = optimizer_->errorFull();
-            ROS_DEBUG_STREAM(fooCnt_ << " error after factor: " << error);
-          }
-#endif          
+          sfp->addToOptimizer(this);
         } else {
-          ROS_ERROR_STREAM("no orig vertex found for: " << *sp);
+          ROS_ERROR_STREAM("no orig vertex found for: " << sg.info(sv));
           throw std::runtime_error("no orig vertex found");
         }
       }
     }
   }
-#if 0
-  // static method!
-  void Graph::transfer_optimized_pose(
-    const std::shared_ptr<Graph> &destGraph, const VertexDesc &destVertex,
-    const Graph &srcGraph, const VertexDesc &srcVertex) {
-    VertexPtr vp = srcGraph.getVertex(srcVertex);
-    if (vp->isValue() && vp->isOptimized()) {
-      PoseValuePtr psrc = std::dynamic_pointer_cast<value::Pose>(vp);
-      if (psrc) {
-        PoseValuePtr pdest = std::dynamic_pointer_cast<value::Pose>(destGraph->getVertex(destVertex));
-        if (pdest) {
-          pdest->setPose(srcGraph.optimizer_->getPose(psrc->getKey()));
-        }
-      }
-    }
-  }
-#endif  
 
   bool Graph::hasPose(const ros::Time &t,
                       const std::string &name) const {
@@ -422,15 +385,11 @@ namespace tagslam {
     return (find(value::Pose::id(t, name)));
   }
 
-  void Graph::setOptimizedPose(const VertexDesc v,
-                               const Transform &pose) {
-    PoseValueConstPtr psrc = std::dynamic_pointer_cast<const value::Pose>(graph_[v]);
-    optimizer_->setPose(psrc->getKey(), pose);
-  }
-
   void Graph::print(const std::string &prefix) const {
     for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
-      ROS_DEBUG_STREAM(prefix << " " << graph_[*vi.first]->getLabel());
+      bool isOpt = (optimized_.find(*vi.first) != optimized_.end());
+      ROS_DEBUG_STREAM(prefix << " " << graph_[*vi.first]->getLabel()
+                       << ":" << (isOpt ? "O":"U"));
       if (graph_[*vi.first]->isValue()) {
         PoseValueConstPtr  vp = std::dynamic_pointer_cast<const value::Pose>(graph_[*vi.first]);
       }
@@ -441,7 +400,7 @@ namespace tagslam {
     int numFac(0), numOptFac(0), numVal(0), numOptVal(0);
     for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
       const VertexConstPtr vp = graph_[*vi.first];
-      if (vp->isOptimized()) {
+      if (isOptimized(*vi.first)) {
         if (vp->isValue()) { numOptVal++;
         } else { numOptFac++; }
       } else {
@@ -458,7 +417,7 @@ namespace tagslam {
   void Graph::printUnoptimized() const {
     for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
       const VertexConstPtr vp = graph_[*vi.first];
-      if (!vp->isOptimized()) {
+      if (!isOptimized(*vi.first)) {
         ROS_INFO_STREAM("unoptimized: " << vp->getLabel());
       }
     }
@@ -466,16 +425,20 @@ namespace tagslam {
 
   Graph::ErrorToVertexMap Graph::getErrorMap() const {
     ErrorToVertexMap errMap;
-    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
-      const VertexConstPtr vp = graph_[*vi.first];
-      if (!vp->isValue() && vp->isOptimized()) {
-        const FactorConstPtr fp = std::dynamic_pointer_cast<const factor::Factor>(vp);
+    for (auto vi = boost::vertices(graph_); vi.first != vi.second;
+         ++vi.first) {
+      const VertexDesc v = *vi.first;
+      const VertexConstPtr vp = graph_[v];
+      VertexToOptMap::const_iterator it = optimized_.find(v);
+      if (!vp->isValue() && it != optimized_.end()) {
+        const FactorConstPtr fp =
+          std::dynamic_pointer_cast<const factor::Factor>(vp);
         double errSum(0);
-        for (const auto &k: fp->getKeys()) {
+        for (const auto &k: it->second) {
           double e = optimizer_->getError(k);
           errSum += e;
         }
-        errMap.insert(ErrorToVertexMap::value_type(errSum, *vi.first));
+        errMap.insert(ErrorToVertexMap::value_type(errSum, v));
       }
     }
     return (errMap);
@@ -483,12 +446,8 @@ namespace tagslam {
 
 
   PoseNoise2 Graph::getPoseNoise(const VertexDesc &v) const {
-    PoseValueConstPtr  vp = std::dynamic_pointer_cast<const value::Pose>(graph_[v]);
-    if (!vp) {
-      ROS_ERROR_STREAM("cannot get pose noise for invalid vertex: " << v);
-      throw std::runtime_error("cannot get pose noise for invalid vertex");
-    }
-    return (PoseNoise2(optimizer_->getMarginal(vp->getKey())));
+    const ValueKey k = findOptimizedPoseKey(v);
+    return (PoseNoise2(optimizer_->getMarginal(k)));
   }
  
   // static method!

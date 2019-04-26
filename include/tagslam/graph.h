@@ -12,7 +12,6 @@
 #include "tagslam/factor/tag_projection.h"
 #include "tagslam/factor/absolute_pose_prior.h"
 #include "tagslam/factor/relative_pose_prior.h"
-
 #include <ros/ros.h>
 
 #include <climits>
@@ -28,49 +27,45 @@ namespace tagslam {
   public:
     Graph();
     typedef std::multimap<double, VertexDesc> ErrorToVertexMap;
-    void setVerbosity(const string &v) {
-      optimizer_->setVerbosity(v);
-    }
     inline bool hasId(const VertexId &id) const {
       return (idToVertex_.count(id) != 0); }
     bool hasPose(const ros::Time &t,
                  const std::string &name) const;
     inline bool isOptimized(const VertexDesc &v) const {
-      return (graph_[v]->isOptimized()); }
+      return (optimized_.find(v) != optimized_.end());
+    }
     string info(const VertexDesc &v) const;
     double optimize(double thresh);
     double optimizeFull(bool force = false);
     std::vector<VertexDesc> getConnected(const VertexDesc &v) const;
-  
+
     VertexDesc add(const PoseValuePtr &p);
     VertexDesc add(const RelativePosePriorFactorPtr &p);
     VertexDesc add(const AbsolutePosePriorFactorPtr &p);
     VertexDesc add(const TagProjectionFactorPtr &p);
     
-    OptimizerKey addToOptimizer(value::Pose               *p);
-    OptimizerKey addToOptimizer(factor::RelativePosePrior *p);
-    OptimizerKey addToOptimizer(factor::AbsolutePosePrior *p);
-    std::vector<OptimizerKey> addToOptimizer(factor::TagProjection     *p);
-
-    void addToOptimizer(const VertexDesc &v);
+    OptimizerKey addToOptimizer(const VertexDesc &v, const Transform &tf);
+    OptimizerKey addToOptimizer(const factor::RelativePosePrior *p);
+    OptimizerKey addToOptimizer(const factor::AbsolutePosePrior *p);
+    std::vector<OptimizerKey> addToOptimizer(const factor::TagProjection *p);
 
     VertexDesc addPose(const ros::Time &t, const string &name,
-                       const Transform &pose, bool poseIsValid,
                        bool isCamPose = false);
-
+  
     Transform getOptimizedPose(const VertexDesc &v) const;
+    inline Transform pose(const VertexDesc &v) const {
+      return (getOptimizedPose(v)); }
     PoseNoise2 getPoseNoise(const VertexDesc &v) const;
 
-    // for debugging, allow to switch individual pose in opt
-    void      setOptimizedPose(const VertexDesc v,
-                               const Transform &pose);
     // for debugging, compute error on graph
     double    getError() { return (optimizer_->errorFull()); }
     double    getMaxError() { return (optimizer_->getMaxError()); }
     void      plotDebug(const ros::Time &t, const string &tag);
-    void      transferOptimizedPose(const VertexDesc &v);
-    void      transferOptimizedValues();
     void      transferFullOptimization() { optimizer_->transferFullOptimization(); }
+    void setVerbosity(const string &v) {
+      optimizer_->setVerbosity(v);
+    }
+    const BoostGraph &getBoostGraph() const { return (graph_); }
 
     void  copyFrom(const Graph &g, const std::deque<VertexDesc> &vsrc,
                    std::deque<VertexDesc> *vdest);
@@ -90,21 +85,26 @@ namespace tagslam {
     inline static bool is_valid(const VertexDesc &v) {
       return (v != ULONG_MAX);
     }
-    static void transfer_optimized_pose(Graph *destGraph, const VertexDesc &destVertex,
-                                        const Graph &srcGraph, const VertexDesc &srcVertex);
     void printUnoptimized() const;
   private:
+    typedef std::unordered_map<VertexId, VertexDesc> IdToVertexMap;
+    typedef std::unordered_map<VertexDesc,
+                               std::vector<OptimizerKey>> VertexToOptMap;
     inline VertexDesc find(const VertexId &id) const {
       const auto it = idToVertex_.find(id);
       return (it == idToVertex_.end() ? ULONG_MAX : it->second);
     }
+    VertexDesc find(const Vertex *vp) const;
+    VertexToOptMap::const_iterator findOptimized(const VertexDesc &v) const;
+    void verifyUnoptimized(const VertexDesc &v) const;
+    ValueKey findOptimizedPoseKey(const VertexDesc &v) const;
     VertexDesc insertVertex(const VertexPtr &vp);
-    std::vector<ValueKey> getOptKeysForFactor(VertexDesc fv) const;
+    std::vector<ValueKey> getOptKeysForFactor(VertexDesc fv, int nk) const;
 
-    typedef std::unordered_map<VertexId, VertexDesc> IdToVertexMap;
     // ------ variables --------------
     BoostGraph                 graph_;
     IdToVertexMap              idToVertex_;
+    VertexToOptMap             optimized_;
     std::shared_ptr<Optimizer> optimizer_;
   };
   typedef std::shared_ptr<Graph> GraphPtr;

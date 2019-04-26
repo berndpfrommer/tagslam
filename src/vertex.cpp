@@ -14,8 +14,7 @@ namespace tagslam {
   }
 
   std::string Vertex::toString() const {
-    return (getLabel() + "," + (isValid() ? "V" : "I") + ","
-            + (isOptimized() ? "O" : "U"));
+    return (getLabel());
   }
 
   std::string Vertex::format_time(const ros::Time &t) {

@@ -10,12 +10,12 @@
 
 namespace tagslam {
   namespace factor {
-    VertexDesc TagProjection::attachTo(Graph *g) const {
-      auto f = std::shared_ptr<TagProjection>(new TagProjection(*this));
-      f->clearKeys();
-      return (g->add(f));
+    VertexDesc TagProjection::attach(const VertexPtr &vp, Graph *g) const {
+      TagProjectionFactorPtr fp =
+        std::dynamic_pointer_cast<factor::TagProjection>(vp);
+      return (g->add(fp));
     }
-    void TagProjection::addToOptimizer(Graph *g) {
+    void TagProjection::addToOptimizer(Graph *g) const {
       g->addToOptimizer(this);
     }
     

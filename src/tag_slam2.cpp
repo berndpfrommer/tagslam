@@ -101,7 +101,7 @@ namespace tagslam {
       if (!pwn.isValid()) {
         ROS_INFO_STREAM("camera " << cam->getName() << " has no pose!");
         graphManager_.addPose(ros::Time(0), Graph::cam_name(cam->getName()),
-                              Transform::Identity(), false, true/*camPose*/);
+                              true/*camPose*/);
       } else {
         camHasKnownPose = true;
         ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
@@ -129,7 +129,6 @@ namespace tagslam {
     sleep(1.0);
     playFromBag(bagFile);
     graph_->optimizeFull(true /*force*/);
-    graph_->transferOptimizedValues();
     const auto errMap = graph_->getErrorMap();
     ROS_INFO_STREAM("----------- error map: -----------");
     for (const auto &v: errMap) {
@@ -398,8 +397,7 @@ namespace tagslam {
     if (any_tags_visible(tagmsgs) || !odommsgs.empty()) {
       // if we have any measurements, add unknown poses for all non-static bodies
       for (const auto &body: nonstaticBodies_) {
-        graphManager_.addPose(t, Graph::body_name(body->getName()),
-                              Transform::Identity(), false);
+        graphManager_.addPose(t, Graph::body_name(body->getName()), false);
       }
     }
     std::vector<VertexDesc> factors;
@@ -523,7 +521,7 @@ namespace tagslam {
       if (!tagMsgs[i]->apriltags.empty()) {
         // insert time-dependent camera pose
         graphManager_.addPose(t, Graph::cam_name(cam->getName()),
-                              Transform::Identity(), false, true/*camPose*/);
+                              true /*camPose*/);
         // and tie it to the time-independent camera pose
         // with a relative prior
         const PoseWithNoise pn(Transform::Identity(), cam->getWiggle(), true);

@@ -54,7 +54,7 @@ namespace tagslam {
     if (tag.getPoseWithNoise().isValid()) {
       addPoseWithPrior(t0, name, tag.getPoseWithNoise(), false);
     } else {
-      graph_->addPose(t0, name, tag.getPoseWithNoise().getPose(), false, false);
+      graph_->addPose(t0, name, false);
     }
   }
 
@@ -104,26 +104,26 @@ namespace tagslam {
   VertexDesc
   GraphManager::addPoseWithPrior(const ros::Time &t, const string &name,
                                  const PoseWithNoise &pn, bool isCamPose) {
-    VertexDesc v = graph_->addPose(t, name, pn.getPose(), true, isCamPose);
-    graph_->getVertex(v)->addToOptimizer(graph_.get());
+    VertexDesc v = graph_->addPose(t, name, isCamPose);
+    graph_->addToOptimizer(v, pn.getPose());
     VertexDesc pv = addPrior(t, name, pn);
     return (pv);
   }
 
   VertexDesc
   GraphManager::addPose(const ros::Time &t, const string &name,
-                        const Transform &pose, bool poseIsValid,
                         bool isCamPose) {
     if (graph_->hasPose(t, name)) {
       ROS_ERROR_STREAM("duplicate pose added, id: " << t << " " << name);
       throw std::runtime_error("duplicate pose added!");
     }
-    VertexDesc npv = graph_->addPose(t, name, pose, poseIsValid, isCamPose);
+    VertexDesc npv = graph_->addPose(t, name, isCamPose);
     return (npv);
   }
 
   VertexDesc
-  GraphManager::addBodyPoseDelta(const ros::Time &tPrev, const ros::Time &tCurr,
+  GraphManager::addBodyPoseDelta(const ros::Time &tPrev,
+                                 const ros::Time &tCurr,
                                  const BodyConstPtr &body,
                                  const PoseWithNoise &deltaPose) {
     Transform prevPose;
@@ -133,11 +133,11 @@ namespace tagslam {
     
     if (!Graph::is_valid(pp)) {
       ROS_DEBUG_STREAM("adding previous pose for " << name << " " << tPrev);
-      pp = addPose(tPrev, name, Transform::Identity(), false);
+      pp = addPose(tPrev, name, false);
     }
     if (!Graph::is_valid(cp)) {
       ROS_DEBUG_STREAM("adding current pose for " << name << " " << tCurr);
-      cp = addPose(tCurr, name, Transform::Identity(), false);
+      cp = addPose(tCurr, name, false);
     }
     RelativePosePriorFactorPtr fac(new factor::RelativePosePrior(tCurr, tPrev, deltaPose, name));
     return (graph_->add(fac));

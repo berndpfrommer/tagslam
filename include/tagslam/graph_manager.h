@@ -34,7 +34,6 @@ namespace tagslam {
     void setPixelNoise(double pn) { pixelNoise_ = pn; }
 
     VertexDesc addPose(const ros::Time &t, const string &name,
-                       const Transform &pose, bool poseIsValid,
                        bool isCamPose = false);
     VertexDesc addPoseWithPrior(const ros::Time &t, const string &name,
                                 const PoseWithNoise &pn, bool isCamPose = false);

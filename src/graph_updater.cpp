@@ -39,7 +39,7 @@ namespace tagslam {
       VertexConstPtr vvp = graph.getVertex(vv);
       ValueConstPtr   vp = std::dynamic_pointer_cast<const value::Value>(vvp);
       numEdges++;
-      if ((vp && vp->isValid()) || covered.values.count(vv) != 0) {
+      if ((vp && graph.isOptimized(vv)) || covered.values.count(vv) != 0) {
         numValid++;
       } else {
         *valueVertex = vv;
@@ -150,7 +150,6 @@ namespace tagslam {
     for (auto &sg: subGraphs) {
       double err =  sg->optimizeFull();
       ROS_INFO_STREAM("error for subgraph optim: " << err);
-      sg->transferOptimizedValues();
       totErr += err;
     }
     profiler_.record("optimizeSubgraphs");
@@ -178,12 +177,9 @@ namespace tagslam {
   }
 
   static int find_connected_poses(const Graph &graph,
-                                  VertexDesc v,
-                                  std::vector<PoseValuePtr> *poses,
-                                  VertexVec *conn) {
+                                  VertexDesc v, VertexVec *conn) {
     int missingIdx(-1), edgeNum(0), numMissing(0);
     *conn = graph.getConnected(v);
-    poses->clear();
     for (const auto &vv : *conn) {
       VertexPtr   vvp = graph.getVertex(vv); // pointer to value
       PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>(vvp);
@@ -191,9 +187,8 @@ namespace tagslam {
         ROS_ERROR_STREAM("vertex is no pose: " << vv);
         throw std::runtime_error("vertex is no pose");
       }
-      poses->push_back(pp);
       //ROS_DEBUG_STREAM(" factor attached value: " << pp->getLabel());
-      if (!pp->isValid()) {
+      if (!graph.isOptimized(vv)) {
         missingIdx = edgeNum;
         numMissing++;
         //ROS_DEBUG_STREAM(" missing value: " << pp->getLabel());
@@ -207,69 +202,71 @@ namespace tagslam {
   }
 
   static bool
-  set_value_from_tag_projection(Graph *graph, VertexDesc v,
+  set_value_from_tag_projection(Graph *g, VertexDesc v,
                                 const Transform &T_c_o)  {
-    std::vector<PoseValuePtr> T;
-    VertexVec conn;
-    int idx = find_connected_poses(*graph, v, &T, &conn);
+    VertexVec T;
+    int idx = find_connected_poses(*g, v, &T);
+    Transform tf;
     switch (idx) {
     case 0: { // T_r_c = T_r_w * T_w_b * T_b_o * T_o_c
-      T[idx]->setPose(T[1]->getPose().inverse() * T[2]->getPose() *
-                      T[3]->getPose() * T_c_o.inverse());
-      T[idx]->addToOptimizer(graph);
+      tf =  g->pose(T[1]).inverse() * g->pose(T[2]) *
+        g->pose(T[3]) * T_c_o.inverse();
+      g->addToOptimizer(T[idx], tf);
       break; }
     case 1: { // T_w_r = T_w_b * T_b_o * T_o_c * T_c_r
-      T[idx]->setPose(T[2]->getPose() * T[3]->getPose() *
-                      T_c_o.inverse() * T[0]->getPose().inverse());
-      T[idx]->addToOptimizer(graph);
-      //ROS_DEBUG_STREAM("setting rig pose: " << T[idx]->getLabel() << std::endl << T[idx]->getPose());
+      tf = g->pose(T[2]) * g->pose(T[3]) *
+        T_c_o.inverse() * g->pose(T[0]).inverse();
+      g->addToOptimizer(T[idx], tf);
       break; }
     case 2: { // T_w_b = T_w_r * T_r_c * T_c_o * T_o_b
-      T[idx]->setPose(T[1]->getPose() * T[0]->getPose() *
-                      T_c_o * T[3]->getPose().inverse());
-      T[idx]->addToOptimizer(graph);
+      tf = g->pose(T[1]) * g->pose(T[0]) *
+        T_c_o * g->pose(T[3]).inverse();
+      g->addToOptimizer(T[idx], tf);
       break; }
     case 3: { // T_b_o = T_b_w * T_w_r * T_r_c * T_c_o
-      T[idx]->setPose(T[2]->getPose().inverse() * T[1]->getPose() *
-                      T[0]->getPose() * T_c_o);
-      T[idx]->addToOptimizer(graph);
+      tf = g->pose(T[2]).inverse() *g->pose(T[1]) *
+        g->pose(T[0]) * T_c_o;
+      g->addToOptimizer(T[idx], tf);
       break; }
     case -1: {
       // T_c_o = T_c_r[0] * T_r_w[1] * T_w_b[2] * T_b_o[3]
-      Transform Test_c_o = T[0]->getPose().inverse() * T[1]->getPose().inverse() * T[2]->getPose() * T[3]->getPose();
-      Transform poseDiff = T_c_o * Test_c_o.inverse();
+      const Transform Test_c_o = g->pose(T[0]).inverse() *
+        g->pose(T[1]).inverse() * g->pose(T[2]) * g->pose(T[3]);
+      const Transform poseDiff = T_c_o * Test_c_o.inverse();
       Eigen::AngleAxisd aa;
       aa.fromRotationMatrix(poseDiff.rotation());
-      ROS_DEBUG_STREAM("dup factor with mismatch angle: " << aa.angle() << " len: " << poseDiff.translation().norm());
+      ROS_DEBUG_STREAM("dup factor with mismatch angle: " << aa.angle()
+                       << " len: " << poseDiff.translation().norm());
       return (true);
       break; }
     default: {
-      ROS_DEBUG_STREAM("factor has multiple missing values: " << graph->getVertex(v)->getLabel());
+      ROS_DEBUG_STREAM("factor has multiple missing values: "
+                       << g->getVertex(v)->getLabel());
       return (false);
       break; }
     }
-    ROS_DEBUG_STREAM("tag proj setting value of " << T[idx]->getLabel());
-    ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
+    ROS_DEBUG_STREAM("tag proj setting value of " << g->info(T[idx]));
+    ROS_DEBUG_STREAM("set pose: " << std::endl << tf);
     return (true);
   }
 
   static bool set_value_from_relative_pose_prior(
-    Graph *graph, VertexDesc v, const Transform &deltaPose) {
-    std::vector<PoseValuePtr> T;
-    VertexVec conn;
-    int idx = find_connected_poses(*graph, v, &T, &conn);
+    Graph *g, VertexDesc v, const Transform &deltaPose) {
+    VertexVec T;
+    int idx = find_connected_poses(*g, v, &T);
     if (T.size()  != 2) {
       ROS_ERROR_STREAM("rel pose prior has wrong num connected: " << T.size());
       throw std::runtime_error("rel pose prior has wrong num conn");
     }
+    Transform tf;
     switch (idx) {
     case 0: { // T_0 = T_1 * delta T^-1
-      T[idx]->setPose(T[1]->getPose() * deltaPose.inverse());
-      T[idx]->addToOptimizer(graph);
+      tf = g->pose(T[1]) * deltaPose.inverse();
+      g->addToOptimizer(T[idx], tf);
       break; }
     case 1: { // T_1 = T_0 * delta T
-      T[idx]->setPose(T[0]->getPose() * deltaPose);
-      T[idx]->addToOptimizer(graph);
+      tf = g->pose(T[0]) * deltaPose;
+      g->addToOptimizer(T[idx], tf);
       break; }
     case -1: {
       ROS_DEBUG_STREAM("delta pose factor has no missing values!");
@@ -280,8 +277,8 @@ namespace tagslam {
       return (false);
       break; }
     }
-    ROS_DEBUG_STREAM("rel pos setting value of " << T[idx]->getLabel());
-    ROS_DEBUG_STREAM("set pose: " << std::endl << T[idx]->getPose());
+    ROS_DEBUG_STREAM("rel pos setting value of " << g->info(T[idx]));
+    ROS_DEBUG_STREAM("set pose: " << std::endl << tf);
     return (true);
   }
 
@@ -306,23 +303,41 @@ namespace tagslam {
 
   static bool initialize_subgraph(Graph *graph, double angleLimit,
                                   const VertexDeque &factors) {
+    // first intialize poses from absolute pose priors
+    for (const auto &v: factors) { //loop over factors
+      const VertexPtr vp = graph->getVertex(v);
+      AbsolutePosePriorFactorConstPtr ap =
+        std::dynamic_pointer_cast<const factor::AbsolutePosePrior>(vp);
+      if (ap && !graph->isOptimized(v)) {
+        VertexVec T;
+        int idx = find_connected_poses(*graph, v, &T);
+        if (idx == 0) {
+          ROS_DEBUG_STREAM("added abs pose prior: " << vp);
+          graph->addToOptimizer(T[idx], ap->getPoseWithNoise().getPose());
+          ap->addToOptimizer(graph);
+        }
+      }
+    }
     VertexDeque remainingFactors;
+
     // first see if we can already initialize via
     // any relative pose priors, since they are
     // generally more reliable
     for (const auto &v: factors) { //loop over factors
+      const VertexPtr vp = graph->getVertex(v);
       RelativePosePriorFactorPtr rp =
-        std::dynamic_pointer_cast<factor::RelativePosePrior>(graph->getVertex(v));
-      if (rp && !rp->isOptimized() &&
-          set_value_from_relative_pose_prior(graph, v, rp->getPoseWithNoise().getPose())) {
+        std::dynamic_pointer_cast<factor::RelativePosePrior>(vp);
+      if (rp && !graph->isOptimized(v) &&
+          set_value_from_relative_pose_prior(
+            graph, v, rp->getPoseWithNoise().getPose())) {
+        ROS_DEBUG_STREAM("pre-init factor: " << vp);
         rp->addToOptimizer(graph);
-        ROS_DEBUG_STREAM("pre-init factor: " << graph->getVertex(v));
       } else {
         remainingFactors.push_back(v);
       }
     }
     
-    // now do anything else
+    // now do everything else
     for (const auto &v: remainingFactors) { //loop over factors
       VertexPtr  fvp = graph->getVertex(v);
       TagProjectionFactorPtr fp =
@@ -346,9 +361,8 @@ namespace tagslam {
             if (!set_value_from_tag_projection(graph, v, tf.first)) {
               return (false); // init failed!
             }
-            if (!fp->isOptimized()) {
+            if (!graph->isOptimized(v)) {
               // add factor and values to optimizer
-              fp->setIsValid(true);
               fp->addToOptimizer(graph);
             }
           } else {
@@ -360,15 +374,17 @@ namespace tagslam {
       } else {
         RelativePosePriorFactorPtr rp =
           std::dynamic_pointer_cast<factor::RelativePosePrior>(fvp);
-        if (rp && !rp->isOptimized()) {
+        if (rp && !graph->isOptimized(v)) {
           // first fill in pose via deltaPose
-          if (!set_value_from_relative_pose_prior(graph, v, rp->getPoseWithNoise().getPose())) {
+          if (!set_value_from_relative_pose_prior(
+                graph, v,rp->getPoseWithNoise().getPose())) {
             return (false); // init failed
           }
           // then add factor
           rp->addToOptimizer(graph);
         } else {
-          ROS_DEBUG_STREAM("skipping factor: " << graph->info(v));
+          // these will usually be 
+          //ROS_DEBUG_STREAM("skipping factor: " << graph->info(v));
         }
       }
     }
@@ -377,7 +393,7 @@ namespace tagslam {
     for (const auto &fac: factors) {
       VertexVec values = graph->getConnected(fac);
       for (const auto &v: values) {
-        if (!graph->getVertex(v)->isOptimized()) {
+        if (!graph->isOptimized(v)) {
           allOptimized = false;
           break;
         }
@@ -433,36 +449,14 @@ namespace tagslam {
       }
       if (bestGraph) {
         subGraphs->push_back(bestGraph);
-        ROS_DEBUG_STREAM("best subgraph init found after " << ord << " attempts with error: " << errMin);
+        ROS_DEBUG_STREAM("best subgraph init found after " << ord <<
+                         " attempts with error: " << errMin);
       } else {
         ROS_WARN_STREAM("could not initialize subgraph!");
       }
     }
     profiler_.record("initializeSubgraphs");
   }
-#if 0
-  void
-  GraphUpdater::updateGraphFromFactors(Graph *g, const ros::Time &t,
-                                       const VertexVec &facs,
-                                       SubGraph *covered) {
-    std::vector<VertexDeque> sv;
-    sv = findSubgraphs(t, facs, covered);
-    if (sv.empty()) {
-      return;
-    }
-    std::vector<GraphPtr> subGraphs;
-    
-    initializeSubgraphs(&subGraphs, sv);
-    optimizeSubgraphs(subGraphs);
-    double serr = initializeFromSubgraphs(subGraphs);
-    subgraphError_ += serr;
-    
-    double err = optimize(serr);
-    
-    ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
-    graph_->transferOptimizedValues();
-  }
-#endif
 
   double GraphUpdater::optimize(double thresh) {
     profiler_.reset();
@@ -472,7 +466,8 @@ namespace tagslam {
       const auto errMap = graph_->getErrorMap();
       for (const auto &v: errMap) {
         if (v.first > 20.0) {
-          ROS_INFO_STREAM("POSTOPT ERROR  " << v.first << " " << *(graph_->getVertex(v.second)));
+          ROS_INFO_STREAM("POSTOPT ERROR  " << v.first << " "
+                          << *(graph_->getVertex(v.second)));
         }
       }
     } else {
@@ -518,7 +513,6 @@ namespace tagslam {
     double err = optimize(serr);
     
     ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
-    graph_->transferOptimizedValues();
     
     std::cout << profiler_ << std::endl;
  
@@ -550,7 +544,6 @@ namespace tagslam {
       }
       std::cout << profiler_ << std::endl;
       std::cout.flush();
-      graph_->transferOptimizedValues();
     }
     ROS_INFO_STREAM("graph after update: " << graph_->getStats());
   }

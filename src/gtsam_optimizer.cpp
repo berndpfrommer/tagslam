@@ -340,8 +340,8 @@ namespace tagslam {
       std::cout << " FACTOR WITH LARGE ERROR: " << err << std::endl;
       std::cout << " factor: " << std::endl;
       i->print();  std::cout <<  std::endl << "   values for it: " << std::endl;
-      for (const auto &k: i->keys()) {
-        testValues.at(k).print();
+      for (const auto &fk: i->keys()) {
+        testValues.at(fk).print();
         std::cout << std::endl;
       }
     }
@@ -349,6 +349,10 @@ namespace tagslam {
   }
 
   Transform GTSAMOptimizer::getPose(ValueKey key) {
+    const auto it = newValues_.exists<gtsam::Pose3>(key);
+    if (it) {
+      return (gtsam_utils::from_gtsam(*it));
+    }
     return (gtsam_utils::from_gtsam(values_.at<gtsam::Pose3>(key)));
   }
   

@@ -16,29 +16,24 @@ namespace tagslam {
                         const PoseWithNoise &p  = PoseWithNoise(),
                         const std::string   &name = "") :
         Factor(name, t), poseWithNoise_(p) {
-        setIsValid(p.isValid());
       }
       // ----- inherited methods
       std::string getLabel() const override;
-      VertexId getId() const override { return (make_id(time_, "app_" + name_));}
+      VertexId getId() const override {
+        return (make_id(time_, "app_" + name_));}
       std::shared_ptr<Vertex> clone() const override {
-        return (std::shared_ptr<AbsolutePosePrior>(new AbsolutePosePrior(*this))); }
-      VertexDesc attachTo(Graph *g) const override;
-      void addToOptimizer(Graph *g) override;
-      bool isOptimized() const override { return (is_valid(key_)); }
-      std::vector<FactorKey> getKeys()  const override {
-        return (std::vector<FactorKey>(1, key_));
-      }
-      void clearKeys() override { key_ = Invalid; }
+        return (std::shared_ptr<AbsolutePosePrior>(
+                  new AbsolutePosePrior(*this))); }
+      VertexDesc attach(const VertexPtr &vp, Graph *g) const override;
+      void addToOptimizer(Graph *g) const override;
       // -------- own methods
-      void setKey(FactorKey k) { key_ = k; }
-      FactorKey getKey()  const { return (key_); }
-      const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
+      const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_);}
     private:
-      FactorKey key_{Invalid};
       PoseWithNoise poseWithNoise_;
     };
   }
-  typedef std::shared_ptr<factor::AbsolutePosePrior> AbsolutePosePriorFactorPtr;
-  typedef std::shared_ptr<const factor::AbsolutePosePrior> AbsolutePosePriorFactorConstPtr;
+  typedef std::shared_ptr<factor::AbsolutePosePrior>
+  AbsolutePosePriorFactorPtr;
+  typedef std::shared_ptr<const factor::AbsolutePosePrior>
+  AbsolutePosePriorFactorConstPtr;
 }

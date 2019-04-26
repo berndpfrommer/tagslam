@@ -19,27 +19,22 @@ namespace tagslam {
         Factor(name, t), prevTime_(tm1), poseWithNoise_(p) {}
       // ---------- inherited
       std::string getLabel() const override;
-      VertexId getId() const override { return (make_id(time_, "rpp_" + name_));}
+      VertexId getId() const override { return (make_id(time_, "rpp_"+name_));}
       std::shared_ptr<Vertex> clone() const override {
-        return (std::shared_ptr<RelativePosePrior>(new RelativePosePrior(*this))); }
-      VertexDesc attachTo(Graph *g) const override;
-      void addToOptimizer(Graph *g) override;
-      bool isOptimized() const override { return (is_valid(key_)); }
-      std::vector<FactorKey> getKeys()  const override {
-        return (std::vector<FactorKey>(1, key_));
-      }
-      void clearKeys() override { key_ = Invalid; }
+        return (std::shared_ptr<RelativePosePrior>(
+                  new RelativePosePrior(*this))); }
+      VertexDesc attach(const VertexPtr &vp, Graph *g) const override;
+      void addToOptimizer(Graph *g) const override;
       // ---------- own methods
-      void setKey(FactorKey k) { key_ = k; }
-      FactorKey getKey()  const { return (key_); }
       const ros::Time &getPreviousTime() const { return (prevTime_); }
-      const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
+      const PoseWithNoise &getPoseWithNoise() const {return (poseWithNoise_);}
     private:
       ros::Time     prevTime_;
-      FactorKey     key_{Invalid};
       PoseWithNoise poseWithNoise_;
     };
   }
-  typedef std::shared_ptr<factor::RelativePosePrior> RelativePosePriorFactorPtr;
-  typedef std::shared_ptr<const factor::RelativePosePrior> RelativePosePriorFactorConstPtr;
+  typedef
+  std::shared_ptr<factor::RelativePosePrior> RelativePosePriorFactorPtr;
+  typedef
+  std::shared_ptr<const factor::RelativePosePrior> RelativePosePriorFactorConstPtr;
 }

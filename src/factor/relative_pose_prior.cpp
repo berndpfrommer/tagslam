@@ -11,12 +11,12 @@
 
 namespace tagslam {
   namespace factor {
-    VertexDesc RelativePosePrior::attachTo(Graph *g) const {
-      auto f = std::shared_ptr<RelativePosePrior>(new RelativePosePrior(*this));
-      f->clearKeys();
-      return (g->add(f));
+    VertexDesc RelativePosePrior::attach(const VertexPtr &vp, Graph *g) const {
+      RelativePosePriorFactorPtr fp =
+        std::dynamic_pointer_cast<factor::RelativePosePrior>(vp);
+      return (g->add(fp));
     }
-    void RelativePosePrior::addToOptimizer(Graph *g) {
+    void RelativePosePrior::addToOptimizer(Graph *g) const {
       g->addToOptimizer(this);
     }
     std::string RelativePosePrior::getLabel() const {
