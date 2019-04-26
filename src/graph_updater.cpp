@@ -21,10 +21,10 @@ namespace tagslam {
   typedef GraphUpdater::VertexDeque VertexDeque;
   typedef GraphUpdater::VertexVec VertexVec;
 
-  static bool contains(std::deque<VertexDesc> &c, const VertexDesc &v) {
+  static bool contains(const std::deque<VertexDesc> &c, const VertexDesc &v) {
     return (std::find(c.begin(), c.end(), v) != c.end());
   }
-  static bool contains(std::vector<VertexDesc> &c, const VertexDesc &v) {
+  static bool contains(const std::vector<VertexDesc> &c, const VertexDesc &v) {
     return (std::find(c.begin(), c.end(), v) != c.end());
   }
 
@@ -485,65 +485,70 @@ namespace tagslam {
     return (error);
   }
 
-  void
-  GraphUpdater::processNewFactors(const ros::Time &t,
-                                  const VertexVec &facs) {
-    ROS_DEBUG_STREAM("&&&&&&&&&&&&&&&&&&&&&&&&&&&&& got " << facs.size() << " new factors for t = " << t);
-    if (facs.size() == 0) {
-      ROS_DEBUG_STREAM("no new factors!");
-      return;
-    }
-    SubGraph found;
+  bool
+  GraphUpdater::applyFactorsToGraph(const ros::Time &t, const VertexVec &facs,
+                                    SubGraph *covered) {
     std::vector<VertexDeque> sv;
-    sv = findSubgraphs(t, facs, &found);
+    sv = findSubgraphs(t, facs, covered);
     if (sv.empty()) {
-      ROS_DEBUG_STREAM("no new factors activated!");
-      return;
+      return (false);
     }
-    // ROS_DEBUG_STREAM("^^^^^^^^^^ checking complete graph for error before doing anything! ^^^^^^^^^^");
-    // double err = graph_->getError();
-    
     std::vector<GraphPtr> subGraphs;
-    
     initializeSubgraphs(&subGraphs, sv);
     optimizeSubgraphs(subGraphs);
     double serr = initializeFromSubgraphs(subGraphs);
     subgraphError_ += serr;
-    
     double err = optimize(serr);
-    
-    ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
-    
+    ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
+                    ", full graph error: " << err);
     std::cout << profiler_ << std::endl;
- 
-    ROS_DEBUG_STREAM("&-&-&-&-&-&-&-& done with new factors for t = " << t);
-    while (!times_.empty()) {
-      auto it = times_.rbegin();
-      const ros::Time key = it->first;
-      ROS_DEBUG_STREAM("++++++++++ handling old factors for t = " << key);
-      sv = findSubgraphs(key, it->second, &found);
-      initializeSubgraphs(&subGraphs, sv);
-      optimizeSubgraphs(subGraphs);
-      serr = initializeFromSubgraphs(subGraphs);
-      subgraphError_ += serr;
-      err = optimize(serr); // run global optimization
-      ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ << ", full graph error: " << err);
-      // now remove factors that have been used
-      //ROS_DEBUG_STREAM("removing used factors...");
-      for (auto ii = times_[key].begin(); ii != times_[key].end();) {
-        if (contains(found.factors, *ii)) {
-          //ROS_DEBUG_STREAM("removing used factor " << graph_->info(*ii) << " for time "  << key);
-          ii = times_[key].erase(ii);
+    eraseStoredFactors(t, covered->factors);
+    return (true);
+  }
+
+  void GraphUpdater::eraseStoredFactors(
+    const ros::Time &t, const SubGraph::FactorCollection &covered) {
+    const TimeToVertexesMap::iterator it = times_.find(t);
+    if (it != times_.end()) {
+      VertexVec &factors = it->second;
+      // TODO: erasing individual elements from a vector
+      // is inefficient. Use different structure
+      for (auto ii = factors.begin(); ii != factors.end();) {
+        if (contains(covered, *ii)) {
+          //ROS_DEBUG_STREAM("removing used factor " <<
+          //graph_->info(*ii) << " for time "  << key);
+          ii = factors.erase(ii);
         } else {
           ++ii;
         }
       }
-      if (times_[key].empty()) {
-        ROS_DEBUG_STREAM("all elements gone for time " << key);
-        times_.erase(key);
+      if (factors.empty()) {
+        times_.erase(t);
       }
-      std::cout << profiler_ << std::endl;
-      std::cout.flush();
+    }
+  }
+
+  void
+  GraphUpdater::processNewFactors(const ros::Time &t, const VertexVec &facs) {
+    if (facs.size() == 0) {
+      ROS_DEBUG_STREAM("no new factors received!");
+      return;
+    }
+    // "covered" keeps track of what part of the graph has already
+    // been operated on
+    SubGraph covered;
+    bool newFactorsActivated = applyFactorsToGraph(t, facs, &covered);
+    if (!newFactorsActivated) {
+      ROS_DEBUG_STREAM("no new factors activated!");
+      return;
+    }
+    ROS_DEBUG_STREAM("&-&-&-&-&-&-&-& done with new factors for t = " << t);
+    while (!times_.empty()) {
+      const auto it = times_.rbegin(); // start with the most recent factors
+      const ros::Time oldTime = it->first;
+      ROS_DEBUG_STREAM("++++++++++ handling " << it->second.size()
+                       << " old factors for t = " << oldTime);
+      applyFactorsToGraph(oldTime, it->second, &covered);
     }
     ROS_INFO_STREAM("graph after update: " << graph_->getStats());
   }
@@ -551,14 +556,14 @@ namespace tagslam {
   void
   GraphUpdater::exploreSubGraph(const ros::Time &t,
                          VertexDesc start,
-                         SubGraph *subGraph, SubGraph *found) {
+                         SubGraph *subGraph, SubGraph *covered) {
     VertexDeque factorsToExamine;
     factorsToExamine.push_back(start);
     while (!factorsToExamine.empty()) {
       VertexDesc exFac = factorsToExamine.front();
       factorsToExamine.pop_front();
       // examine() may append new factors to factorsToExamine
-      examine(t, exFac, &factorsToExamine, found, subGraph);
+      examine(t, exFac, &factorsToExamine, covered, subGraph);
     }
   }
 

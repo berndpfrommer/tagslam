@@ -59,7 +59,12 @@ namespace tagslam {
                          SubGraph *subGraph, SubGraph *found);
     double optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
     double initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
-    
+    bool   applyFactorsToGraph(const ros::Time &t,
+                               const VertexVec &facs,
+                               SubGraph *covered);
+    void eraseStoredFactors(const ros::Time &t,
+                            const SubGraph::FactorCollection &covered);
+
     // ------ variables --------------
     bool               optimizeFullGraph_;
     GraphPtr           graph_;
