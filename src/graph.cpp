@@ -280,8 +280,7 @@ namespace tagslam {
 
   
   void
-  Graph::copyFrom(const Graph &g, const std::deque<VertexDesc> &srcfacs,
-                  std::deque<VertexDesc> *destfacs) {
+  Graph::copyFrom(const Graph &g, const std::deque<VertexDesc> &srcfacs) {
     std::set<VertexDesc> copiedVals;
     // first copy all values
     for (const auto &srcf: srcfacs) { // loop through factors
@@ -306,7 +305,6 @@ namespace tagslam {
                                                destvp->getName()));
             // Add pose prior to graph
             VertexDesc destppv = add(pp);
-            destfacs->push_back(destppv);
           }
         }
       }
@@ -317,7 +315,7 @@ namespace tagslam {
         std::dynamic_pointer_cast<factor::Factor>(g.getVertex(srcf));
       if (fp) {
         GraphVertex destfp = fp->clone();
-        destfacs->push_back(destfp->attach(destfp, this));
+        destfp->attach(destfp, this);
       }
     }
   }

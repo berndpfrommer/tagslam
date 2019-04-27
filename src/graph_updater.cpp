@@ -176,7 +176,7 @@ namespace tagslam {
     profiler_.reset();
     double totalError(0);
     for (const auto &sg: subGraphs) {
-      double err = sg->optimizeFull();
+      double err = sg->optimizeFull(); 
       double maxErr = sg->getMaxError();
       if (maxErr < maxSubgraphError_) {
         totalError += err;
@@ -283,11 +283,11 @@ namespace tagslam {
       g->addToOptimizer(T[idx], tf);
       break; }
     case -1: {
-      ROS_DEBUG_STREAM("delta pose factor has no missing values!");
+      ROS_DEBUG_STREAM("relative pose factor has no missing values!");
       return (true);
       break; }
     default: {
-      ROS_DEBUG_STREAM("delta factor has multiple missing values!");
+      ROS_DEBUG_STREAM("relative factor has multiple missing values!");
       return (false);
       break; }
     }
@@ -306,7 +306,6 @@ namespace tagslam {
       p.insert(p.end(), remain.begin(), remain.begin() + i);
       all->push_back(p);
     }
-    ROS_INFO_STREAM("made " << all->size() << " enumerations");
   }
 
   void GraphUpdater::setMinimumViewingAngle(double angDeg) {
@@ -442,6 +441,42 @@ namespace tagslam {
     return (allOptimized);
   }
 
+  static bool try_initialization(const Graph &g, const VertexDeque &factors,
+                                 int ord, double minViewAngle, double errLimit,
+                                 double *errMin, GraphPtr *bestGraph) {
+    GraphPtr sg(new Graph());
+    Graph &subGraph = *sg;
+    // populate the subgraph with factors from the full graph
+    subGraph.copyFrom(g, factors);
+    //subGraph.print("init subgraph");
+    if (initialize_subgraph(&subGraph, minViewAngle)) {
+      double err    = subGraph.optimizeFull();
+      double maxErr = subGraph.getMaxError();
+      ROS_DEBUG_STREAM("ordering " << ord << " has error: " << err << " " << maxErr);
+      if (maxErr >= 0 && maxErr < *errMin) {
+        *errMin = maxErr;
+        *bestGraph = sg;
+        ROS_DEBUG_STREAM("subgraph " << ord << " has minimum error: " << *errMin);
+        if (maxErr < errLimit) {
+          //ROS_DEBUG_STREAM("breaking early due to low error");
+          return (true);
+        } else {
+          ROS_DEBUG_STREAM("error map for subgraph: ");
+          // move this statement earlier if you want to debug the
+          // graph *before* it is optimized
+          const auto errMap = subGraph.getErrorMap();
+          for (const auto &ev: errMap) {
+            ROS_INFO_STREAM("SUBGRAPH ERROR_MAP  " << ev.first
+                            << " " << *(subGraph.getVertex(ev.second)));
+          }
+        }
+      } 
+    } else {
+      ROS_DEBUG_STREAM("subgraph rejected for ordering " << ord);
+    }
+    return (false);
+  }
+  
   void
   GraphUpdater::initializeSubgraphs(std::vector<GraphPtr> *subGraphs,
                                     const std::vector<VertexDeque> &verts) {
@@ -452,42 +487,20 @@ namespace tagslam {
       ROS_DEBUG_STREAM("---------- subgraph of size: " << vs.size());
       std::vector<VertexDeque> orderings;
       enumerate(&orderings, vs);
-      double errMin = 1e10;
+      
+      ROS_DEBUG_STREAM("number of factor orderings: " << orderings.size());
       GraphPtr bestGraph;
-      ROS_DEBUG_STREAM("number of orderings: " << orderings.size());
       int ord(0);
-      for (const auto &factors: orderings) {
+      double errMin = 1e10;
+      for (const auto &ordering: orderings) {
         ord++;
-        GraphPtr sg(new Graph());
-        Graph &subGraph = *sg;
-        VertexDeque vset;
-        // This makes a deep copy
-        subGraph.copyFrom(*graph_, factors, &vset);
-        subGraph.print("init subgraph");
-        if (initialize_subgraph(&subGraph, minimumViewingAngle_)) {
-          const auto errMap = subGraph.getErrorMap();
-          double err =  subGraph.optimizeFull();
-          double maxErr = subGraph.getMaxError();
-          ROS_DEBUG_STREAM("ordering " << ord << " has error: " << err << " " << maxErr);
-          if (maxErr >= 0 && maxErr < errMin) {
-            errMin = maxErr;
-            bestGraph = sg;
-            ROS_DEBUG_STREAM("subgraph " << ord << " has minimum error: " << errMin);
-            if (maxErr < maxSubgraphError_) {
-              ROS_DEBUG_STREAM("breaking early due to low error");
-              break;
-            } else {
-              ROS_DEBUG_STREAM("error map for subgraph: ");
-              for (const auto &ev: errMap) {
-                ROS_INFO_STREAM("SUBGRAPH ERROR_MAP  " << ev.first << " " << *(subGraph.getVertex(ev.second)));
-              }
-            }
-          }
-        } else {
-          ROS_DEBUG_STREAM("subgraph rejected for ordering " << ord);
+        if (try_initialization(*graph_, ordering, ord, minimumViewingAngle_,
+                               maxSubgraphError_, &errMin, &bestGraph)) {
+          // found a good-enough error value!
+          break;
         }
       }
-      if (bestGraph) {
+      if (bestGraph) {  // found an acceptable error value
         subGraphs->push_back(bestGraph);
         ROS_DEBUG_STREAM("best subgraph init found after " << ord <<
                          " attempts with error: " << errMin);
@@ -503,13 +516,6 @@ namespace tagslam {
     double error;
     if (optimizeFullGraph_) {
       error = graph_->optimizeFull();
-      const auto errMap = graph_->getErrorMap();
-      for (const auto &v: errMap) {
-        if (v.first > 20.0) {
-          ROS_INFO_STREAM("POSTOPT ERROR  " << v.first << " "
-                          << *(graph_->getVertex(v.second)));
-        }
-      }
     } else {
       if (numIncrementalOpt_ < maxNumIncrementalOpt_) {
         error = graph_->optimize(thresh);

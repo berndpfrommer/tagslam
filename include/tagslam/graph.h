@@ -69,8 +69,7 @@ namespace tagslam {
     }
     const BoostGraph &getBoostGraph() const { return (graph_); }
 
-    void  copyFrom(const Graph &g, const std::deque<VertexDesc> &vsrc,
-                   std::deque<VertexDesc> *vdest);
+    void  copyFrom(const Graph &g, const std::deque<VertexDesc> &vsrc);
     void  initializeFrom(const Graph &sg);
     void  print(const std::string &pre = "") const;
     std::string getStats() const;
