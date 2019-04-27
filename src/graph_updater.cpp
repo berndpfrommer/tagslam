@@ -158,25 +158,13 @@ namespace tagslam {
   }
 
   double
-  GraphUpdater::optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs) {
-    profiler_.reset();
-    double totErr(0);
-    for (auto &sg: subGraphs) {
-      double err =  sg->optimizeFull();
-      ROS_INFO_STREAM("error for subgraph optim: " << err);
-      totErr += err;
-    }
-    profiler_.record("optimizeSubgraphs");
-    return (totErr);
-  }
-
-  double
   GraphUpdater::initializeFromSubgraphs(const std::vector<GraphPtr>
                                         &subGraphs) {
     profiler_.reset();
     double totalError(0);
     for (const auto &sg: subGraphs) {
-      double err = sg->optimizeFull(); 
+      //double err = sg->optimizeFull();
+      double err = sg->getError(); // assume already opt
       double maxErr = sg->getMaxError();
       if (maxErr < maxSubgraphError_) {
         totalError += err;
@@ -541,7 +529,7 @@ namespace tagslam {
     }
     std::vector<GraphPtr> subGraphs;
     initializeSubgraphs(&subGraphs, sv);
-    optimizeSubgraphs(subGraphs);
+    //optimizeSubgraphs(subGraphs);
     double serr = initializeFromSubgraphs(subGraphs);
     subgraphError_ += serr;
     double err = optimize(serr);

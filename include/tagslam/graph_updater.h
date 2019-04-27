@@ -55,7 +55,6 @@ namespace tagslam {
     void exploreSubGraph(const ros::Time &t,
                          VertexDesc start,
                          SubGraph *subGraph, SubGraph *found);
-    double optimizeSubgraphs(const std::vector<GraphPtr> &subGraphs);
     double initializeFromSubgraphs(const std::vector<GraphPtr> &subGraphs);
     bool   applyFactorsToGraph(const ros::Time &t,
                                const VertexVec &facs,
