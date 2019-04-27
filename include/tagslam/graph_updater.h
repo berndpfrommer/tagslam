@@ -35,6 +35,7 @@ namespace tagslam {
     void setGraph(const GraphPtr &g)   { graph_ = g; }
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
+    void setMaxNumIncrementalOpt(int n) { maxNumIncrementalOpt_ = n; }
     void setMinimumViewingAngle(double angDeg);
 
     void processNewFactors(const ros::Time &t,
@@ -72,5 +73,6 @@ namespace tagslam {
     int                maxNumIncrementalOpt_{100};
     double             subgraphError_{0};
     double             minimumViewingAngle_{0};
+    double             lastIncError_{0};
   };
 }

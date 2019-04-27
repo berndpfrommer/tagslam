@@ -28,6 +28,7 @@
 
 namespace tagslam {
   class TagSlam2 {
+    using Apriltag = apriltag_msgs::Apriltag;
     using TagArray = apriltag_msgs::ApriltagArrayStamped;
     using TagArrayPtr = TagArray::Ptr;
     using TagArrayConstPtr = TagArray::ConstPtr;
@@ -86,6 +87,8 @@ namespace tagslam {
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
                      std::vector<VertexDesc> *factors);
     Tag2ConstPtr findTag(int tagId);
+    std::vector<Tag2ConstPtr> findTags(const std::vector<Apriltag> &ta);
+    bool anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs);
     void publishAll(const ros::Time &t);
     bool replay(std_srvs::Trigger::Request& req,
                 std_srvs::Trigger::Response &res);

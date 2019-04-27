@@ -14,6 +14,8 @@
 #include <gtsam/nonlinear/Marginals.h>
 #include <boost/range/irange.hpp>
 
+#undef DEBUG
+
 namespace tagslam {
   using boost::irange;
 
@@ -24,8 +26,9 @@ namespace tagslam {
     // these two settings were absolutely necessary to
     // make ISAM2 work.
     //p.relinearizeThreshold = 0.01;
-    p.relinearizeThreshold = 0.02;
-    p.relinearizeSkip = 1;
+    // p.relinearizeSkip = 1;
+    p.relinearizeThreshold = 0.05;
+    p.relinearizeSkip = 10;
     std::shared_ptr<gtsam::ISAM2> isam2(new gtsam::ISAM2(p));
     return (isam2);
   }
@@ -199,10 +202,6 @@ namespace tagslam {
   double GTSAMOptimizer::optimize(double deltaError) {
     ROS_DEBUG_STREAM("incremental optimize new values: " << newValues_.size()
                      << " factors: " << newGraph_.size() << " delta: " << deltaError);
-//    std::cout << "------------ new values:  " << std::endl;
-//    newValues_.print();
-//    std::cout << "------------ new factors: " << std::endl;
-//    newGraph_.print();
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
       gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
@@ -221,10 +220,6 @@ namespace tagslam {
       }
       lastError_ = *res.errorAfter;
       values_ = isam2_->calculateEstimate();
-      //std::cout << "---- optimized values: " << std::endl;
-      //values_.print();
-      //values_.print();
-      //fullGraph_.print();
 //#define DEBUG_BEFORE_AFTER      
 #ifdef DEBUG_BEFORE_AFTER   
     for (const auto &v : newValues_) {
@@ -249,6 +244,7 @@ namespace tagslam {
     values_.at<gtsam::Pose3>(k) = gtsam_utils::to_gtsam(pose);
   }
 
+#ifdef DEBUG
   static void print_large_errors(const std::string &label,
                                  const gtsam::ExpressionFactorGraph &g,
                                  const gtsam::Values &v, double thresh) {
@@ -268,13 +264,16 @@ namespace tagslam {
       }
     }
   }
+#endif
 
   double GTSAMOptimizer::errorFull() {
     gtsam::ExpressionFactorGraph  testGraph = fullGraph_;
     testGraph += newGraph_;
     gtsam::Values testValues = values_;
     testValues.insert(newValues_);
-    //print_large_errors("errorFull", testGraph, testValues, 10.0);
+#ifdef DEBUG    
+    print_large_errors("errorFull", testGraph, testValues, 10.0);
+#endif    
     return (testGraph.error(testValues));
   }
 
@@ -336,7 +335,7 @@ namespace tagslam {
     testValues.insert(newValues_);
     const auto i = testGraph.at(k);
     double err = i->error(testValues);
-#if 0    
+#ifdef DEBUG
     if (err > 100.0) {
       std::cout << " FACTOR WITH LARGE ERROR: " << err << std::endl;
       std::cout << " factor: " << std::endl;

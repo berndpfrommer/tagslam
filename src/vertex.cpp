@@ -20,7 +20,7 @@ namespace tagslam {
   std::string Vertex::format_time(const ros::Time &t) {
     // wrap around every 100 seconds,
     // resolution is in milliseconds
-    uint64_t tw = (t.toNSec() % 100000000000UL) / 1000000L;
+    uint64_t tw = (t.toNSec() % 1000000000000UL) / 1000000L;
     std::stringstream ss;
     ss << tw;
     return (ss.str());

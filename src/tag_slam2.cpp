@@ -74,6 +74,7 @@ namespace tagslam {
     nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
     double pixelNoise, maxSubgraphError, angleLimit;
+    int maxIncOpt;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
     graphManager_.setPixelNoise(pixelNoise);
     graphManager_.setGraph(graph_);
@@ -83,6 +84,8 @@ namespace tagslam {
     graphUpdater_.setMinimumViewingAngle(angleLimit);
     nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
     graphUpdater_.setMaxSubgraphError(maxSubgraphError);
+    nh_.param<int>("max_num_incremental_opt", maxIncOpt, 100);
+    graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graphUpdater_.setOptimizeFullGraph(optFullGraph);
     readBodies();
@@ -377,9 +380,10 @@ namespace tagslam {
     }
   }
 
-  static bool any_tags_visible(const std::vector<TagArrayConstPtr> &tagmsgs) {
+
+  bool TagSlam2::anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs) {
     for (const auto &msg: tagmsgs) {
-      if (!msg->apriltags.empty()) {
+      if (!findTags(msg->apriltags).empty()) {
         return (true);
       }
     }
@@ -396,7 +400,7 @@ namespace tagslam {
 
     const ros::Time t = tagmsgs.empty() ?
       odommsgs[0]->header.stamp : tagmsgs[0]->header.stamp;
-    if (any_tags_visible(tagmsgs) || !odommsgs.empty()) {
+    if (anyTagsVisible(tagmsgs) || !odommsgs.empty()) {
       // if we have any measurements, add unknown poses for all non-static bodies
       for (const auto &body: nonstaticBodies_) {
         graphManager_.addPose(t, Graph::body_name(body->getName()), false);
@@ -476,7 +480,6 @@ namespace tagslam {
         return (p);
       } else {
         if (defaultBody_->ignoreTag(tagId)) {
-          ROS_INFO_STREAM("ignoring tag as requested in config: " << tagId);
           return (p);
         }
         p = Tag2::make(tagId, 6 /*num bits = tag family */,
@@ -504,7 +507,19 @@ namespace tagslam {
       }
     }
   }
-    
+  
+  std::vector<Tag2ConstPtr> TagSlam2::findTags(const std::vector<Apriltag> &ta) {
+    std::vector<Tag2ConstPtr> tpv;
+    for (const auto &tag: ta) {
+      Tag2ConstPtr tagPtr = findTag(tag.id);
+      if (tagPtr) {
+        tpv.push_back(tagPtr);
+      } else {
+        ROS_INFO_STREAM("ignoring tag as requested in config: " << tag.id);
+      }
+    }
+    return (tpv);
+  }
 
   void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
                              std::vector<VertexDesc> *factors) {
@@ -518,7 +533,8 @@ namespace tagslam {
     for (const auto i: irange(0ul, cameras_.size())) {
       const ros::Time &t = tagMsgs[i]->header.stamp;
       const auto &cam = cameras_[i];
-      if (!tagMsgs[i]->apriltags.empty()) {
+      const auto tags = findTags(tagMsgs[i]->apriltags);
+      if (!tags.empty()) {
         // insert time-dependent camera pose
         graphManager_.addPose(t, Graph::cam_name(cam->getName()),
                               true /*camPose*/);

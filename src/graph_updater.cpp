@@ -285,13 +285,13 @@ namespace tagslam {
   }
 
   static void enumerate(std::vector<VertexDeque> *all,
-                        const VertexDeque &remain) {
-    //all->push_back(remain);
-    //return;
-    int n = remain.size();
+                        const VertexDeque &orig) {
+    // Simply rotate the factors through.
+    // doing all permutations is prohibitively expensive
+    int n = orig.size();
     for (int i = 0; i < n; i++) {
-      VertexDeque p(remain.begin() + i, remain.end());
-      p.insert(p.end(), remain.begin(), remain.begin() + i);
+      VertexDeque p(orig.begin() + i, orig.end());
+      p.insert(p.end(), orig.begin(), orig.begin() + i);
       all->push_back(p);
     }
   }
@@ -508,6 +508,21 @@ namespace tagslam {
       if (numIncrementalOpt_ < maxNumIncrementalOpt_) {
         error = graph_->optimize(thresh);
         numIncrementalOpt_++;
+        if (error - lastIncError_ > 3 * thresh) {
+#ifdef DEBUG          
+          const auto errMap = graph_->getErrorMap();
+          for (const auto &ev: errMap) {
+            ROS_INFO_STREAM("ERROR_MAP  " << ev.first
+                            << " " << *((*graph_)[ev.second]));
+          }
+#endif          
+          ROS_INFO_STREAM("large error: " << error << ", doing full optimization");
+          error = graph_->optimizeFull();
+          ROS_INFO_STREAM("error after full opt: " << error);
+          graph_->transferFullOptimization();
+          numIncrementalOpt_ = 0;
+        }
+        lastIncError_ = error;
       } else {
         ROS_INFO_STREAM("max count reached, running full optimization!");
         error = graph_->optimizeFull();
@@ -562,7 +577,9 @@ namespace tagslam {
       const ros::Time oldTime = it->first;
       ROS_DEBUG_STREAM("++++++++ handling " << it->second.size()
                        << " old factors for t = " << oldTime);
-      applyFactorsToGraph(oldTime, it->second, &covered);
+      if (!applyFactorsToGraph(oldTime, it->second, &covered)) {
+        break;
+      }
     }
     ROS_INFO_STREAM("graph after update: " << graph_->getStats());
   }
