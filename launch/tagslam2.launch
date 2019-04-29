@@ -42,7 +42,7 @@
 	<param name="optimize_full_graph" value="false"/>
 	<param name="max_subgraph_error" value="50.0"/>
 	<param name="has_compressed_images" value="false"/>
-	<param name="max_num_incremental_opt" value="100000"/>
+	<param name="max_num_incremental_opt" value="200"/>
 	<param name="minimum_viewing_angle" value="20.0"/>
 	<param name="max_number_of_frames" value="$(arg max_number_of_frames)"/>
   </node>

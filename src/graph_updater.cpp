@@ -163,7 +163,6 @@ namespace tagslam {
     profiler_.reset();
     double totalError(0);
     for (const auto &sg: subGraphs) {
-      //double err = sg->optimizeFull();
       double err = sg->getError(); // assume already opt
       double maxErr = sg->getMaxError();
       if (maxErr < maxSubgraphError_) {
@@ -508,24 +507,33 @@ namespace tagslam {
       if (numIncrementalOpt_ < maxNumIncrementalOpt_) {
         error = graph_->optimize(thresh);
         numIncrementalOpt_++;
-        if (error - lastIncError_ > 3 * thresh) {
-#ifdef DEBUG          
+#define REOPT        
+#ifdef REOPT        
+        // if there is a large increase in error, perform
+        // a full optimization.
+        // TODO: this is a terrible hack. Why does the
+        // incremental optimizer fail? No idea.
+        const double deltaErr = error - lastIncError_;
+        if (deltaErr > 5 * thresh && deltaErr > 0.5 * (lastIncError_)) {
+//#ifdef DEBUG
           const auto errMap = graph_->getErrorMap();
-          for (const auto &ev: errMap) {
-            ROS_INFO_STREAM("ERROR_MAP  " << ev.first
-                            << " " << *((*graph_)[ev.second]));
+          int count(0);
+          for (auto it = errMap.rbegin(); it != errMap.rend() && count < 10; ++it, count++) {
+            ROS_INFO_STREAM("ERROR_MAP  " << it->first
+                            << " " << *((*graph_)[it->second]));
           }
-#endif          
-          ROS_INFO_STREAM("large error: " << error << ", doing full optimization");
-          error = graph_->optimizeFull();
+//#endif          
+          ROS_INFO_STREAM("large err increase: " << deltaErr << ", doing full optimization");
+          error = graph_->optimizeFull(/*force*/ true);
           ROS_INFO_STREAM("error after full opt: " << error);
           graph_->transferFullOptimization();
           numIncrementalOpt_ = 0;
         }
         lastIncError_ = error;
+#endif        
       } else {
         ROS_INFO_STREAM("max count reached, running full optimization!");
-        error = graph_->optimizeFull();
+        error = graph_->optimizeFull(/*force*/ true);
         graph_->transferFullOptimization();
         numIncrementalOpt_ = 0;
       }

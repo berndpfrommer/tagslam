@@ -23,12 +23,13 @@ namespace tagslam {
     gtsam::ISAM2Params p;
     p.setEnableDetailedResults(true);
     p.setEvaluateNonlinearError(true);
+    p.setEnablePartialRelinearizationCheck(true);
     // these two settings were absolutely necessary to
     // make ISAM2 work.
     //p.relinearizeThreshold = 0.01;
     // p.relinearizeSkip = 1;
-    p.relinearizeThreshold = 0.05;
-    p.relinearizeSkip = 10;
+    p.relinearizeThreshold = 0.01;
+    p.relinearizeSkip = 1;
     std::shared_ptr<gtsam::ISAM2> isam2(new gtsam::ISAM2(p));
     return (isam2);
   }
@@ -211,10 +212,12 @@ namespace tagslam {
         // if either there is small improvement
         if (*res.errorAfter < lastError_ + deltaError
             || fabs(*res.errorAfter - prevErr) < 0.01) {
-          ROS_DEBUG_STREAM("stopped after iteration " << i << " now: " << *res.errorAfter << " change: " << *res.errorAfter - prevErr << " last: " << lastError_);
+          ROS_DEBUG_STREAM("stopped after iter  " << i << ", changed: " << *res.errorAfter
+                           << " <- " << lastError_  << " = " << *res.errorAfter - lastError_
+                           << " last iter: " <<  *res.errorAfter - prevErr);
           break;
         } else {
-          ROS_DEBUG_STREAM("new err: " << *res.errorAfter << " vs last: " << lastError_ << " +delta: " << lastError_ + deltaError);
+          ROS_DEBUG_STREAM("it << " << i << " new err: " << *res.errorAfter << " vs last: " << lastError_ << " +delta: " << lastError_ + deltaError);
         }
         prevErr = *res.errorAfter;
       }
