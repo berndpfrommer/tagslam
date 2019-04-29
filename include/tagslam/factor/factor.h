@@ -19,6 +19,10 @@ namespace tagslam {
       bool isValue() const override { return (false); }
     protected:
     };
+    template <typename T>
+    static bool is(const VertexConstPtr &vp) {
+      return (std::dynamic_pointer_cast<const T>(vp) != 0);
+    }
   }
   typedef std::shared_ptr<factor::Factor> FactorPtr;
   typedef std::shared_ptr<const factor::Factor> FactorConstPtr;

@@ -278,21 +278,37 @@ namespace tagslam {
     return (optimizer_->getPose(it->second[0]));
   }
 
-  
+  static AbsolutePosePriorFactorPtr
+  find_abs_pose_prior(const Graph &g, const VertexDesc &vv) {
+    AbsolutePosePriorFactorPtr p;
+    for (const auto &fv: g.getConnected(vv)) {
+      p = std::dynamic_pointer_cast<factor::AbsolutePosePrior>(g[fv]);
+      if (p) {
+        break;
+      }
+    }
+    return (p);
+  }
+
   void
   Graph::copyFrom(const Graph &g, const std::deque<VertexDesc> &srcfacs) {
     std::set<VertexDesc> copiedVals;
-    // first copy all values
+    // first copy the values
     for (const auto &srcf: srcfacs) { // loop through factors
-      //ROS_DEBUG_STREAM(" copying for factor " << g.info(srcf));
+      ROS_DEBUG_STREAM(" copying for factor " << g.info(srcf));
       for (const auto &srcv: g.getConnected(srcf)) {
         if (copiedVals.count(srcv) == 0) { // avoid duplication
-          //ROS_DEBUG_STREAM("  copying value " << *g.getVertex(srcv));
           copiedVals.insert(srcv);
+          //ROS_DEBUG_STREAM("  copying value " << *g.getVertex(srcv));
           GraphVertex srcvp  = g.getVertex(srcv);
           GraphVertex destvp = srcvp->clone();
           destvp->attach(destvp, this); // add new value to graph
-          if (g.isOptimized(srcv)) {
+          AbsolutePosePriorFactorPtr app = find_abs_pose_prior(g, srcv);
+          if (app) {
+            // This pose is already pinned down by a pose prior.
+            // Want to keep the flexibility specified in the config file!
+            add(std::dynamic_pointer_cast<factor::AbsolutePosePrior>(app->clone()));
+          } else if (g.isOptimized(srcv)) {
             // Already established poses must be pinned down with a prior
             // If it's a camera pose, give it more flexibility
             PoseValuePtr srcpp =
@@ -304,7 +320,7 @@ namespace tagslam {
               pp(new factor::AbsolutePosePrior(destvp->getTime(), pwn,
                                                destvp->getName()));
             // Add pose prior to graph
-            VertexDesc destppv = add(pp);
+            add(pp);
           }
         }
       }

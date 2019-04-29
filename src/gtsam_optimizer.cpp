@@ -212,12 +212,12 @@ namespace tagslam {
         // if either there is small improvement
         if (*res.errorAfter < lastError_ + deltaError
             || fabs(*res.errorAfter - prevErr) < 0.01) {
-          ROS_DEBUG_STREAM("stopped after iter  " << i << ", changed: " << *res.errorAfter
-                           << " <- " << lastError_  << " = " << *res.errorAfter - lastError_
+          ROS_DEBUG_STREAM("stopped after iter  " << i << ", changed: " << lastError_ 
+                           << " -> " << *res.errorAfter  << " = " << *res.errorAfter - lastError_
                            << " last iter: " <<  *res.errorAfter - prevErr);
           break;
         } else {
-          ROS_DEBUG_STREAM("it << " << i << " new err: " << *res.errorAfter << " vs last: " << lastError_ << " +delta: " << lastError_ + deltaError);
+          ROS_DEBUG_STREAM("it " << i << " new err: " << *res.errorAfter << " vs last: " << lastError_ << " +delta: " << lastError_ + deltaError);
         }
         prevErr = *res.errorAfter;
       }

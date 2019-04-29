@@ -505,6 +505,17 @@ namespace tagslam {
       error = graph_->optimizeFull();
     } else {
       if (numIncrementalOpt_ < maxNumIncrementalOpt_) {
+#if 0        
+        {
+          const auto errMap = graph_->getErrorMap();
+          int count(0);
+          const int MAX_COUNT(1000000);
+          for (auto it = errMap.rbegin(); it != errMap.rend() && count < MAX_COUNT; ++it, count++) {
+            ROS_INFO_STREAM("ERROR_MAP_BEFORE  " << it->first
+                            << " " << *((*graph_)[it->second]));
+          }
+        }
+#endif        
         error = graph_->optimize(thresh);
         numIncrementalOpt_++;
 #define REOPT        
@@ -518,7 +529,8 @@ namespace tagslam {
 //#ifdef DEBUG
           const auto errMap = graph_->getErrorMap();
           int count(0);
-          for (auto it = errMap.rbegin(); it != errMap.rend() && count < 10; ++it, count++) {
+          const int MAX_COUNT(1000000);
+          for (auto it = errMap.rbegin(); it != errMap.rend() && count < MAX_COUNT; ++it, count++) {
             ROS_INFO_STREAM("ERROR_MAP  " << it->first
                             << " " << *((*graph_)[it->second]));
           }
