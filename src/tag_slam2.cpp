@@ -88,6 +88,7 @@ namespace tagslam {
     graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graphUpdater_.setOptimizeFullGraph(optFullGraph);
+    readRemap();
     readBodies();
     bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
@@ -256,6 +257,7 @@ namespace tagslam {
       }
       t0 = t;
     }
+    publishTransforms(t0, true);
     res.message = "replayed " + std::to_string(times_.size());
     res.success = true;
     ROS_INFO_STREAM("finished replaying " << times_.size());
@@ -317,7 +319,6 @@ namespace tagslam {
         continue;
       }
       const string &bodyFrameId = body->getFrameId();
-      const Transform bodyTF = body->getPoseWithNoise().getPose();
       for (const auto &tag: body->getTags()) {
         if (tag->getPoseWithNoise().isValid()) {
           const Transform tagTF = tag->getPoseWithNoise().getPose();
@@ -429,8 +430,10 @@ namespace tagslam {
   }
 
   void TagSlam2::processTagsAndOdom(
-    const std::vector<TagArrayConstPtr> &tagmsgs,
+    const std::vector<TagArrayConstPtr> &origtagmsgs,
     const std::vector<OdometryConstPtr> &odommsgs) {
+    std::vector<TagArrayConstPtr> tagmsgs;
+    remapBadTagIds(&tagmsgs, origtagmsgs);
     if (tagmsgs.empty() && odommsgs.empty()) {
       ROS_ERROR_STREAM("neither tags nor odom!");
       return;
@@ -446,6 +449,7 @@ namespace tagslam {
     }
     std::vector<VertexDesc> factors;
     profiler_.reset();
+    std::cout << "GOT ODOM: " << odommsgs.size() << std::endl;
 #define USE_ODOM
 #ifdef USE_ODOM
     if (odommsgs.size() != 0) {
@@ -603,6 +607,66 @@ namespace tagslam {
     }
     for (auto it = sortedFactors.rbegin(); it != sortedFactors.rend(); ++it) {
       factors->push_back(it->second);
+    }
+  }
+
+  void TagSlam2::remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
+                               const std::vector<TagArrayConstPtr> &orig) {
+    //
+    // Sometimes there are tags with duplicate ids in the data set.
+    // In this case, remap the tag ids of the detected tags dependent
+    // on time stamp, to something else so they become unique.
+    for (const auto &o: orig) {
+      TagArrayPtr p(new TagArray(*o)); // make deep copy
+      const ros::Time t = p->header.stamp;
+      for (auto &tag: p->apriltags) {
+        auto it = tagRemap_.find(tag.id);
+        if (it != tagRemap_.end()) {
+          for (const ReMap &r: it->second) {
+            if (t >= r.startTime && t <= r.endTime) {
+              tag.id = r.remappedId;
+            }
+          }
+        }
+      }
+      remapped->push_back(p);
+    }
+  }
+  void TagSlam2::readRemap() {
+    XmlRpc::XmlRpcValue remap;
+    if (nh_.getParam("tagslam_config/tag_id_remap", remap) &&
+        remap.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+      ROS_INFO_STREAM("found remap map!");
+      for (const auto i: irange(0, remap.size())) {
+        if (remap[i].getType() !=
+            XmlRpc::XmlRpcValue::TypeStruct) continue;
+        int remapId = -1;
+        std::vector<ReMap> remaps;
+        for (XmlRpc::XmlRpcValue::iterator it = remap[i].begin();
+             it != remap[i].end(); ++it) {
+          if (it->first == "id") {
+            remapId = static_cast<int>(it->second);
+          }
+          if (it->first == "remaps") {
+            const auto re = it->second;
+            if (re.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+              for (const auto j: irange(0, re.size())) {
+                auto a = re[j];
+                if (a.getType() !=
+                    XmlRpc::XmlRpcValue::TypeStruct) continue;
+                ReMap r(static_cast<int>(a["remap_id"]),
+                        ros::Time(static_cast<double>(a["start_time"])),
+                        ros::Time(static_cast<double>(a["end_time"])));
+                remaps.push_back(r);
+              }
+            }
+          }
+        }
+        if (remapId >= 0) {
+          ROS_INFO_STREAM("found remapping for tag " << remapId);
+          tagRemap_[remapId] = remaps;
+        }
+      }
     }
   }
 

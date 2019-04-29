@@ -71,6 +71,14 @@ namespace tagslam {
       const std::vector<OdometryConstPtr> &msgvec3);
 
   private:
+    struct ReMap {
+      ReMap(int i, ros::Time ts, ros::Time te) :
+        remappedId(i), startTime(ts), endTime(te) {
+      };
+      int       remappedId;
+      ros::Time startTime;
+      ros::Time endTime;
+    };
     typedef std::unordered_map<int, Tag2ConstPtr> TagMap;
 
     void readBodies();
@@ -97,6 +105,10 @@ namespace tagslam {
     bool replay(std_srvs::Trigger::Request& req,
                 std_srvs::Trigger::Response &res);
     void writeCameraPoses(const string &fname) const;
+    void readRemap();
+    void remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
+                        const std::vector<TagArrayConstPtr> &orig);
+
     // ------ variables --------
     ros::NodeHandle      nh_;
     GraphPtr             graph_;
@@ -123,5 +135,6 @@ namespace tagslam {
     std::list<ros::Time> times_;
     rosbag::Bag          outBag_;
     std::string          outBagName_;
+    std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
   };
 }
