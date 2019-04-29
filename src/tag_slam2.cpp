@@ -134,6 +134,9 @@ namespace tagslam {
     std::cout.flush();
     graphUpdater_.printPerformance();
     graph_->optimizeFull(true /*force*/);
+    publishTransforms(times_.empty() ? ros::Time(0) :
+                      *(times_.rbegin()), true);
+
     const auto errMap = graph_->getErrorMap();
     ROS_INFO_STREAM("----------- error map: -----------");
     for (const auto &v: errMap) {
@@ -260,8 +263,23 @@ namespace tagslam {
     return (true);
   }
 
-  void TagSlam2::publishTransforms(const ros::Time &t) {
-    tf::tfMessage tfMsg;
+  void TagSlam2::publishCameraTransforms(const ros::Time &t,
+                                         tf::tfMessage *tfMsg) {
+    for (const auto &cam: cameras_) {
+      Transform camTF;
+      geometry_msgs::TransformStamped tfm;
+      if (graphManager_.getPose(ros::Time(0), Graph::cam_name(cam->getName()), &camTF)) {
+        const string &rigFrameId = cam->getRig()->getFrameId();
+        auto ctf = tf::StampedTransform(to_tftf(camTF), t, rigFrameId, cam->getFrameId());
+        tfBroadcaster_.sendTransform(ctf);
+        tf::transformStampedTFToMsg(ctf, tfm);
+        tfMsg->transforms.push_back(tfm);
+        //ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
+      }
+    }
+  }
+
+  void TagSlam2::publishTagAndBodyTransforms(const ros::Time &t, tf::tfMessage *tfMsg) {
     geometry_msgs::TransformStamped tfm;
     for (const auto &body: bodies_) {
       Transform bodyTF;
@@ -271,7 +289,7 @@ namespace tagslam {
         //ROS_INFO_STREAM("publishing pose for body " << body->getName() << std::endl << bodyTF);
         tf::StampedTransform btf = tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId);
         tf::transformStampedTFToMsg(btf, tfm);
-        tfMsg.transforms.push_back(tfm);
+        tfMsg->transforms.push_back(tfm);
         tfBroadcaster_.sendTransform(btf);
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
@@ -281,7 +299,7 @@ namespace tagslam {
             tfBroadcaster_.sendTransform(ttf);
             //ROS_INFO_STREAM("publishing pose for tag " << tag->getId() << std::endl << tagTF);
             tf::transformStampedTFToMsg(ttf, tfm);
-            tfMsg.transforms.push_back(tfm);
+            tfMsg->transforms.push_back(tfm);
           } else {
             //ROS_INFO_STREAM(t<< " no pose for tag " << tag->getId());
           }
@@ -290,17 +308,36 @@ namespace tagslam {
         ROS_INFO_STREAM(t<< " no pose for " << body->getName());
       }
     }
-    for (const auto &cam: cameras_) {
-      Transform camTF;
-      if (graphManager_.getPose(ros::Time(0), Graph::cam_name(cam->getName()), &camTF)) {
-        const string &rigFrameId = cam->getRig()->getFrameId();
-        auto ctf = tf::StampedTransform(to_tftf(camTF), t, rigFrameId, cam->getFrameId());
-        tfBroadcaster_.sendTransform(ctf);
-        tf::transformStampedTFToMsg(ctf, tfm);
-        tfMsg.transforms.push_back(tfm);
-        //ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
+  }
+
+  void TagSlam2::publishOriginalTagTransforms(const ros::Time &t, tf::tfMessage *tfMsg) {
+    geometry_msgs::TransformStamped tfm;
+    for (const auto &body: bodies_) {
+      if (!body->getPoseWithNoise().isValid()) {
+        continue;
+      }
+      const string &bodyFrameId = body->getFrameId();
+      const Transform bodyTF = body->getPoseWithNoise().getPose();
+      for (const auto &tag: body->getTags()) {
+        if (tag->getPoseWithNoise().isValid()) {
+          const Transform tagTF = tag->getPoseWithNoise().getPose();
+          const std::string frameId = "o_tag_" + std::to_string(tag->getId());
+          auto ttf = tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId);
+          tfBroadcaster_.sendTransform(ttf);
+          tf::transformStampedTFToMsg(ttf, tfm);
+          tfMsg->transforms.push_back(tfm);
+        }
       }
     }
+  }
+
+  void TagSlam2::publishTransforms(const ros::Time &t, bool orig) {
+    tf::tfMessage tfMsg;
+    publishTagAndBodyTransforms(t, &tfMsg);
+    if (orig) {
+      publishOriginalTagTransforms(t, &tfMsg);
+    }
+    publishCameraTransforms(t, &tfMsg);
     outBag_.write<tf::tfMessage>("/tf", t, tfMsg);
   }
 
@@ -318,9 +355,10 @@ namespace tagslam {
     rosbag::View dummyView(bag);
     const ros::Time startTime =
       dummyView.getBeginTime() + ros::Duration(deltaStartTime);
-    publishTransforms(startTime);
+    publishTransforms(startTime, false);
 
     rosbag::View view(bag, rosbag::TopicQuery(flatTopics), startTime);
+    ros::Time tFinal;
     if (hasCompressedImages_) {
       flex_sync::Sync<TagArray, CompressedImage, Odometry>
         sync3c(topics, std::bind(&TagSlam2::syncCallbackCompressed, this,
@@ -431,7 +469,7 @@ namespace tagslam {
     rosgraph_msgs::Clock clockMsg;
     clockMsg.clock = t;
     clockPub_.publish(clockMsg);
-    publishTransforms(t);
+    publishTransforms(t, false);
   }
   
   void TagSlam2::setupOdom(const std::vector<OdometryConstPtr> &odomMsgs) {

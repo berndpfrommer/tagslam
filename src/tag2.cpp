@@ -20,6 +20,11 @@ namespace tagslam {
        s/2, -s/2, 0,
        s/2,  s/2, 0,
       -s/2,  s/2, 0;
+    if (poseWithNoise_.isValid() && body->overrides()) {
+      poseWithNoise_.setNoise(
+        PoseNoise2::make(body->getOverrideTagRotationNoise(),
+                         body->getOverrideTagPositionNoise()));
+    }
   }
 
   Tag2Vec Tag2::parseTags(XmlRpc::XmlRpcValue xmltags, double size,

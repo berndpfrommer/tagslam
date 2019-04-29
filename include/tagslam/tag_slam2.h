@@ -81,7 +81,11 @@ namespace tagslam {
     void setupOdom(const std::vector<OdometryConstPtr> &odomMsgs);
     void processTagsAndOdom(const std::vector<TagArrayConstPtr> &tagmsgs,
                             const std::vector<OdometryConstPtr> &odommsgs);
-    void publishTransforms(const ros::Time &t);
+    void publishTagAndBodyTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
+    void publishOriginalTagTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
+    void publishCameraTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
+
+    void publishTransforms(const ros::Time &t, bool orig = false);
     void publishBodyOdom(const ros::Time &t);
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,

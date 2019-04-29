@@ -41,7 +41,15 @@ namespace tagslam {
       defaultTagSize_ = static_cast<double>(body["default_tag_size"]);
       isStatic_       = static_cast<bool>(body["is_static"]);
       if (body.hasMember("max_hamming_distance")) {
-        maxHammingDistance = static_cast<int>(body["max_hamming_distance"]);
+        maxHammingDistance_ = static_cast<int>(body["max_hamming_distance"]);
+      }
+      if (body.hasMember("override_tag_position_noise")) {
+        overrideTagPositionNoise_ =
+          static_cast<double>(body["override_tag_position_noise"]);
+      }
+      if (body.hasMember("override_tag_rotation_noise")) {
+        overrideTagRotationNoise_ =
+          static_cast<double>(body["override_tag_rotation_noise"]);
       }
       if (body.hasMember("T_body_odom")) {
         Eigen::Vector3d p =
@@ -164,8 +172,8 @@ namespace tagslam {
     if (isStatic_) {
       os << pfix << "pose:" << std::endl;;
       PoseNoise2 smallNoise = PoseNoise2::make(0.001, 0.001);
-      yaml_utils::write_pose(os, pfix + "  ", poseWithNoise.getPose(),
-                             smallNoise, poseWithNoise.isValid());
+      yaml_utils::write_pose(os, pfix + "  ", poseWithNoise_.getPose(),
+                             smallNoise, poseWithNoise_.isValid());
       // TODO: poseEstimate.getNoise());
     }
     return (true);

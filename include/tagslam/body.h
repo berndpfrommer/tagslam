@@ -42,12 +42,22 @@ namespace tagslam {
     bool   isStatic() const { return (isStatic_); }
     void   setType(const string &t) { type = t; }
     void   setId(int id) { id_ = id; }
-    void   setPoseWithNoise(const PoseWithNoise &p) { poseWithNoise = p; }
-    const PoseWithNoise getPoseWithNoise() const { return (poseWithNoise); }
+    void   setPoseWithNoise(const PoseWithNoise &p) { poseWithNoise_ = p; }
+    const PoseWithNoise getPoseWithNoise() const { return (poseWithNoise_); }
     bool   ignoreTag(int tagId) const { return (ignoreTags_.count(tagId) != 0); }
     Tag2Ptr findTag(int tagId, int bits) const;
     void   addTag(const Tag2Ptr &tag);
     void   addTags(const Tag2Vec &tags);
+    bool   overrides() const {
+      return (overrideTagRotationNoise_ > 0 &&
+              overrideTagPositionNoise_ > 0);
+    }
+    double getOverrideTagRotationNoise() const {
+      return (overrideTagRotationNoise_);
+    }
+    double getOverrideTagPositionNoise() const {
+      return (overrideTagPositionNoise_);
+    }
     std::list<Tag2ConstPtr> getTags() const;
     static BodyVec parse_bodies(XmlRpc::XmlRpcValue config);
 
@@ -64,20 +74,22 @@ namespace tagslam {
     int                 id_{-1};
     bool                isStatic_{true};
     string              type;
-    int                 maxHammingDistance{2};
+    int                 maxHammingDistance_{2};
     // tags that are hanging off of it
     Tag2Map             tags;
     // tags that cannot be attached to this body
     std::set<int>       ignoreTags_;
     // default tag size for discovered, unknown tags
     double              defaultTagSize_{0};
-    // any initial pose prior
-    PoseWithNoise       poseWithNoise;
+    // initial pose prior
+    PoseWithNoise       poseWithNoise_;
     // variables used in case odometry data is available
     string              odomTopic_;
     string              odomFrameId_;
     PoseNoise2          odomNoise_;
     Transform           T_body_odom_;
+    double              overrideTagRotationNoise_{-1};
+    double              overrideTagPositionNoise_{-1};
     // -------- static functions
     static BodyPtr parse_body(const string &name,
                               XmlRpc::XmlRpcValue config);
