@@ -22,6 +22,8 @@
 #include <boost/range/irange.hpp>
 
 #include <sstream>
+#include <iomanip>
+#include <cmath>
 
 const int QSZ = 1000;
 namespace tagslam {
@@ -32,6 +34,9 @@ namespace tagslam {
   using CompressedImage = sensor_msgs::CompressedImage;
   using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
   using boost::irange;
+  using std::setw;
+  using std::fixed;
+  using std::setprecision;
 
   static tf::Transform to_tftf(const Transform &tf) {
     tf::Transform ttf;
@@ -146,10 +151,14 @@ namespace tagslam {
     graph_->printUnoptimized();
     //graphManager_.plotDebug(ros::Time(0), "final");
     outBag_.close();
-    std::string camPoseFile;
+    std::string camPoseFile, tagPoseFile;
     nh_.param<string>("camera_poses_out_file",
                       camPoseFile, "camera_poses.yaml");
+    nh_.param<string>("tag_poses_out_file",
+                      tagPoseFile, "tag_poses.yaml");
     writeCameraPoses(camPoseFile);
+    writeTagPoses(tagPoseFile);
+    writeTagDiagnostics("tag_diagnostics.txt");
     return (true);
   }
 
@@ -449,8 +458,7 @@ namespace tagslam {
     }
     std::vector<VertexDesc> factors;
     profiler_.reset();
-    std::cout << "GOT ODOM: " << odommsgs.size() << std::endl;
-#define USE_ODOM
+    #define USE_ODOM
 #ifdef USE_ODOM
     if (odommsgs.size() != 0) {
       processOdom(odommsgs, &factors);
@@ -546,6 +554,59 @@ namespace tagslam {
       if (pwn.isValid()) {
         yaml_utils::write_pose_with_covariance(f, "  ", pwn.getPose(),
                                                pwn.getNoise());
+      }
+    }
+  }
+
+  void TagSlam2::writeTagPoses(const string &fname) const {
+    std::ofstream f(fname);
+    const ros::Time t = times_.empty() ? ros::Time(0):*(times_.rbegin());
+    const std::string idn = "       ";
+    for (const auto &body: bodies_) {
+      f << body->getName() << ":" << std::endl;
+      Transform bodyTF;
+      if (graphManager_.getPose(t, Graph::body_name(body->getName()), &bodyTF)) {
+        yaml_utils::write_pose(f, "        ", bodyTF, PoseNoise2::make(0,0), true);
+      }
+      for (const auto &tag: body->getTags()) {
+        Transform tagTF;
+        if (graphManager_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
+          f << idn << "- id: "   << tag->getId() << std::endl;
+          f << idn << "  size: " << tag->getSize() << std::endl;
+          const auto &pwn = tag->getPoseWithNoise();
+          yaml_utils::write_pose(f, idn + "  ", tagTF, pwn.getNoise(), true);
+        }
+      }
+    }
+  }
+
+  void write_vec(std::ostream &o, const Eigen::Vector3d &v) {
+    for (const auto &i: irange(0, 3)) {
+      o << " " << setw(7) << setprecision(3) << fixed << v(i);
+    }
+  }
+  
+  void TagSlam2::writeTagDiagnostics(const string &fname) const {
+    std::ofstream f(fname);
+    const std::string idn = "       ";
+    for (const auto &body: bodies_) {
+      for (const auto &tag: body->getTags()) {
+        Transform tagTF;
+        if (graphManager_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
+          const auto &pwn = tag->getPoseWithNoise();
+          if (pwn.isValid()) {
+            const Transform poseDiff = tagTF * pwn.getPose().inverse();
+            const auto x = poseDiff.translation();
+            Eigen::AngleAxisd aa;
+            aa.fromRotationMatrix(poseDiff.rotation());
+            f << setw(3) << tag->getId() << " " << fixed << setw(6) << setprecision(3) << x.norm();
+            write_vec(f, x);
+            const auto w = aa.angle() * aa.axis();
+            f << "   ang: " << aa.angle() * 180 / M_PI;
+            write_vec(f, w);
+            f << std::endl;
+          }
+        }
       }
     }
   }

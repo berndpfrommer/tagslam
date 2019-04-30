@@ -105,6 +105,8 @@ namespace tagslam {
     bool replay(std_srvs::Trigger::Request& req,
                 std_srvs::Trigger::Response &res);
     void writeCameraPoses(const string &fname) const;
+    void writeTagPoses(const string &fname) const;
+    void writeTagDiagnostics(const string &fname) const;
     void readRemap();
     void remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
