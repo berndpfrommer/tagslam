@@ -57,6 +57,7 @@ namespace tagslam {
     detector_->set_black_border(borderWidth);
 
     nh_.param<int>("max_number_frames", maxFrameNumber_, 1000000);
+    nh_.param<int>("skip", skip_, 1);
     nh_.param<bool>("images_are_compressed", imagesAreCompressed_, false);
     nh_.param<bool>("annotate_images", annotateImages_, false);
     std::string bagFile;
@@ -132,6 +133,11 @@ namespace tagslam {
       ROS_ERROR("got empty image vector!");
       return;
     }
+    if (fnum_ % skip_ != 0) {
+      ROS_INFO_STREAM("skipped frame number " << fnum_);
+      fnum_++;
+      return;
+    }
     std::vector<cv::Mat> images, grey_images;
     std::vector<std_msgs::Header> headers;
     for (const auto i: irange(0ul, msgvec.size())) {
@@ -157,6 +163,11 @@ namespace tagslam {
                                const std::vector<OdometryConstPtr> &odom) {
     if (msgvec.empty()) {
       ROS_ERROR("got empty image vector!");
+      return;
+    }
+    if (fnum_ % skip_ != 0) {
+      ROS_INFO_STREAM("skipped frame number " << fnum_);
+      fnum_++;
       return;
     }
     std::vector<cv::Mat> images, grey_images;

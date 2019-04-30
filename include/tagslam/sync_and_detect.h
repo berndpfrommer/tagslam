@@ -85,6 +85,7 @@ namespace tagslam {
     bool                                imagesAreCompressed_{false};
     bool                                annotateImages_{false};
     int                                 maxFrameNumber_;
+    int                                 skip_{1};
     apriltag_ros::ApriltagDetector::Ptr detector_;
     std::string                         detectorType_;
   };
