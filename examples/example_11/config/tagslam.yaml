@@ -1,11 +1,14 @@
 body_defaults:
   position_noise: 0.05
   rotation_noise: 0.01
+default_body: top_floor
 bodies:
  - top_floor:
      is_default_body: true
      is_static: true
-     ignore_tags: [166, 213, 223, 237, 367, 392, 354, 405, 585]
+     ignore_tags: [166, 213, 223, 237, 367, 381, 392, 354, 405, 585]
+     override_tag_position_noise: 0.1
+     override_tag_rotation_noise: 0.05
      default_tag_size: 0.150
      max_hamming_distance: 2
      pose:
@@ -1512,8 +1515,9 @@ bodies:
      is_static: false
      type: camera_rig
      odom_frame_id: odom
-     odom_rotation_noise: 0.001
-     odom_translation_noise: 0.002
+     odom_topic: "/fla/vio/odom"
+     odom_acceleration: 5.0
+     odom_angular_acceleration: 5.0
      T_body_odom:
        position:
          x:  0.02535438
@@ -1532,5 +1536,3 @@ tag_id_remap:
       - remap_id: 520
         start_time: 1541687179.947268789
         end_time:   1541687229.942551085
-odometry:
-  topics: ["/fla/vio/odom"]
