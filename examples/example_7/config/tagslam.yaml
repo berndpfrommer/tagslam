@@ -1,9 +1,9 @@
 body_defaults:
   position_noise: 0.05
   rotation_noise: 0.01
+default_body: perch
 bodies:
  - perch:
-     is_default_body: true
      is_static: true
      default_tag_size: 0.150
      pose:
@@ -44,6 +44,5 @@ bodies:
            y: 1.0e-05
            z: 1.0e-05
  - rig:
-     is_default_body: false
      is_static: false
      type: camera_rig

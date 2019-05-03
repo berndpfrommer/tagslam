@@ -3,7 +3,6 @@ body_defaults:
   rotation_noise: 0.01
 bodies:
  - aviary:
-     is_default_body: false
      is_static: true
      default_tag_size: 0.12
      type: simple
@@ -25,7 +24,6 @@ bodies:
          y: 0.00000010
          z: 0.00000010
  - wand:
-     is_default_body: false
      is_static: false
      default_tag_size: 0.11986
      type: simple

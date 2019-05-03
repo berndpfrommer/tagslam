@@ -7,5 +7,6 @@
 - Source bag: ``dupont_2018-11-09-10-36-42_short_3m_drift.bag``
 - detector: MIT
 - frames: 4499
-- Remark: first test with odometry
-
+- Remark: first test with odometry. There are some jumps in the odom,
+  order 0.25cm! Make sure to replay to make  the kinks in the
+  optimized trajectory disappear.

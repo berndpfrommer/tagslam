@@ -1,6 +1,7 @@
 body_defaults:
   position_noise: 0.05
   rotation_noise: 0.01
+default_body: top_floor
 bodies:
  - top_floor:
      is_default_body: true
