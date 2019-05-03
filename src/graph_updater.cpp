@@ -491,6 +491,7 @@ namespace tagslam {
         subGraphs->push_back(bestGraph);
         ROS_DEBUG_STREAM("best subgraph init found after " << ord <<
                          " attempts with error: " << errMin);
+        //bestGraph->printErrorMap("BEST SUBGRAPH");
       } else {
         ROS_WARN_STREAM("could not initialize subgraph!");
       }
@@ -505,7 +506,7 @@ namespace tagslam {
       error = graph_->optimizeFull();
     } else {
       if (numIncrementalOpt_ < maxNumIncrementalOpt_) {
-#if 0        
+#ifdef DEBUG
         {
           const auto errMap = graph_->getErrorMap();
           int count(0);
@@ -514,6 +515,7 @@ namespace tagslam {
             ROS_INFO_STREAM("ERROR_MAP_BEFORE  " << it->first
                             << " " << *((*graph_)[it->second]));
           }
+          //graph_->printErrorMap("ERROR DETAILS BEFORE");
         }
 #endif        
         error = graph_->optimize(thresh);
@@ -526,7 +528,7 @@ namespace tagslam {
         // incremental optimizer fail? No idea.
         const double deltaErr = error - lastIncError_;
         if (deltaErr > 5 * thresh && deltaErr > 0.5 * (lastIncError_)) {
-//#ifdef DEBUG
+#ifdef DEBUG
           const auto errMap = graph_->getErrorMap();
           int count(0);
           const int MAX_COUNT(1000000);
@@ -534,7 +536,7 @@ namespace tagslam {
             ROS_INFO_STREAM("ERROR_MAP  " << it->first
                             << " " << *((*graph_)[it->second]));
           }
-//#endif          
+#endif          
           ROS_INFO_STREAM("large err increase: " << deltaErr << ", doing full optimization");
           error = graph_->optimizeFull(/*force*/ true);
           ROS_INFO_STREAM("error after full opt: " << error);

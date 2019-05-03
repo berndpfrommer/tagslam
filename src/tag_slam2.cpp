@@ -73,6 +73,7 @@ namespace tagslam {
     graph_.reset(new Graph());
     graph_->setVerbosity("SILENT");
     nh_.param<std::string>("outbag", outBagName_, "out.bag");
+    tagCornerFile_.open("tag_corners.txt");
     outBag_.open(outBagName_, rosbag::bagmode::Write);
     cameras_ = Camera2::parse_cameras("cameras", nh_);
     bool optFullGraph;
@@ -137,17 +138,10 @@ namespace tagslam {
     sleep(1.0);
     playFromBag(bagFile);
     std::cout << profiler_ << std::endl;
-    std::cout.flush();
     graphUpdater_.printPerformance();
     graph_->optimizeFull(true /*force*/);
     publishTransforms(times_.empty() ? ros::Time(0) :
                       *(times_.rbegin()), true);
-
-    const auto errMap = graph_->getErrorMap();
-    ROS_INFO_STREAM("----------- error map: -----------");
-    for (const auto &v: errMap) {
-      ROS_INFO_STREAM("  " << v.first << " " << *(graph_->getVertex(v.second)));
-    }
     graph_->printUnoptimized();
     //graphManager_.plotDebug(ros::Time(0), "final");
     outBag_.close();
@@ -158,7 +152,11 @@ namespace tagslam {
                       tagPoseFile, "tag_poses.yaml");
     writeCameraPoses(camPoseFile);
     writeTagPoses(tagPoseFile);
+    writeErrorMap("error_map.txt");
     writeTagDiagnostics("tag_diagnostics.txt");
+    writeTimeDiagnostics("time_diagnostics.txt");
+    tagCornerFile_.close();
+    std::cout.flush();
     return (true);
   }
 
@@ -580,6 +578,31 @@ namespace tagslam {
     }
   }
 
+  void TagSlam2::writeTimeDiagnostics(const string &fname) const {
+    std::ofstream f(fname);
+    const Graph::TimeToErrorMap m = graph_->getTimeToErrorMap();
+    for (const auto &te: m) {
+      f << te.first << " ";
+      double err(0);
+      for (const auto fe: te.second) {
+        err += fe.second;
+      }
+      f << err;
+      for (const auto fe: te.second) {
+        f << " " << (*fe.first) << ":err=" << fe.second;
+      }
+      f << std::endl;
+    }
+  }
+
+  void TagSlam2::writeErrorMap(const string &fname) const {
+    std::ofstream f(fname);
+    const auto errMap = graph_->getErrorMap();
+    for (const auto &v: errMap) {
+      f << v.first << " " << *(graph_->getVertex(v.second)) << std::endl;
+    }
+  }
+
   void write_vec(std::ostream &o, const Eigen::Vector3d &v) {
     for (const auto &i: irange(0, 3)) {
       o << " " << setw(7) << setprecision(3) << fixed << v(i);
@@ -657,6 +680,7 @@ namespace tagslam {
                                                        img_corners);
           double sz = find_size_of_tag(img_corners);
           sortedFactors.insert(MMap::value_type(sz, fac));
+          writeTagCorners(t, cam->getIndex(), tagPtr, img_corners);
         }
       }
       std::stringstream ss;
@@ -730,6 +754,17 @@ namespace tagslam {
       }
     }
   }
+  
+  void
+  TagSlam2::writeTagCorners(const ros::Time &t, int camIdx, const Tag2ConstPtr &tag,
+                            const geometry_msgs::Point *img_corners) {
+    for (const auto i: irange(0, 4)) {
+      tagCornerFile_ << t << " " << tag->getId() << " " << camIdx << " "
+                     << i << " " << img_corners[i].x << " "
+                     << img_corners[i].y << std::endl;
+    }
+  }
+
 
 }  // end of namespace
 

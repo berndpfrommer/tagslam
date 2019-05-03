@@ -31,6 +31,7 @@ namespace tagslam {
     const std::shared_ptr<Body> getRig() const { return (rig_); }
     const PoseNoise2 &getWiggle() const { return (wiggle_); }
     const CameraIntrinsics2& getIntrinsics() const { return (intrinsics_); }
+    int  getIndex() const { return (index_); }
     void setRig(const std::shared_ptr<Body> &rig) { rig_ = rig; }
     
     // --- static methods

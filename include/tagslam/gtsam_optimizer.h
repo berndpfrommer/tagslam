@@ -23,6 +23,8 @@ namespace tagslam {
     void      transferFullOptimization() override;
     double    errorFull() override;
     double    getError(FactorKey k) const override;
+    void      printFactorError(FactorKey k) const override;
+
     double    getMaxError() const override;
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
     void      setVerbosity(const std::string &v) { verbosity_ = v;}

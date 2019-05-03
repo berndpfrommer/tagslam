@@ -36,7 +36,8 @@ namespace tagslam {
     int           getId() const { return (id_); }
     const string &getOdomTopic() const { return (odomTopic_); }
     const string &getOdomFrameId() const { return (odomFrameId_); }
-    const PoseNoise2 &getOdomNoise() const { return (odomNoise_); }
+    double getOdomAcceleration() const { return (odomAcceleration_); }
+    double getOdomAngularAcceleration() const { return (odomAngularAcceleration_); }
     const Transform &getTransformBodyOdom() const { return (T_body_odom_); }
     double        getDefaultTagSize() const { return (defaultTagSize_); }
     bool   isStatic() const { return (isStatic_); }
@@ -86,7 +87,8 @@ namespace tagslam {
     // variables used in case odometry data is available
     string              odomTopic_;
     string              odomFrameId_;
-    PoseNoise2          odomNoise_;
+    double              odomAcceleration_{5.0}; // m/s^2
+    double              odomAngularAcceleration_{5.0}; // rad/sec^2
     Transform           T_body_odom_;
     double              overrideTagRotationNoise_{-1};
     double              overrideTagPositionNoise_{-1};

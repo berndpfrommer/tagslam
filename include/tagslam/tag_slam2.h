@@ -107,6 +107,11 @@ namespace tagslam {
     void writeCameraPoses(const string &fname) const;
     void writeTagPoses(const string &fname) const;
     void writeTagDiagnostics(const string &fname) const;
+    void writeTimeDiagnostics(const string &fname) const;
+    void writeErrorMap(const string &fname) const;
+    void writeTagCorners(const ros::Time &t, int camIdx, const Tag2ConstPtr &tag,
+                         const geometry_msgs::Point *img_corners);
+
     void readRemap();
     void remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
@@ -136,6 +141,7 @@ namespace tagslam {
     Profiler             profiler_;
     std::list<ros::Time> times_;
     rosbag::Bag          outBag_;
+    std::ofstream        tagCornerFile_;
     std::string          outBagName_;
     std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
   };

@@ -30,6 +30,9 @@ namespace tagslam {
     ros::Time       time_{0};
     ros::Publisher  pub_;
     Transform       T_body_odom_;
-    PoseNoise2      deltaPoseNoise_;
+    double          acceleration_{5.0}; // m/s^2
+    double          angularAcceleration_{5.0}; // rad/sec^2
+    Eigen::Vector3d lastOmega_;
+    Eigen::Vector3d lastVelocity_;
   };
 }

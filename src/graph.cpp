@@ -314,7 +314,7 @@ namespace tagslam {
             PoseValuePtr srcpp =
               std::dynamic_pointer_cast<value::Pose>(srcvp);
             Transform pose = g.getOptimizedPose(srcv);
-            double ns = srcpp->isCameraPose() ? 0.1 : 0.001;
+            double ns = srcpp->isCameraPose() ? 0.05 : 0.001;
             PoseWithNoise pwn(pose, PoseNoise2::make(ns, ns), true);
             AbsolutePosePriorFactorPtr
               pp(new factor::AbsolutePosePrior(destvp->getTime(), pwn,
@@ -460,6 +460,48 @@ namespace tagslam {
     return (errMap);
   }
 
+  void Graph::printErrorMap(const std::string &prefix) const {
+    for (auto vi = boost::vertices(graph_); vi.first != vi.second;
+         ++vi.first) {
+      const VertexDesc v = *vi.first;
+      const VertexConstPtr vp = graph_[v];
+      VertexToOptMap::const_iterator it = optimized_.find(v);
+      if (!vp->isValue() && it != optimized_.end()) {
+        double errSum(0);
+        ROS_INFO_STREAM(prefix << " " << info(v) << ":");
+        for (const auto &k: it->second) {
+          double e = optimizer_->getError(k);
+          errSum += e;
+          optimizer_->printFactorError(k);
+        }
+      }
+    }
+  }
+
+  Graph::TimeToErrorMap Graph::getTimeToErrorMap() const {
+    TimeToErrorMap m;
+    for (auto vi = boost::vertices(graph_); vi.first != vi.second;
+         ++vi.first) {
+      const VertexDesc v = *vi.first;
+      const VertexConstPtr vp = graph_[v];
+      VertexToOptMap::const_iterator it = optimized_.find(v);
+      if (!vp->isValue() && it != optimized_.end()) {
+        const FactorConstPtr fp =
+          std::dynamic_pointer_cast<const factor::Factor>(vp);
+        double errSum(0);
+        for (const auto &k: it->second) {
+          double e = optimizer_->getError(k);
+          errSum += e;
+        }
+        auto it = m.find(fp->getTime());
+        if (it == m.end()) {
+          it = m.emplace(fp->getTime(),TimeToErrorMap::mapped_type()).first;
+        }
+        it->second.emplace_back(fp, errSum);
+      }
+    }
+    return (m);
+  }
 
   PoseNoise2 Graph::getPoseNoise(const VertexDesc &v) const {
     const ValueKey k = findOptimizedPoseKey(v);

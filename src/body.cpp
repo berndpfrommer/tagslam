@@ -66,14 +66,12 @@ namespace tagslam {
       if (body.hasMember("odom_topic")) {
         odomTopic_ = static_cast<std::string>(body["odom_topic"]);
       }
-      double odomRotNoise(1e-2), odomTransNoise(5e-2);
-      if (body.hasMember("odom_rotation_noise")) {
-        odomRotNoise = static_cast<double>(body["odom_rotation_noise"]);
+      if (body.hasMember("odom_acceleration")) {
+        odomAcceleration_ = static_cast<double>(body["odom_acceleration"]);
       }
-      if (body.hasMember("odom_translation_noise")) {
-        odomTransNoise = static_cast<double>(body["odom_translation_noise"]);
+      if (body.hasMember("odom_angular_acceleration")) {
+        odomAngularAcceleration_ = static_cast<double>(body["odom_angular_acceleration"]);
       }
-      odomNoise_ = PoseNoise2::make(odomRotNoise, odomTransNoise);
 
       if (body.hasMember("ignore_tags")) {
         auto ignTags = body["ignore_tags"];

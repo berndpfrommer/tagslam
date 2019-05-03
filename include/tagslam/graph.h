@@ -27,6 +27,8 @@ namespace tagslam {
   public:
     Graph();
     typedef std::multimap<double, VertexDesc> ErrorToVertexMap;
+    typedef std::map
+    <ros::Time, std::vector<std::pair<FactorConstPtr, double>>> TimeToErrorMap;
     
     bool hasId(const VertexId &id) const { return (idToVertex_.count(id)!=0);}
     bool hasPose(const ros::Time &t, const std::string &name) const;
@@ -79,6 +81,8 @@ namespace tagslam {
 
     VertexDesc findPose(const ros::Time &t, const string &name) const;
     ErrorToVertexMap getErrorMap() const;
+    TimeToErrorMap getTimeToErrorMap() const;
+
     // static methods
     static string tag_name(int tagid);
     static string body_name(const string &body);
@@ -87,6 +91,7 @@ namespace tagslam {
       return (v != ULONG_MAX);
     }
     void printUnoptimized() const;
+    void printErrorMap(const std::string &prefix) const;
   private:
     typedef std::unordered_map<VertexId, VertexDesc> IdToVertexMap;
     typedef std::unordered_map<VertexDesc,

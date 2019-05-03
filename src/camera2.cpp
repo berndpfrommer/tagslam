@@ -46,7 +46,7 @@ namespace tagslam {
         continue;
       }
       Camera2Ptr camera(new Camera2(parse_camera(p, name, nh)));
-      camera->index_ = cam_idx;
+      camera->index_ = cam_idx++;
       cdv.push_back(camera);
     }
     return (cdv);
