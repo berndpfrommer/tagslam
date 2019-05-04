@@ -42,34 +42,6 @@ namespace tagslam {
   GTSAMOptimizer::~GTSAMOptimizer() {
   }
 
-  ValueKey GTSAMOptimizer::addPose(const Transform &p) {
-    ValueKey key = generateKey();
-    ROS_DEBUG_STREAM("optimizer: adding pose with key " << key);
-    newValues_.insert(key, gtsam_utils::to_gtsam(p));
-    return (key);
-  }
-
-  FactorKey
-  GTSAMOptimizer::addRelativePosePrior(ValueKey key1, ValueKey key2,
-                                       const PoseWithNoise &deltaPose) {
-    ROS_DEBUG_STREAM("optimizer: adding relposeprior: " << key1 << " - " << key2);
-    // key1 = key2 * deltaPose
-    newGraph_.push_back(
-      gtsam::BetweenFactor<gtsam::Pose3>(
-        key1, key2, gtsam_utils::to_gtsam(deltaPose.getPose()),
-        gtsam_utils::to_gtsam(deltaPose.getNoise())));
-    return (fullGraph_.size() + newGraph_.size() - 1);
-  }
-
-  FactorKey GTSAMOptimizer::addAbsolutePosePrior(ValueKey key,
-                                                 const PoseWithNoise &pwn) {
-    ROS_DEBUG_STREAM("optimizer: adding absposeprior: " << key);
-    newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>
-                        (key, gtsam_utils::to_gtsam(pwn.getPose()),
-                         gtsam_utils::to_gtsam(pwn.getNoise())));
-    return (fullGraph_.size() + newGraph_.size() - 1);
-  }
-
   std::shared_ptr<Cal3DS3>
   GTSAMOptimizer::getRadTanModel(const std::string &cname, const CameraIntrinsics2 &ci) {
     // TODO: introduce camera ID and use lookup table!
@@ -110,6 +82,63 @@ namespace tagslam {
     return (it->second);
   }
 
+  static double distance(const gtsam::Point3 &p1, const gtsam::Point3 &p2, gtsam::OptionalJacobian<1, 3> H1 = boost::none,
+                         gtsam::OptionalJacobian<1, 3> H2 = boost::none) {
+    const gtsam::Point3 d = p1-p2;
+    double r = sqrt(d.x() * d.x() + d.y() * d.y() + d.z() * d.z());
+    if (H1) *H1 << d.x() / r, d.y() / r, d.z() / r;
+    if (H2) *H2 << -d.x() / r, -d.y() / r, -d.z() / r;
+    return r;
+  }
+
+
+  ValueKey GTSAMOptimizer::addPose(const Transform &p) {
+    ValueKey key = generateKey();
+    //ROS_DEBUG_STREAM("optimizer: adding pose with key " << key);
+    newValues_.insert(key, gtsam_utils::to_gtsam(p));
+    return (key);
+  }
+
+  FactorKey
+  GTSAMOptimizer::addRelativePosePrior(ValueKey key1, ValueKey key2,
+                                       const PoseWithNoise &deltaPose) {
+    //ROS_DEBUG_STREAM("optimizer: adding relposeprior: " << key1 << " - " << key2);
+    // key1 = key2 * deltaPose
+    newGraph_.push_back(
+      gtsam::BetweenFactor<gtsam::Pose3>(
+        key1, key2, gtsam_utils::to_gtsam(deltaPose.getPose()),
+        gtsam_utils::to_gtsam(deltaPose.getNoise())));
+    return (fullGraph_.size() + newGraph_.size() - 1);
+  }
+
+  FactorKey GTSAMOptimizer::addAbsolutePosePrior(ValueKey key,
+                                                 const PoseWithNoise &pwn) {
+    //ROS_DEBUG_STREAM("optimizer: adding absposeprior: " << key);
+    newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>
+                        (key, gtsam_utils::to_gtsam(pwn.getPose()),
+                         gtsam_utils::to_gtsam(pwn.getNoise())));
+    return (fullGraph_.size() + newGraph_.size() - 1);
+  }
+
+  FactorKey GTSAMOptimizer::addDistanceMeasurement(
+    const double d, const double noise,
+    Eigen::Vector3d corner1, ValueKey T_w_b1, ValueKey T_b1_o,
+    Eigen::Vector3d corner2, ValueKey T_w_b2, ValueKey T_b2_o)
+  {
+    gtsam::Expression<gtsam::Pose3>  T_w_b_1(T_w_b1);
+    gtsam::Expression<gtsam::Pose3>  T_b_o_1(T_b1_o);
+    gtsam::Expression<gtsam::Pose3>  T_w_b_2(T_w_b2);
+    gtsam::Expression<gtsam::Pose3>  T_b_o_2(T_b2_o);
+    gtsam::Expression<gtsam::Point3> X_o_1(corner1);
+    gtsam::Expression<gtsam::Point3> X_w_1 = gtsam::transform_from(T_w_b_1, gtsam::transform_from(T_b_o_1, X_o_1));
+    
+    gtsam::Expression<gtsam::Point3> X_o_2(corner2);
+    gtsam::Expression<gtsam::Point3> X_w_2 = gtsam::transform_from(T_w_b_2, gtsam::transform_from(T_b_o_2, X_o_2));
+    gtsam::Expression<double> dist = gtsam::Expression<double>(&distance, X_w_1, X_w_2);
+    newGraph_.addExpressionFactor(dist, d, gtsam::noiseModel::Isotropic::Sigma(1, noise));
+    return (fullGraph_.size() + newGraph_.size() - 1);
+  }
+
   std::vector<FactorKey>
   GTSAMOptimizer::addTagProjectionFactor(
     const Eigen::Matrix<double, 4, 2> &imgCorners,
@@ -118,8 +147,8 @@ namespace tagslam {
     const CameraIntrinsics2 &ci,
     double pixelNoise,
     ValueKey T_r_c, ValueKey T_w_r, ValueKey T_w_b, ValueKey T_b_o) {
-    ROS_DEBUG_STREAM("gtsam: adding tag proj fac: " << T_r_c << " " <<
-                    T_w_r << " " << T_w_b << " " << T_b_o);
+    //ROS_DEBUG_STREAM("gtsam: adding tag proj fac: " << T_r_c << " " <<
+    //T_w_r << " " << T_w_b << " " << T_b_o);
     std::vector<FactorKey> keys;
     keys.reserve(4);
     gtsam::Expression<gtsam::Pose3>  T_b_o_fac(T_b_o);

@@ -26,6 +26,7 @@ namespace tagslam {
                   new AbsolutePosePrior(*this))); }
       VertexDesc attach(const VertexPtr &vp, Graph *g) const override;
       void addToOptimizer(Graph *g) const override;
+      bool establishesValues() const override { return (true); }
       // -------- own methods
       const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_);}
     private:

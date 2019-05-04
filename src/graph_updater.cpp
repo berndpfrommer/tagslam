@@ -31,6 +31,17 @@ namespace tagslam {
   examine_connected_values(const Graph &graph, const VertexDesc &fac,
                            const SubGraph &covered, VertexDesc *valueVertex,
                            VertexDeque *values) {
+    // returns number of missing values:
+    //
+    // 0: duplicate measurement
+    // 1: one missing, may be able to establish a new pose!
+    // >1: too many missing, out of luck
+    //
+    auto fp = factor::cast_const(graph[fac]);
+    if (!fp) {
+      ROS_ERROR_STREAM("examined vertex is no factor: " << graph.info(fac));
+      throw std::runtime_error("examined vertex is no factor");
+    }
     // find out if this factor allows us to determine a new value
     std::vector<VertexDesc> conn = graph.getConnected(fac);
     int numEdges(0), numValid(0);
@@ -39,13 +50,23 @@ namespace tagslam {
       ValueConstPtr   vp = std::dynamic_pointer_cast<const value::Value>(vvp);
       numEdges++;
       if ((vp && graph.isOptimized(vv)) || covered.values.count(vv) != 0) {
+        //ROS_DEBUG_STREAM("   pose is optimized: " << graph.info(vv));
         numValid++;
       } else {
+        //ROS_DEBUG_STREAM("   pose is unoptimized: " << graph.info(vv));
         *valueVertex = vv;
       }
       values->push_back(vv);
     }
-    return (numEdges - numValid);
+    int numMissing = numEdges - numValid;
+
+    if (!fp->establishesValues() && numMissing == 1) {
+      // some factors cannot establish if a factor cannot establish a full pose (e.g. a distance
+      // measurement), then it can at best serve as a duplicate
+      // measurement.
+      numMissing = 2;
+    }
+    return (numMissing);
   }
 
   void
@@ -55,14 +76,14 @@ namespace tagslam {
     //ROS_DEBUG_STREAM("examining factor: " << graph_->info(fac));
     VertexDesc valueVertex;
     VertexDeque values;
-    int numDetermined =
+    int numMissing =
       examine_connected_values(*graph_, fac, *covered,
                                &valueVertex, &values);
-    if (numDetermined == 1) {
+    if (numMissing == 1) {
       // establishes new value, let's explore the new
       VertexConstPtr vt = graph_->getVertex(valueVertex);
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
-      ROS_DEBUG_STREAM(" factor establishes new value: " << vp->getLabel());
+      ROS_DEBUG_STREAM(" factor " << graph_->info(fac) << " establishes new value: " << vp->getLabel());
       auto &ff = covered->factors;
       if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
         ff.push_back(fac);
@@ -104,7 +125,7 @@ namespace tagslam {
           }
         }
       }
-    } else if (numDetermined == 0) {
+    } else if (numMissing == 0) {
       // this factor does not establish a new value, but
       // provides an additional measurement on existing ones.
       ROS_DEBUG_STREAM(" factor provides additional measurement: "
@@ -113,6 +134,16 @@ namespace tagslam {
       if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
         ff.push_back(fac);
         newSubGraph->factors.push_back(fac);
+        // Even though this factor might be a redundant (e.g. distance)
+        // measurement, it could be that some of its connected values
+        // are optimized, but not pinned down by any other factor.
+        // Therefore we add those values here. When the values are
+        // later copied, an absolute pose prior will be automatically
+        // added to them.
+        for (const auto vv: values) {
+          newSubGraph->values.insert(vv);
+          covered->values.insert(vv);
+        }
       }
     } else {
       ROS_DEBUG_STREAM(" factor does not establish new values: " << graph_->info(fac));

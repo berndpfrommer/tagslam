@@ -42,6 +42,13 @@ namespace tagslam {
       const CameraIntrinsics2 &ci,
       double pixelNoise,
       ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) override;
+    FactorKey addDistanceMeasurement(
+      const double distance, const double noise,
+      Eigen::Vector3d corner1, ValueKey T_w_b1, ValueKey T_b1_o,
+      Eigen::Vector3d corner2, ValueKey T_w_b2, ValueKey T_b2_o) override;
+
+
+    
     gtsam::ExpressionFactorGraph  &getGraph() { return (newGraph_); }
     void setPose(ValueKey k, const Transform &pose) override;
   private:

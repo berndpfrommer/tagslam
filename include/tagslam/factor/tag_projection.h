@@ -32,6 +32,7 @@ namespace tagslam {
         return (std::shared_ptr<TagProjection>(new TagProjection(*this))); }
       VertexDesc attach(const VertexPtr &vp, Graph *g) const override;
       void addToOptimizer(Graph *g) const override;
+      bool establishesValues() const override { return (true); }
       // --------- own methods
       const Eigen::Matrix<double, 4,2> &getImageCorners() const
         { return (imgCorners_); }

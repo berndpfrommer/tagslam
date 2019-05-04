@@ -96,7 +96,7 @@ add_library(tagslam2
 src/tag_slam2.cpp src/graph.cpp
 src/body_defaults.cpp src/body.cpp src/simple_body2.cpp src/board2.cpp
 src/pose_noise.cpp src/pose_estimate.cpp src/yaml_utils.cpp
-src/body_defaults.cpp src/utils.cpp src/tag.cpp
+src/utils.cpp
 src/gtsam_utils.cpp
 src/geometry.cpp
 src/pose_noise2.cpp
@@ -108,6 +108,7 @@ src/value/pose.cpp
 src/factor/absolute_pose_prior.cpp
 src/factor/relative_pose_prior.cpp
 src/factor/tag_projection.cpp
+src/factor/distance.cpp
 src/graph_vertex.cpp
 src/graph_edge.cpp
 src/vertex.cpp

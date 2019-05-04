@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "tagslam/tag_factory.h"
 #include "tagslam/graph_manager.h"
 #include "tagslam/graph_updater.h"
 #include "tagslam/graph.h"
@@ -27,7 +28,7 @@
 
 
 namespace tagslam {
-  class TagSlam2 {
+  class TagSlam2: public TagFactory {
     using Apriltag = apriltag_msgs::Apriltag;
     using TagArray = apriltag_msgs::ApriltagArrayStamped;
     using TagArrayPtr = TagArray::Ptr;
@@ -44,6 +45,10 @@ namespace tagslam {
     TagSlam2(const TagSlam2&) = delete;
     TagSlam2& operator=(const TagSlam2&) = delete;
 
+    // inherited from TagFactory
+    Tag2ConstPtr findTag(int tagId) override;
+
+    // ------ own methods
     bool initialize();
 
     template<typename S>
@@ -69,7 +74,6 @@ namespace tagslam {
       const std::vector<TagArrayConstPtr> &msgvec1,
       const std::vector<CompressedImageConstPtr> &msgvec2,
       const std::vector<OdometryConstPtr> &msgvec3);
-
   private:
     struct ReMap {
       ReMap(int i, ros::Time ts, ros::Time te) :
@@ -82,6 +86,7 @@ namespace tagslam {
     typedef std::unordered_map<int, Tag2ConstPtr> TagMap;
 
     void readBodies();
+    void readDistanceMeasurements();
     void playFromBag(const std::string &fname);
     void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
                      std::vector<VertexDesc> *factors);
@@ -98,7 +103,6 @@ namespace tagslam {
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
                      std::vector<VertexDesc> *factors);
-    Tag2ConstPtr findTag(int tagId);
     std::vector<Tag2ConstPtr> findTags(const std::vector<Apriltag> &ta);
     bool anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs);
     void publishAll(const ros::Time &t);
@@ -108,6 +112,7 @@ namespace tagslam {
     void writeTagPoses(const string &fname) const;
     void writeTagDiagnostics(const string &fname) const;
     void writeTimeDiagnostics(const string &fname) const;
+    void writeDistanceDiagnostics(const string &fname) const;
     void writeErrorMap(const string &fname) const;
     void writeTagCorners(const ros::Time &t, int camIdx, const Tag2ConstPtr &tag,
                          const geometry_msgs::Point *img_corners);
@@ -115,6 +120,7 @@ namespace tagslam {
     void readRemap();
     void remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
+    void applyDistanceMeasurements();
 
     // ------ variables --------
     ros::NodeHandle      nh_;
@@ -144,5 +150,7 @@ namespace tagslam {
     std::ofstream        tagCornerFile_;
     std::string          outBagName_;
     std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
+    std::vector<VertexDesc> distances_;
+    std::vector<VertexDesc> unappliedDistances_;
   };
 }

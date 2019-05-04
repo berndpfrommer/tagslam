@@ -12,6 +12,7 @@
 #include "tagslam/factor/tag_projection.h"
 #include "tagslam/factor/absolute_pose_prior.h"
 #include "tagslam/factor/relative_pose_prior.h"
+#include "tagslam/factor/distance.h"
 #include <ros/ros.h>
 
 #include <climits>
@@ -40,16 +41,21 @@ namespace tagslam {
     double optimizeFull(bool force = false);
 
     const VertexVec &getFactors() const { return (factors_); }
+    const BoostGraph &getBoostGraph() const { return (graph_); }
+
     VertexVec getConnected(const VertexDesc &v) const;
+    bool isOptimizableFactor(const VertexDesc &v) const;
 
     VertexDesc add(const PoseValuePtr &p);
     VertexDesc add(const RelativePosePriorFactorPtr &p);
     VertexDesc add(const AbsolutePosePriorFactorPtr &p);
+    VertexDesc add(const DistanceFactorPtr &p);
     VertexDesc add(const TagProjectionFactorPtr &p);
     
     OptimizerKey addToOptimizer(const VertexDesc &v, const Transform &tf);
     OptimizerKey addToOptimizer(const factor::RelativePosePrior *p);
     OptimizerKey addToOptimizer(const factor::AbsolutePosePrior *p);
+    OptimizerKey addToOptimizer(const factor::Distance *p);
     std::vector<OptimizerKey> addToOptimizer(const factor::TagProjection *p);
 
     VertexDesc addPose(const ros::Time &t, const string &name,
@@ -58,19 +64,14 @@ namespace tagslam {
     Transform getOptimizedPose(const VertexDesc &v) const;
     inline Transform pose(const VertexDesc &v) const {
       return (getOptimizedPose(v)); }
+    double getOptimizedDistance(const VertexDesc &v) const;
     PoseNoise2 getPoseNoise(const VertexDesc &v) const;
 
-    // for debugging, compute error on graph
-    double    getError() { return (optimizer_->errorFull()); }
-    double    getMaxError() { return (optimizer_->getMaxError()); }
-    void      plotDebug(const ros::Time &t, const string &tag);
     void      transferFullOptimization() {
       optimizer_->transferFullOptimization(); }
     void setVerbosity(const string &v) {
       optimizer_->setVerbosity(v);
     }
-    const BoostGraph &getBoostGraph() const { return (graph_); }
-
     void  copyFrom(const Graph &g, const std::deque<VertexDesc> &vsrc);
     void  initializeFrom(const Graph &sg);
     void  print(const std::string &pre = "") const;
@@ -80,18 +81,23 @@ namespace tagslam {
     VertexPtr operator[](const VertexDesc f) const { return (graph_[f]); }
 
     VertexDesc findPose(const ros::Time &t, const string &name) const;
+    // for debugging, compute error on graph
+    void printUnoptimized() const;
+    void printErrorMap(const std::string &prefix) const;
+    double getError(const VertexDesc &v) const;
+    double getError() { return (optimizer_->errorFull()); }
+    double getMaxError() { return (optimizer_->getMaxError()); }
+    void   plotDebug(const ros::Time &t, const string &tag);
     ErrorToVertexMap getErrorMap() const;
     TimeToErrorMap getTimeToErrorMap() const;
-
     // static methods
     static string tag_name(int tagid);
     static string body_name(const string &body);
     static string cam_name(const string &cam);
+    static string dist_name(const string &dist);
     inline static bool is_valid(const VertexDesc &v) {
       return (v != ULONG_MAX);
     }
-    void printUnoptimized() const;
-    void printErrorMap(const std::string &prefix) const;
   private:
     typedef std::unordered_map<VertexId, VertexDesc> IdToVertexMap;
     typedef std::unordered_map<VertexDesc,

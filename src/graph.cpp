@@ -92,6 +92,34 @@ namespace tagslam {
   }
 
   VertexDesc
+  Graph::add(const DistanceFactorPtr &f) {
+    const ros::Time t0 = ros::Time(0);
+    VertexDesc vt1p =
+      find(value::Pose::id(t0, Graph::tag_name(f->getTag(0)->getId())));
+    VertexDesc vt2p =
+      find(value::Pose::id(t0, Graph::tag_name(f->getTag(1)->getId())));
+    if (!is_valid(vt1p) || !is_valid(vt2p)) {
+      ROS_ERROR_STREAM("no tag poses found for: " << f->getLabel());
+      throw std::runtime_error("no tag poses found!");
+    }
+    VertexDesc vb1p = find(
+      value::Pose::id(t0, Graph::body_name(f->getTag(0)->getBody()->getName())));
+    VertexDesc vb2p = find(
+      value::Pose::id(t0, Graph::body_name(f->getTag(1)->getBody()->getName())));
+    if (!is_valid(vb1p) || !is_valid(vb2p)) {
+      ROS_ERROR_STREAM("no body poses found for: " << f->getLabel());
+      throw std::runtime_error("no body poses found!");
+    }
+    VertexDesc fv = insertVertex(f);
+    factors_.push_back(fv);
+    boost::add_edge(fv, vb1p, GraphEdge(0), graph_);
+    boost::add_edge(fv, vt1p, GraphEdge(1), graph_);
+    boost::add_edge(fv, vb2p, GraphEdge(2), graph_);
+    boost::add_edge(fv, vt2p, GraphEdge(3), graph_);
+    return (fv);
+  }
+
+  VertexDesc
   Graph::add(const TagProjectionFactorPtr &pf) {
     // connect: tag_body_pose, tag_pose, cam_pose, rig_pose
     VertexDesc vtp = find(value::Pose::id(ros::Time(0),
@@ -141,6 +169,19 @@ namespace tagslam {
     return (c);
   }
 
+  bool
+  Graph::isOptimizableFactor(const VertexDesc &v) const {
+    if (graph_[v]->isValue()) {
+      ROS_ERROR_STREAM("vertex is no factor: " << graph_[v]->getLabel());
+      throw std::runtime_error("vertex is no factor");
+    }
+    for (const auto &vv: getConnected(v)) {
+      if (!isOptimized(vv)) {
+        return (false);
+      }
+    }
+    return (true);
+  }
 
   std::vector<ValueKey>
   Graph::getOptKeysForFactor(VertexDesc fv, int numKeys) const {
@@ -232,6 +273,24 @@ namespace tagslam {
     return (fk);
   }
 
+  OptimizerKey
+  Graph::addToOptimizer(const factor::Distance *p) {
+    VertexDesc v = find(p);
+    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 4);
+    FactorKey fk =
+      optimizer_->addDistanceMeasurement(p->getDistance(),
+                                         p->getNoise(),
+                                         p->getCorner(0),
+                                         optKeys[0],  // T_w_b1
+                                         optKeys[1],  // T_b1_o
+                                         p->getCorner(1),
+                                         optKeys[2],  // T_w_b2
+                                         optKeys[3]); // T_b2_o
+    optimized_.insert(
+      VertexToOptMap::value_type(v, std::vector<FactorKey>(1, fk)));
+    return (fk);
+  }
+
   std::vector<OptimizerKey>
   Graph::addToOptimizer(const factor::TagProjection *p) {
     VertexDesc v = find(p);
@@ -245,6 +304,7 @@ namespace tagslam {
     optimized_.insert(VertexToOptMap::value_type(v, fks));
     return (fks);
   }
+
 
   OptimizerKey
   Graph::addToOptimizer(const VertexDesc &v, const Transform &tf) {
@@ -278,6 +338,24 @@ namespace tagslam {
     return (optimizer_->getPose(it->second[0]));
   }
 
+  double Graph::getOptimizedDistance(const VertexDesc &v) const {
+    if (!isOptimized(v)) {
+      return (-1.0); // not optimized yet!
+    }
+    DistanceFactorConstPtr p =
+      std::dynamic_pointer_cast<const factor::Distance>(graph_[v]);
+    if (!p) {
+      ROS_ERROR_STREAM("vertex is not distance: " << info(v));
+      throw std::runtime_error("vertex is not distance");
+    }
+    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 4);
+    auto d = p->distance(optimizer_->getPose(optKeys[0]),
+                         optimizer_->getPose(optKeys[1]),
+                         optimizer_->getPose(optKeys[2]),
+                         optimizer_->getPose(optKeys[3]));
+    return (d);
+  }
+
   static AbsolutePosePriorFactorPtr
   find_abs_pose_prior(const Graph &g, const VertexDesc &vv) {
     AbsolutePosePriorFactorPtr p;
@@ -299,7 +377,6 @@ namespace tagslam {
       for (const auto &srcv: g.getConnected(srcf)) {
         if (copiedVals.count(srcv) == 0) { // avoid duplication
           copiedVals.insert(srcv);
-          //ROS_DEBUG_STREAM("  copying value " << *g.getVertex(srcv));
           GraphVertex srcvp  = g.getVertex(srcv);
           GraphVertex destvp = srcvp->clone();
           destvp->attach(destvp, this); // add new value to graph
@@ -308,6 +385,7 @@ namespace tagslam {
             // This pose is already pinned down by a pose prior.
             // Want to keep the flexibility specified in the config file!
             add(std::dynamic_pointer_cast<factor::AbsolutePosePrior>(app->clone()));
+            //ROS_DEBUG_STREAM("  copying pinned value " << *g.getVertex(srcv));
           } else if (g.isOptimized(srcv)) {
             // Already established poses must be pinned down with a prior
             // If it's a camera pose, give it more flexibility
@@ -321,6 +399,7 @@ namespace tagslam {
                                                destvp->getName()));
             // Add pose prior to graph
             add(pp);
+            //ROS_DEBUG_STREAM("  copying + pinning value " << *g.getVertex(srcv));
           }
         }
       }
@@ -439,22 +518,30 @@ namespace tagslam {
     }
   }
 
+  double
+  Graph::getError(const VertexDesc &v) const {
+    const VertexConstPtr vp = graph_[v];
+    VertexToOptMap::const_iterator it = optimized_.find(v);
+    if (!vp->isValue() && it != optimized_.end()) {
+      const FactorConstPtr fp =
+        std::dynamic_pointer_cast<const factor::Factor>(vp);
+      double errSum(0);
+      for (const auto &k: it->second) {
+        double e = optimizer_->getError(k);
+        errSum += e;
+      }
+      return (errSum);
+    }
+    return (-1.0);
+  }
+
   Graph::ErrorToVertexMap Graph::getErrorMap() const {
     ErrorToVertexMap errMap;
     for (auto vi = boost::vertices(graph_); vi.first != vi.second;
          ++vi.first) {
-      const VertexDesc v = *vi.first;
-      const VertexConstPtr vp = graph_[v];
-      VertexToOptMap::const_iterator it = optimized_.find(v);
-      if (!vp->isValue() && it != optimized_.end()) {
-        const FactorConstPtr fp =
-          std::dynamic_pointer_cast<const factor::Factor>(vp);
-        double errSum(0);
-        for (const auto &k: it->second) {
-          double e = optimizer_->getError(k);
-          errSum += e;
-        }
-        errMap.insert(ErrorToVertexMap::value_type(errSum, v));
+      const double err = getError(*vi.first);
+      if (err >= 0) {
+        errMap.insert(ErrorToVertexMap::value_type(err, *vi.first));
       }
     }
     return (errMap);
@@ -519,6 +606,10 @@ namespace tagslam {
   // static method!
   std::string Graph::cam_name(const string &cam) {
     return ("cam:" + cam);
+  }
+  // static method!
+  std::string Graph::dist_name(const string &dist) {
+    return ("d:" + dist);
   }
 
 }  // end of namespace

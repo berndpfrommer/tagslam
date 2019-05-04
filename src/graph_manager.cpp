@@ -33,10 +33,12 @@ namespace tagslam {
     // add body pose as vertex
     if (body.isStatic()) {
       const ros::Time t0(0);
+      const string name = Graph::body_name(body.getName());
       if (body.getPoseWithNoise().isValid()) {
         const PoseWithNoise &pn = body.getPoseWithNoise();
-        string name = Graph::body_name(body.getName());
         addPoseWithPrior(t0, name, pn, false);
+      } else {
+        graph_->addPose(t0, name, false);
       }
     } 
     // add associated tags as vertices

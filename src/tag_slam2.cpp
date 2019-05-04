@@ -9,6 +9,7 @@
 #include "tagslam/body.h"
 #include "tagslam/odometry_processor.h"
 #include "tagslam/yaml_utils.h"
+#include "tagslam/factor/distance.h"
 
 #include <cv_bridge/cv_bridge.h>
 
@@ -26,6 +27,7 @@
 #include <cmath>
 
 const int QSZ = 1000;
+
 namespace tagslam {
   using Odometry = nav_msgs::Odometry;
   using OdometryConstPtr = nav_msgs::OdometryConstPtr;
@@ -37,6 +39,7 @@ namespace tagslam {
   using std::setw;
   using std::fixed;
   using std::setprecision;
+#define FMT(X, Y) fixed << setw(X) << setprecision(Y)
 
   static tf::Transform to_tftf(const Transform &tf) {
     tf::Transform ttf;
@@ -96,6 +99,7 @@ namespace tagslam {
     graphUpdater_.setOptimizeFullGraph(optFullGraph);
     readRemap();
     readBodies();
+    readDistanceMeasurements();
     bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
       for (const auto &body: bodies_) {
@@ -124,6 +128,7 @@ namespace tagslam {
       return (false);
     }
     //
+    applyDistanceMeasurements();
     graph_->optimize(0);
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
@@ -155,6 +160,7 @@ namespace tagslam {
     writeErrorMap("error_map.txt");
     writeTagDiagnostics("tag_diagnostics.txt");
     writeTimeDiagnostics("time_diagnostics.txt");
+    writeDistanceDiagnostics("distance_diagnostics.txt");
     tagCornerFile_.close();
     std::cout.flush();
     return (true);
@@ -180,7 +186,7 @@ namespace tagslam {
       if (!body->isStatic()) {
         nonstaticBodies_.push_back(body);
         odomPub_.push_back(
-          nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(), QSZ));
+          nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(),QSZ));
       }
     }
     nh_.getParam("tagslam_config", config);
@@ -286,6 +292,28 @@ namespace tagslam {
         //ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
       }
     }
+  }
+
+  void TagSlam2::applyDistanceMeasurements() {
+    if (unappliedDistances_.empty()) {
+      return;
+    }
+    std::vector<VertexDesc> remaining;
+    for (const auto &v: unappliedDistances_) {
+      if (graph_->isOptimizableFactor(v)) {
+        DistanceFactorConstPtr fp =
+          std::dynamic_pointer_cast<const factor::Distance>((*graph_)[v]);
+        if (fp) {
+          graph_->addToOptimizer(fp.get());
+        } else {
+          ROS_ERROR_STREAM("wrong factor type: " << graph_->info(v));
+          throw (std::runtime_error("wrong factor type"));
+        }
+      } else {
+        remaining.push_back(v);
+      }
+    }
+    unappliedDistances_ = remaining;
   }
 
   void TagSlam2::publishTagAndBodyTransforms(const ros::Time &t, tf::tfMessage *tfMsg) {
@@ -595,17 +623,30 @@ namespace tagslam {
     }
   }
 
+  void TagSlam2::writeDistanceDiagnostics(const string &fname) const {
+    std::ofstream f(fname);
+    for (const auto &v: distances_) {
+      const auto p = factor::Distance::cast_const((*graph_)[v]);
+      const double l = graph_->getOptimizedDistance(v);
+      const double diff = l - p->getDistance();
+      f << FMT(6, 3) << graph_->getError(v)  << " diff: " << FMT(6, 3) << diff
+        << " opt: " << FMT(6, 3) << l << " meas: "
+        << FMT(6, 3) << p->getDistance() << " " << *p << std::endl;
+    }
+  }
+
   void TagSlam2::writeErrorMap(const string &fname) const {
     std::ofstream f(fname);
     const auto errMap = graph_->getErrorMap();
     for (const auto &v: errMap) {
-      f << v.first << " " << *(graph_->getVertex(v.second)) << std::endl;
+      f << FMT(8,3) << v.first << " " <<
+        *(graph_->getVertex(v.second)) << std::endl;
     }
   }
 
   void write_vec(std::ostream &o, const Eigen::Vector3d &v) {
     for (const auto &i: irange(0, 3)) {
-      o << " " << setw(7) << setprecision(3) << fixed << v(i);
+      o << " " << FMT(7, 3) << v(i);
     }
   }
   
@@ -615,14 +656,15 @@ namespace tagslam {
     for (const auto &body: bodies_) {
       for (const auto &tag: body->getTags()) {
         Transform tagTF;
-        if (graphManager_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
+        if (graphManager_.getPose(ros::Time(0),
+                                  Graph::tag_name(tag->getId()), &tagTF)) {
           const auto &pwn = tag->getPoseWithNoise();
           if (pwn.isValid()) {
             const Transform poseDiff = tagTF * pwn.getPose().inverse();
             const auto x = poseDiff.translation();
             Eigen::AngleAxisd aa;
             aa.fromRotationMatrix(poseDiff.rotation());
-            f << setw(3) << tag->getId() << " " << fixed << setw(6) << setprecision(3) << x.norm();
+            f << setw(3) << tag->getId() << " " << FMT(6,3) << x.norm();
             write_vec(f, x);
             const auto w = aa.angle() * aa.axis();
             f << "   ang: " << aa.angle() * 180 / M_PI;
@@ -634,7 +676,8 @@ namespace tagslam {
     }
   }
   
-  std::vector<Tag2ConstPtr> TagSlam2::findTags(const std::vector<Apriltag> &ta) {
+  std::vector<Tag2ConstPtr>
+  TagSlam2::findTags(const std::vector<Apriltag> &ta) {
     std::vector<Tag2ConstPtr> tpv;
     for (const auto &tag: ta) {
       Tag2ConstPtr tagPtr = findTag(tag.id);
@@ -668,7 +711,8 @@ namespace tagslam {
         // with a relative prior
         const PoseWithNoise pn(Transform::Identity(), cam->getWiggle(), true);
         string  name = Graph::cam_name(cam->getName());
-        RelativePosePriorFactorPtr fac(new factor::RelativePosePrior(t, ros::Time(0), pn, name));
+        RelativePosePriorFactorPtr
+          fac(new factor::RelativePosePrior(t, ros::Time(0), pn, name));
         VertexDesc v = graphManager_.addRelativePosePrior(fac);
         sortedFactors.insert(MMap::value_type(1e10, v));
       }
@@ -756,7 +800,8 @@ namespace tagslam {
   }
   
   void
-  TagSlam2::writeTagCorners(const ros::Time &t, int camIdx, const Tag2ConstPtr &tag,
+  TagSlam2::writeTagCorners(const ros::Time &t, int camIdx,
+                            const Tag2ConstPtr &tag,
                             const geometry_msgs::Point *img_corners) {
     for (const auto i: irange(0, 4)) {
       tagCornerFile_ << t << " " << tag->getId() << " " << camIdx << " "
@@ -765,6 +810,26 @@ namespace tagslam {
     }
   }
 
+  void
+  TagSlam2::readDistanceMeasurements() {
+    XmlRpc::XmlRpcValue meas;
+    nh_.getParam("tagslam_config/distance_measurements", meas);
+    if (meas.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+      // beware the parsing may actually add tags to the graph!
+      auto distFactors = factor::Distance::parse(meas, this);
+      for (const auto dm: distFactors) {
+        if (!dm->getTag(0)->getBody()->isStatic()
+            || !dm->getTag(1)->getBody()->isStatic()) {
+          ROS_ERROR_STREAM("measured bodies must be static: " << *dm);
+          throw (std::runtime_error("measured bodies must be static!"));
+        }
+        distances_.push_back(graph_->add(dm));
+      }
+    } else {
+      ROS_INFO_STREAM("no distance measurements found!");
+    }
+    unappliedDistances_ = distances_;
+  }
 
 }  // end of namespace
 

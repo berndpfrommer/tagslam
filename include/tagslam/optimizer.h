@@ -49,6 +49,13 @@ namespace tagslam {
       const CameraIntrinsics2 &ci,
       double pixelNoise,
       ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) = 0;
+ 
+    // distance measurement factor:
+    // err = || T_w_b2 * T_b2_o * corner2 - T_w_b1 * T_b1_o * corner1||
+    virtual FactorKey addDistanceMeasurement(
+      const double distance, const double noise,
+      Eigen::Vector3d corner1, ValueKey T_w_b1, ValueKey T_b1_o,
+      Eigen::Vector3d corner2, ValueKey T_w_b2, ValueKey T_b2_o) = 0;
 
     // for debugging, allow direct setting of value
     virtual void setPose(ValueKey k, const Transform &pose) = 0;
