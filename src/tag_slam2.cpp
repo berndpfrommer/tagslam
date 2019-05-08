@@ -150,13 +150,13 @@ namespace tagslam {
     graph_->printUnoptimized();
     //graphManager_.plotDebug(ros::Time(0), "final");
     outBag_.close();
-    std::string camPoseFile, tagPoseFile;
+    std::string camPoseFile, poseFile;
     nh_.param<string>("camera_poses_out_file",
                       camPoseFile, "camera_poses.yaml");
-    nh_.param<string>("tag_poses_out_file",
-                      tagPoseFile, "tag_poses.yaml");
+    nh_.param<string>("poses_out_file",
+                      poseFile, "poses.yaml");
     writeCameraPoses(camPoseFile);
-    writeTagPoses(tagPoseFile);
+    writePoses(poseFile);
     writeErrorMap("error_map.txt");
     writeTagDiagnostics("tag_diagnostics.txt");
     writeTimeDiagnostics("time_diagnostics.txt");
@@ -584,15 +584,18 @@ namespace tagslam {
     }
   }
 
-  void TagSlam2::writeTagPoses(const string &fname) const {
+  void TagSlam2::writePoses(const string &fname) const {
     std::ofstream f(fname);
     const ros::Time t = times_.empty() ? ros::Time(0):*(times_.rbegin());
+    f << "bodies:" << std::endl;
     const std::string idn = "       ";
     for (const auto &body: bodies_) {
-      f << body->getName() << ":" << std::endl;
       Transform bodyTF;
-      if (graphManager_.getPose(t, Graph::body_name(body->getName()), &bodyTF)) {
-        yaml_utils::write_pose(f, "        ", bodyTF, PoseNoise2::make(0,0), true);
+      const ros::Time tbody = body->isStatic() ? ros::Time(0) : t;
+      f << " - " << body->getName() << ":" << std::endl;
+      if (graphManager_.getPose(tbody, Graph::body_name(body->getName()), &bodyTF)) {
+        f << "    pose:" << std::endl;
+        yaml_utils::write_pose(f, "       ", bodyTF, PoseNoise2::make(0,0), true);
       }
       for (const auto &tag: body->getTags()) {
         Transform tagTF;
