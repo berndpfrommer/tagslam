@@ -46,6 +46,10 @@ namespace tagslam {
     tf::transformEigenToTF(tf, ttf);
     return (ttf);
   }
+
+  static void write_time(std::ostream &o, const ros::Time &t) {
+    o << t.sec << "." << std::setfill('0') << setw(9) << t.nsec << " " << std::setfill(' ');
+  }
   
   static double find_size_of_tag(const geometry_msgs::Point *imgCorn) {
     Eigen::Matrix<double, 4, 2> x;
@@ -82,6 +86,13 @@ namespace tagslam {
     bool optFullGraph;
     nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
+    std::string camPoseFile, poseFile, bagFile;
+    nh_.param<string>("camera_poses_out_file",
+                      camPoseFile, "camera_poses.yaml");
+    nh_.param<string>("poses_out_file",
+                      poseFile, "poses.yaml");
+    nh_.param<string>("bag_file", bagFile, "");
+
     double pixelNoise, maxSubgraphError, angleLimit;
     int maxIncOpt;
     nh_.param<double>("pixel_noise", pixelNoise, 1.0);
@@ -97,6 +108,7 @@ namespace tagslam {
     graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graphUpdater_.setOptimizeFullGraph(optFullGraph);
+    readSquash();
     readRemap();
     readBodies();
     readDistanceMeasurements();
@@ -134,34 +146,36 @@ namespace tagslam {
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
-    
-    string bagFile;
-    nh_.param<string>("bag_file", bagFile, "");
     clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
     service_ = nh_.advertiseService("replay", &TagSlam2::replay, this);
 
     sleep(1.0);
     playFromBag(bagFile);
-    std::cout << profiler_ << std::endl;
+    std::cout.flush();
     graphUpdater_.printPerformance();
-    graph_->optimizeFull(true /*force*/);
+    profiler_.reset();
+    const double error = graph_->optimizeFull(true /*force*/);
+    profiler_.record("finalOptimization");
+    ROS_INFO_STREAM("final error: " << error);
     publishTransforms(times_.empty() ? ros::Time(0) :
                       *(times_.rbegin()), true);
+    outBag_.close();
     graph_->printUnoptimized();
     //graphManager_.plotDebug(ros::Time(0), "final");
-    outBag_.close();
-    std::string camPoseFile, poseFile;
-    nh_.param<string>("camera_poses_out_file",
-                      camPoseFile, "camera_poses.yaml");
-    nh_.param<string>("poses_out_file",
-                      poseFile, "poses.yaml");
     writeCameraPoses(camPoseFile);
+    profiler_.reset();
     writePoses(poseFile);
+    profiler_.record("writePoses");
     writeErrorMap("error_map.txt");
+    profiler_.record("writeErrorMaps");
     writeTagDiagnostics("tag_diagnostics.txt");
+    profiler_.record("writeTagDiagnostics");
     writeTimeDiagnostics("time_diagnostics.txt");
+    profiler_.record("writeTimeDiagnostics");
     writeDistanceDiagnostics("distance_diagnostics.txt");
+    profiler_.record("writeDistanceDiagnostics");
     tagCornerFile_.close();
+    std::cout << profiler_ << std::endl;
     std::cout.flush();
     return (true);
   }
@@ -468,7 +482,7 @@ namespace tagslam {
     const std::vector<TagArrayConstPtr> &origtagmsgs,
     const std::vector<OdometryConstPtr> &odommsgs) {
     std::vector<TagArrayConstPtr> tagmsgs;
-    remapBadTagIds(&tagmsgs, origtagmsgs);
+    remapAndSquash(&tagmsgs, origtagmsgs);
     if (tagmsgs.empty() && odommsgs.empty()) {
       ROS_ERROR_STREAM("neither tags nor odom!");
       return;
@@ -613,7 +627,7 @@ namespace tagslam {
     std::ofstream f(fname);
     const Graph::TimeToErrorMap m = graph_->getTimeToErrorMap();
     for (const auto &te: m) {
-      f << te.first << " ";
+      write_time(f, te.first);
       double err(0);
       for (const auto fe: te.second) {
         err += fe.second;
@@ -642,8 +656,10 @@ namespace tagslam {
     std::ofstream f(fname);
     const auto errMap = graph_->getErrorMap();
     for (const auto &v: errMap) {
-      f << FMT(8,3) << v.first << " " <<
-        *(graph_->getVertex(v.second)) << std::endl;
+      const auto &vp = graph_->getVertex(v.second);
+      f << FMT(8,3) << v.first << " ";
+      write_time(f, vp->getTime());
+      f << " " <<  *vp << std::endl;
     }
   }
 
@@ -742,15 +758,25 @@ namespace tagslam {
     }
   }
 
-  void TagSlam2::remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
-                               const std::vector<TagArrayConstPtr> &orig) {
+  void TagSlam2::remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
+                                const std::vector<TagArrayConstPtr> &orig) {
     //
     // Sometimes there are tags with duplicate ids in the data set.
     // In this case, remap the tag ids of the detected tags dependent
     // on time stamp, to something else so they become unique.
     for (const auto &o: orig) {
-      TagArrayPtr p(new TagArray(*o)); // make deep copy
-      const ros::Time t = p->header.stamp;
+      const ros::Time t = o->header.stamp;
+      TagArrayPtr p(new TagArray());
+      p->header = o->header;
+      const auto sq = squash_.find(t);
+      ROS_INFO_STREAM("time match: " << t << " " << (sq != squash_.end()));
+      for (const auto &tag: o->apriltags) {
+        if (sq != squash_.end() && sq->second.count(tag.id) != 0) {
+          ROS_INFO_STREAM("squashed tag: " << tag.id);
+        } else{
+          p->apriltags.push_back(tag);
+        }
+      }
       for (auto &tag: p->apriltags) {
         auto it = tagRemap_.find(tag.id);
         if (it != tagRemap_.end()) {
@@ -797,6 +823,55 @@ namespace tagslam {
         if (remapId >= 0) {
           ROS_INFO_STREAM("found remapping for tag " << remapId);
           tagRemap_[remapId] = remaps;
+        }
+      }
+    }
+  }
+
+  static ros::Time parse_time(XmlRpc::XmlRpcValue v) {
+    const std::string s = static_cast<std::string>(v);
+    size_t pos = s.find(".", 0);
+    if (pos == std::string::npos) {
+      ROS_ERROR_STREAM("bad ros time value: " << s);
+      throw (std::runtime_error("bad ros time value"));
+    }
+    const std::string nsec = s.substr(pos + 1, std::string::npos);
+    const std::string sec  = s.substr(0, pos);
+    if (nsec.size() != 9) {
+      ROS_ERROR_STREAM("bad ros nsec length, must be 9, but is: " << nsec.size());
+      throw (std::runtime_error("bad ros nsec value"));
+    }
+    ros::Time t(std::stoi(sec), std::stoi(nsec));
+    return (t);
+  }
+ 
+  void TagSlam2::readSquash() {
+    XmlRpc::XmlRpcValue squash;
+    if (nh_.getParam("tagslam_config/squash", squash) &&
+        squash.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+      ROS_INFO_STREAM("found squash");
+      for (const auto i: irange(0, squash.size())) {
+        if (squash[i].getType() !=
+            XmlRpc::XmlRpcValue::TypeStruct) continue;
+        ros::Time t(0);
+        std::set<int> tags;
+        for (XmlRpc::XmlRpcValue::iterator it = squash[i].begin();
+             it != squash[i].end(); ++it) {
+          if (it->first == "time") {
+            t = parse_time(it->second);
+          }
+          if (it->first == "tags") {
+            auto vtags = it->second;
+            if (vtags.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+              for (const auto tag: irange(0, vtags.size())) {
+                tags.insert(static_cast<int>(vtags[tag]));
+              }
+            }
+          }
+        }
+        if (t != ros::Time(0) && !tags.empty()) {
+          ROS_INFO_STREAM("squashing " << tags.size() << " tags for " << t);
+          squash_[t] = tags;
         }
       }
     }

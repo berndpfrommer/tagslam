@@ -361,23 +361,18 @@ namespace tagslam {
   }
 
   double GTSAMOptimizer::getError(FactorKey k) const {
-    gtsam::ExpressionFactorGraph  testGraph = fullGraph_;
-    testGraph += newGraph_;
-    gtsam::Values testValues = values_;
-    testValues.insert(newValues_);
-    const auto i = testGraph.at(k);
-    double err = i->error(testValues);
-#ifdef DEBUG
-    if (err > 100.0) {
-      std::cout << " FACTOR WITH LARGE ERROR: " << err << std::endl;
-      std::cout << " factor: " << std::endl;
-      i->print();  std::cout <<  std::endl << "   values for it: " << std::endl;
-      for (const auto &fk: i->keys()) {
-        testValues.at(fk).print();
-        std::cout << std::endl;
-      }
+    double err;
+    if (newGraph_.empty() && newValues_.empty()) {
+      const auto i = fullGraph_.at(k);
+      err = i->error(values_);
+    } else {
+      gtsam::ExpressionFactorGraph  testGraph = fullGraph_;
+      testGraph += newGraph_;
+      gtsam::Values testValues = values_;
+      testValues.insert(newValues_);
+      const auto i = testGraph.at(k);
+      err = i->error(testValues);
     }
-#endif    
     return (err);
   }
 

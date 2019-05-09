@@ -25,6 +25,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <map>
+#include <set>
 
 
 namespace tagslam {
@@ -118,7 +120,8 @@ namespace tagslam {
                          const geometry_msgs::Point *img_corners);
 
     void readRemap();
-    void remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
+    void readSquash();
+    void remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
     void applyDistanceMeasurements();
 
@@ -149,7 +152,8 @@ namespace tagslam {
     rosbag::Bag          outBag_;
     std::ofstream        tagCornerFile_;
     std::string          outBagName_;
-    std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
+    std::unordered_map<int, std::vector<ReMap>>  tagRemap_;
+    std::map<ros::Time, std::set<int>> squash_;
     std::vector<VertexDesc> distances_;
     std::vector<VertexDesc> unappliedDistances_;
   };
