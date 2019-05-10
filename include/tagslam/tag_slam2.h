@@ -11,6 +11,7 @@
 #include "tagslam/camera2.h"
 #include "tagslam/profiler.h"
 #include "tagslam/odometry_processor.h"
+#include "tagslam/measurements/measurements.h"
 
 #include <flex_sync/sync.h>
 #include <tf/transform_broadcaster.h>
@@ -87,8 +88,10 @@ namespace tagslam {
     };
     typedef std::unordered_map<int, Tag2ConstPtr> TagMap;
 
-    void readBodies();
+    void readBodies(XmlRpc::XmlRpcValue config);
     void readDistanceMeasurements();
+    void readRemap(XmlRpc::XmlRpcValue config);
+    void readSquash(XmlRpc::XmlRpcValue config);
     void playFromBag(const std::string &fname);
     void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
                      std::vector<VertexDesc> *factors);
@@ -119,8 +122,6 @@ namespace tagslam {
     void writeTagCorners(const ros::Time &t, int camIdx, const Tag2ConstPtr &tag,
                          const geometry_msgs::Point *img_corners);
 
-    void readRemap();
-    void readSquash();
     void remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
     void applyDistanceMeasurements();
@@ -154,7 +155,6 @@ namespace tagslam {
     std::string          outBagName_;
     std::unordered_map<int, std::vector<ReMap>>  tagRemap_;
     std::map<ros::Time, std::set<int>> squash_;
-    std::vector<VertexDesc> distances_;
-    std::vector<VertexDesc> unappliedDistances_;
+    std::vector<MeasurementsPtr> measurements_;
   };
 }

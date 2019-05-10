@@ -79,6 +79,8 @@ namespace tagslam {
   bool TagSlam2::initialize() {
     graph_.reset(new Graph());
     graph_->setVerbosity("SILENT");
+    XmlRpc::XmlRpcValue config;
+    nh_.getParam("tagslam_config", config);
     nh_.param<std::string>("outbag", outBagName_, "out.bag");
     tagCornerFile_.open("tag_corners.txt");
     outBag_.open(outBagName_, rosbag::bagmode::Write);
@@ -108,10 +110,10 @@ namespace tagslam {
     graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graphUpdater_.setOptimizeFullGraph(optFullGraph);
-    readSquash();
-    readRemap();
-    readBodies();
-    readDistanceMeasurements();
+    readSquash(config);
+    readRemap(config);
+    readBodies(config);
+    measurements_ = measurements::read_all(config, graph_, this);
     bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
       for (const auto &body: bodies_) {
@@ -139,8 +141,9 @@ namespace tagslam {
       ROS_ERROR("at least one camera must have known pose!");
       return (false);
     }
-    //
-    applyDistanceMeasurements();
+    for (auto &m: measurements_) {
+      m->apply();
+    }
     graph_->optimize(0);
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
@@ -161,6 +164,9 @@ namespace tagslam {
                       *(times_.rbegin()), true);
     outBag_.close();
     graph_->printUnoptimized();
+    for (auto &m: measurements_) {
+      m->printUnused();
+    }
     //graphManager_.plotDebug(ros::Time(0), "final");
     writeCameraPoses(camPoseFile);
     profiler_.reset();
@@ -172,18 +178,17 @@ namespace tagslam {
     profiler_.record("writeTagDiagnostics");
     writeTimeDiagnostics("time_diagnostics.txt");
     profiler_.record("writeTimeDiagnostics");
-    writeDistanceDiagnostics("distance_diagnostics.txt");
-    profiler_.record("writeDistanceDiagnostics");
+    for (auto &m: measurements_) {
+      m->writeDiagnostics();
+    }
+    profiler_.record("writeDiagnostics");
     tagCornerFile_.close();
     std::cout << profiler_ << std::endl;
     std::cout.flush();
     return (true);
   }
 
-  void TagSlam2::readBodies() {
-    XmlRpc::XmlRpcValue config;
-    nh_.getParam("tagslam_config", config);
-
+  void TagSlam2::readBodies(XmlRpc::XmlRpcValue config) {
     // read body defaults first in case
     // bodies do not provide all parameters
     BodyDefaults::parse(config);
@@ -203,7 +208,6 @@ namespace tagslam {
           nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(),QSZ));
       }
     }
-    nh_.getParam("tagslam_config", config);
     try {
       const string defbody = config["default_body"];
       for (auto &body: bodies_) {
@@ -306,28 +310,6 @@ namespace tagslam {
         //ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
       }
     }
-  }
-
-  void TagSlam2::applyDistanceMeasurements() {
-    if (unappliedDistances_.empty()) {
-      return;
-    }
-    std::vector<VertexDesc> remaining;
-    for (const auto &v: unappliedDistances_) {
-      if (graph_->isOptimizableFactor(v)) {
-        DistanceFactorConstPtr fp =
-          std::dynamic_pointer_cast<const factor::Distance>((*graph_)[v]);
-        if (fp) {
-          graph_->addToOptimizer(fp.get());
-        } else {
-          ROS_ERROR_STREAM("wrong factor type: " << graph_->info(v));
-          throw (std::runtime_error("wrong factor type"));
-        }
-      } else {
-        remaining.push_back(v);
-      }
-    }
-    unappliedDistances_ = remaining;
   }
 
   void TagSlam2::publishTagAndBodyTransforms(const ros::Time &t, tf::tfMessage *tfMsg) {
@@ -491,7 +473,8 @@ namespace tagslam {
     const ros::Time t = tagmsgs.empty() ?
       odommsgs[0]->header.stamp : tagmsgs[0]->header.stamp;
     if (anyTagsVisible(tagmsgs) || !odommsgs.empty()) {
-      // if we have any measurements, add unknown poses for all non-static bodies
+      // if we have any new valid observations,
+      // add unknown poses for all non-static bodies
       for (const auto &body: nonstaticBodies_) {
         graphManager_.addPose(t, Graph::body_name(body->getName()), false);
       }
@@ -640,18 +623,6 @@ namespace tagslam {
     }
   }
 
-  void TagSlam2::writeDistanceDiagnostics(const string &fname) const {
-    std::ofstream f(fname);
-    for (const auto &v: distances_) {
-      const auto p = factor::Distance::cast_const((*graph_)[v]);
-      const double l = graph_->getOptimizedDistance(v);
-      const double diff = l - p->getDistance();
-      f << FMT(6, 3) << graph_->getError(v)  << " diff: " << FMT(6, 3) << diff
-        << " opt: " << FMT(6, 3) << l << " meas: "
-        << FMT(6, 3) << p->getDistance() << " " << *p << std::endl;
-    }
-  }
-
   void TagSlam2::writeErrorMap(const string &fname) const {
     std::ofstream f(fname);
     const auto errMap = graph_->getErrorMap();
@@ -790,10 +761,13 @@ namespace tagslam {
       remapped->push_back(p);
     }
   }
-  void TagSlam2::readRemap() {
-    XmlRpc::XmlRpcValue remap;
-    if (nh_.getParam("tagslam_config/tag_id_remap", remap) &&
-        remap.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+
+  void TagSlam2::readRemap(XmlRpc::XmlRpcValue config) {
+    if (!config.hasMember("tag_id_remap")) {
+      return;
+    }
+    XmlRpc::XmlRpcValue remap = config["tag_id_remap"];
+    if (remap.getType() == XmlRpc::XmlRpcValue::TypeArray) {
       ROS_INFO_STREAM("found remap map!");
       for (const auto i: irange(0, remap.size())) {
         if (remap[i].getType() !=
@@ -845,11 +819,12 @@ namespace tagslam {
     return (t);
   }
  
-  void TagSlam2::readSquash() {
-    XmlRpc::XmlRpcValue squash;
-    if (nh_.getParam("tagslam_config/squash", squash) &&
-        squash.getType() == XmlRpc::XmlRpcValue::TypeArray) {
-      ROS_INFO_STREAM("found squash");
+  void TagSlam2::readSquash(XmlRpc::XmlRpcValue config) {
+    if (!config.hasMember("squash")) {
+      return;
+    }
+    XmlRpc::XmlRpcValue squash = config["squash"];
+    if (squash.getType() == XmlRpc::XmlRpcValue::TypeArray) {
       for (const auto i: irange(0, squash.size())) {
         if (squash[i].getType() !=
             XmlRpc::XmlRpcValue::TypeStruct) continue;
@@ -888,26 +863,6 @@ namespace tagslam {
     }
   }
 
-  void
-  TagSlam2::readDistanceMeasurements() {
-    XmlRpc::XmlRpcValue meas;
-    nh_.getParam("tagslam_config/distance_measurements", meas);
-    if (meas.getType() == XmlRpc::XmlRpcValue::TypeArray) {
-      // beware the parsing may actually add tags to the graph!
-      auto distFactors = factor::Distance::parse(meas, this);
-      for (const auto dm: distFactors) {
-        if (!dm->getTag(0)->getBody()->isStatic()
-            || !dm->getTag(1)->getBody()->isStatic()) {
-          ROS_ERROR_STREAM("measured bodies must be static: " << *dm);
-          throw (std::runtime_error("measured bodies must be static!"));
-        }
-        distances_.push_back(graph_->add(dm));
-      }
-    } else {
-      ROS_INFO_STREAM("no distance measurements found!");
-    }
-    unappliedDistances_ = distances_;
-  }
 
 }  // end of namespace
 

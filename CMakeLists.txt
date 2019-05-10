@@ -109,6 +109,8 @@ src/factor/absolute_pose_prior.cpp
 src/factor/relative_pose_prior.cpp
 src/factor/tag_projection.cpp
 src/factor/distance.cpp
+src/measurements/measurements.cpp
+src/measurements/distance.cpp
 src/graph_vertex.cpp
 src/graph_edge.cpp
 src/vertex.cpp
