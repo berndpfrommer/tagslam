@@ -1,0 +1,11 @@
+cam0:
+  camera_model: pinhole
+  intrinsics: [1502.3643772338376, 1500.5878284249407, 1025.6942606592718, 1030.4834154577413]
+  distortion_model: plumb_bob
+  distortion_coeffs: [-0.16362577331649863, 0.09153792940542683, -0.00018620069216787472, -0.0002030253527345204]
+  resolution: [2048, 2048]
+  rostopic: /apriltag_detector/disp
+  tagtopic: /apriltag_detector/tags
+  frame_id: /cam_sync/cam0
+  rig_body: rig
+  is_static: false
