@@ -120,6 +120,28 @@ namespace tagslam {
   }
 
   VertexDesc
+  Graph::add(const CoordinateFactorPtr &f) {
+    const ros::Time t0 = ros::Time(0);
+    VertexDesc vtp =
+      find(value::Pose::id(t0, Graph::tag_name(f->getTag()->getId())));
+    if (!is_valid(vtp)) {
+      ROS_ERROR_STREAM("no tag pose found for: " << f->getLabel());
+      throw std::runtime_error("no tag pose found!");
+    }
+    VertexDesc vbp = find(
+      value::Pose::id(t0, Graph::body_name(f->getTag()->getBody()->getName())));
+    if (!is_valid(vbp)) {
+      ROS_ERROR_STREAM("no body poses found for: " << f->getLabel());
+      throw std::runtime_error("no body poses found!");
+    }
+    VertexDesc fv = insertVertex(f);
+    factors_.push_back(fv);
+    boost::add_edge(fv, vbp, GraphEdge(0), graph_);
+    boost::add_edge(fv, vtp, GraphEdge(1), graph_);
+    return (fv);
+  }
+
+  VertexDesc
   Graph::add(const TagProjectionFactorPtr &pf) {
     // connect: tag_body_pose, tag_pose, cam_pose, rig_pose
     VertexDesc vtp = find(value::Pose::id(ros::Time(0),
@@ -291,6 +313,22 @@ namespace tagslam {
     return (fk);
   }
 
+  OptimizerKey
+  Graph::addToOptimizer(const factor::Coordinate *p) {
+    VertexDesc v = find(p);
+    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 2);
+    FactorKey fk =
+      optimizer_->addCoordinateMeasurement(p->getLength(),
+                                           p->getNoise(),
+                                           p->getDirection(),
+                                           p->getCorner(),
+                                           optKeys[0],  // T_w_b 
+                                           optKeys[1]);  // T_b_o
+    optimized_.insert(
+      VertexToOptMap::value_type(v, std::vector<FactorKey>(1, fk)));
+    return (fk);
+  }
+
   std::vector<OptimizerKey>
   Graph::addToOptimizer(const factor::TagProjection *p) {
     VertexDesc v = find(p);
@@ -354,6 +392,22 @@ namespace tagslam {
                          optimizer_->getPose(optKeys[2]),
                          optimizer_->getPose(optKeys[3]));
     return (d);
+  }
+
+  double Graph::getOptimizedCoordinate(const VertexDesc &v) const {
+    if (!isOptimized(v)) {
+      return (-1.0); // not optimized yet!
+    }
+    CoordinateFactorConstPtr p =
+      std::dynamic_pointer_cast<const factor::Coordinate>(graph_[v]);
+    if (!p) {
+      ROS_ERROR_STREAM("vertex is not coord: " << info(v));
+      throw std::runtime_error("vertex is not coord");
+    }
+    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 2);
+    auto l = p->coordinate(optimizer_->getPose(optKeys[0]),
+                           optimizer_->getPose(optKeys[1]));
+    return (l);
   }
 
   static AbsolutePosePriorFactorPtr

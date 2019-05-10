@@ -13,6 +13,7 @@
 #include "tagslam/factor/absolute_pose_prior.h"
 #include "tagslam/factor/relative_pose_prior.h"
 #include "tagslam/factor/distance.h"
+#include "tagslam/factor/coordinate.h"
 #include <ros/ros.h>
 
 #include <climits>
@@ -50,13 +51,15 @@ namespace tagslam {
     VertexDesc add(const RelativePosePriorFactorPtr &p);
     VertexDesc add(const AbsolutePosePriorFactorPtr &p);
     VertexDesc add(const DistanceFactorPtr &p);
+    VertexDesc add(const CoordinateFactorPtr &p);
     VertexDesc add(const TagProjectionFactorPtr &p);
     
     OptimizerKey addToOptimizer(const VertexDesc &v, const Transform &tf);
     OptimizerKey addToOptimizer(const factor::RelativePosePrior *p);
     OptimizerKey addToOptimizer(const factor::AbsolutePosePrior *p);
     OptimizerKey addToOptimizer(const factor::Distance *p);
-    std::vector<OptimizerKey> addToOptimizer(const factor::TagProjection *p);
+    OptimizerKey addToOptimizer(const factor::Coordinate *p);
+   std::vector<OptimizerKey> addToOptimizer(const factor::TagProjection *p);
 
     VertexDesc addPose(const ros::Time &t, const string &name,
                        bool isCamPose = false);
@@ -65,6 +68,8 @@ namespace tagslam {
     inline Transform pose(const VertexDesc &v) const {
       return (getOptimizedPose(v)); }
     double getOptimizedDistance(const VertexDesc &v) const;
+    double getOptimizedCoordinate(const VertexDesc &v) const;
+    
     PoseNoise2 getPoseNoise(const VertexDesc &v) const;
 
     void      transferFullOptimization() {

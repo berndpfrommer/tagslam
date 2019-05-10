@@ -57,6 +57,14 @@ namespace tagslam {
       Eigen::Vector3d corner1, ValueKey T_w_b1, ValueKey T_b1_o,
       Eigen::Vector3d corner2, ValueKey T_w_b2, ValueKey T_b2_o) = 0;
 
+    // coordinate measurement factor
+    // err = || n * (T_w_b * T_b_o * corner) - len||
+    virtual FactorKey addCoordinateMeasurement(
+      const double len, const double noise,
+      const Eigen::Vector3d direction,
+      const Eigen::Vector3d corner,
+      ValueKey T_w_b_key, ValueKey T_b_o_key) = 0;
+
     // for debugging, allow direct setting of value
     virtual void setPose(ValueKey k, const Transform &pose) = 0;
   private:

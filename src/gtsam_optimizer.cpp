@@ -82,15 +82,24 @@ namespace tagslam {
     return (it->second);
   }
 
-  static double distance(const gtsam::Point3 &p1, const gtsam::Point3 &p2, gtsam::OptionalJacobian<1, 3> H1 = boost::none,
+  static double distance(const gtsam::Point3 &p1, const gtsam::Point3 &p2,
+                         gtsam::OptionalJacobian<1, 3> H1 = boost::none,
                          gtsam::OptionalJacobian<1, 3> H2 = boost::none) {
     const gtsam::Point3 d = p1-p2;
     double r = sqrt(d.x() * d.x() + d.y() * d.y() + d.z() * d.z());
-    if (H1) *H1 << d.x() / r, d.y() / r, d.z() / r;
-    if (H2) *H2 << -d.x() / r, -d.y() / r, -d.z() / r;
+    if (H1) *H1 << d.x() / r, d.y() / r, d.z() / r; // jacobian p1
+    if (H2) *H2 << -d.x() / r, -d.y() / r, -d.z() / r; // jacobian p2
     return r;
   }
 
+  static double proj(const gtsam::Point3 &p, const gtsam::Point3 &n,
+                     gtsam::OptionalJacobian<1, 3> Hp = boost::none,
+                     gtsam::OptionalJacobian<1,3> Hn = boost::none) {
+    double r = p.x() * n.x() + p.y() * n.y() + p.z() * n.z();
+    if (Hp) *Hp << n.x(), n.y(), n.z(); // jacobian w.r.t to p
+    if (Hn) *Hn << p.x(), p.y(), p.z(); // jacobian w.r.t to n
+    return r;
+  }
 
   ValueKey GTSAMOptimizer::addPose(const Transform &p) {
     ValueKey key = generateKey();
@@ -136,6 +145,22 @@ namespace tagslam {
     gtsam::Expression<gtsam::Point3> X_w_2 = gtsam::transform_from(T_w_b_2, gtsam::transform_from(T_b_o_2, X_o_2));
     gtsam::Expression<double> dist = gtsam::Expression<double>(&distance, X_w_1, X_w_2);
     newGraph_.addExpressionFactor(dist, d, gtsam::noiseModel::Isotropic::Sigma(1, noise));
+    return (fullGraph_.size() + newGraph_.size() - 1);
+  }
+
+  FactorKey GTSAMOptimizer::addCoordinateMeasurement(
+    const double len, const double noise,
+    const Eigen::Vector3d direction,
+    const Eigen::Vector3d corner, ValueKey T_w_b_key, ValueKey T_b_o_key)
+  {
+    gtsam::Expression<gtsam::Pose3>  T_w_b(T_w_b_key);
+    gtsam::Expression<gtsam::Pose3>  T_b_o(T_b_o_key);
+    gtsam::Expression<gtsam::Point3> X_o(corner);
+    gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
+    gtsam::Expression<gtsam::Point3> n(direction);
+    gtsam::Expression<double> coord = gtsam::Expression<double>(&proj, X_w, n);
+    
+    newGraph_.addExpressionFactor(coord, len, gtsam::noiseModel::Isotropic::Sigma(1, noise));
     return (fullGraph_.size() + newGraph_.size() - 1);
   }
 

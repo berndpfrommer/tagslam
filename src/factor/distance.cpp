@@ -2,7 +2,7 @@
  * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#include "tagslam/factor/tag_projection.h"
+#include "tagslam/factor/distance.h"
 #include "tagslam/graph.h"
 #include <geometry_msgs/Point.h>
 #include <XmlRpcException.h>

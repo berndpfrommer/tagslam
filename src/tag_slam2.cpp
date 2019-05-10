@@ -113,7 +113,7 @@ namespace tagslam {
     readSquash(config);
     readRemap(config);
     readBodies(config);
-    measurements_ = measurements::read_all(config, graph_, this);
+    measurements_ = measurements::read_all(config, this);
     bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
       for (const auto &body: bodies_) {
@@ -142,7 +142,8 @@ namespace tagslam {
       return (false);
     }
     for (auto &m: measurements_) {
-      m->apply();
+      m->addToGraph(graph_);
+      m->tryAddToOptimizer();
     }
     graph_->optimize(0);
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");

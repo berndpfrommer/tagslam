@@ -5,28 +5,28 @@
 #pragma once
 
 #include "tagslam/measurements/measurements.h"
-#include "tagslam/factor/distance.h"
+#include "tagslam/factor/coordinate.h"
 #include "tagslam/vertex.h"
 #include <vector>
 
 namespace tagslam {
   namespace measurements {
-    class Distance: public Measurements {
+    class Coordinate: public Measurements {
     public:
-      typedef std::shared_ptr<Distance> DistanceMeasurementsPtr;
-
+      typedef std::shared_ptr<Coordinate> CoordinateMeasurementsPtr;
+      
       VertexDesc addFactorToGraph(const FactorPtr &factor) override {
-        return (graph_->add(cast<factor::Distance>(factor)));
+        return (graph_->add(cast<factor::Coordinate>(factor)));
       }
       void addFactorToOptimizer(const FactorPtr &factor) override {
-        graph_->addToOptimizer(cast<factor::Distance>(factor).get());
+        graph_->addToOptimizer(cast<factor::Coordinate>(factor).get());
       }
-      
+
       void writeDiagnostics() override;
 
       // static functions
-      static DistanceMeasurementsPtr read(XmlRpc::XmlRpcValue config,
-                                          TagFactory *fac);
+      static CoordinateMeasurementsPtr read(XmlRpc::XmlRpcValue config,
+                                            TagFactory *fac);
     private:
     };
   }

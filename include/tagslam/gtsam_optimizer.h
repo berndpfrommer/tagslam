@@ -46,8 +46,10 @@ namespace tagslam {
       const double distance, const double noise,
       Eigen::Vector3d corner1, ValueKey T_w_b1, ValueKey T_b1_o,
       Eigen::Vector3d corner2, ValueKey T_w_b2, ValueKey T_b2_o) override;
-
-
+    FactorKey addCoordinateMeasurement(
+      const double len, const double noise, const Eigen::Vector3d direction,
+      const Eigen::Vector3d corner,
+      ValueKey T_w_b_key, ValueKey T_b_o_key) override;
     
     gtsam::ExpressionFactorGraph  &getGraph() { return (newGraph_); }
     void setPose(ValueKey k, const Transform &pose) override;
