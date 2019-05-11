@@ -187,39 +187,6 @@ namespace tagslam {
     return (optimizer_->getPose(it->second[0]));
   }
 
-  double Graph::getOptimizedDistance(const VertexDesc &v) const {
-    if (!isOptimized(v)) {
-      return (-1.0); // not optimized yet!
-    }
-    DistanceFactorConstPtr p =
-      std::dynamic_pointer_cast<const factor::Distance>(graph_[v]);
-    if (!p) {
-      ROS_ERROR_STREAM("vertex is not distance: " << info(v));
-      throw std::runtime_error("vertex is not distance");
-    }
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 4);
-    auto d = p->distance(optimizer_->getPose(optKeys[0]),
-                         optimizer_->getPose(optKeys[1]),
-                         optimizer_->getPose(optKeys[2]),
-                         optimizer_->getPose(optKeys[3]));
-    return (d);
-  }
-
-  double Graph::getOptimizedCoordinate(const VertexDesc &v) const {
-    if (!isOptimized(v)) {
-      return (-1.0); // not optimized yet!
-    }
-    CoordinateFactorConstPtr p =
-      std::dynamic_pointer_cast<const factor::Coordinate>(graph_[v]);
-    if (!p) {
-      ROS_ERROR_STREAM("vertex is not coord: " << info(v));
-      throw std::runtime_error("vertex is not coord");
-    }
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 2);
-    auto l = p->coordinate(optimizer_->getPose(optKeys[0]),
-                           optimizer_->getPose(optKeys[1]));
-    return (l);
-  }
 
   static AbsolutePosePriorFactorPtr
   find_abs_pose_prior(const Graph &g, const VertexDesc &vv) {

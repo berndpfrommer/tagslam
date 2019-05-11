@@ -58,8 +58,6 @@ namespace tagslam {
     Transform getOptimizedPose(const VertexDesc &v) const;
     inline Transform pose(const VertexDesc &v) const {
       return (getOptimizedPose(v)); }
-    double getOptimizedDistance(const VertexDesc &v) const;
-    double getOptimizedCoordinate(const VertexDesc &v) const;
     
     PoseNoise2 getPoseNoise(const VertexDesc &v) const;
 

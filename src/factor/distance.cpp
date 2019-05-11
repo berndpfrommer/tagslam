@@ -54,17 +54,17 @@ namespace tagslam {
         getCorner(1), optKeys[2] /* T_w_b2 */, optKeys[3] /* T_b2_o */);
       g->markAsOptimized(v, fk);
     }
-    
+
+    const Eigen::Vector3d Distance::getCorner(int idx) const {
+      return (tag_[idx]->getObjectCorner(corner_[idx]));
+    }
+
     double Distance::distance(
       const Transform &T_w_b1, const Transform &T_b1_o,
       const Transform &T_w_b2, const Transform &T_b2_o) const {
       const auto X1 = T_w_b1 * T_b1_o * getCorner(0);
       const auto X2 = T_w_b2 * T_b2_o * getCorner(1);
       return ((X2 - X1).norm());
-    }
-
-    const Eigen::Vector3d Distance::getCorner(int idx) const {
-      return (tag_[idx]->getObjectCorner(corner_[idx]));
     }
 
     DistanceFactorPtr
@@ -128,6 +128,23 @@ namespace tagslam {
       std::stringstream ss;
       ss << name_;
       return (ss.str());
+    }
+    
+    // static function!
+    double Distance::getOptimized(const VertexDesc &v, const Graph &g) {
+      if (!g.isOptimized(v)) {
+        return (-1.0);
+      }
+      const auto p = std::dynamic_pointer_cast<const factor::Distance>(g[v]);
+      if (!p) {
+        ROS_ERROR_STREAM("vertex is not distance: " << g[v]);
+        throw std::runtime_error("vertex is not distance");
+      }
+      const std::vector<ValueKey> optKeys = g.getOptKeysForFactor(v, 4);
+      const auto opt = g.getOptimizer();
+      auto d = p->distance(opt->getPose(optKeys[0]), opt->getPose(optKeys[1]),
+                           opt->getPose(optKeys[2]), opt->getPose(optKeys[3]));
+      return (d);
     }
   } // namespace factor
 }  // namespace tagslam

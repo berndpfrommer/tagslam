@@ -53,7 +53,8 @@ namespace tagslam {
       }
       static DistanceFactorPtrVec parse(XmlRpc::XmlRpcValue meas,
                                         TagFactory *tf);
-   
+      static double getOptimized(const VertexDesc &v, const Graph &g);
+
     private:
       static DistanceFactorPtr parse(const std::string &name,
                                      XmlRpc::XmlRpcValue meas,

@@ -133,5 +133,21 @@ namespace tagslam {
       ss << name_;
       return (ss.str());
     }
+    // static function!
+    double Coordinate::getOptimized(const VertexDesc &v, const Graph &g) {
+      if (!g.isOptimized(v)) {
+        return (-1.0); // not optimized yet!
+      }
+      const auto p = std::dynamic_pointer_cast<const factor::Coordinate>(g[v]);
+      if (!p) {
+        ROS_ERROR_STREAM("vertex is not coord: " << *g[v]);
+        throw std::runtime_error("vertex is not coord");
+      }
+      const std::vector<ValueKey> optKeys = g.getOptKeysForFactor(v, 2);
+      const auto opt = g.getOptimizer();
+      const double l = p->coordinate(opt->getPose(optKeys[0]),
+                                     opt->getPose(optKeys[1]));
+      return (l);
+    }
   } // namespace factor
 }  // namespace tagslam

@@ -20,9 +20,10 @@ namespace tagslam {
       for (const auto &v: vertexes_) {
         if (graph_->isOptimized(v)) {
           const auto p = factor::Coordinate::cast_const((*graph_)[v]);
-          const double l = graph_->getOptimizedCoordinate(v);
+          const double l = factor::Coordinate::getOptimized(v, *graph_);
           const double diff = l - p->getLength();
-          f << FMT(6, 3) << graph_->getError(v)  << " diff: " << FMT(6, 3) << diff
+          f << FMT(6, 3) << graph_->getError(v)
+            << " diff: " << FMT(6, 3) << diff
             << " opt: " << FMT(6, 3) << l << " meas: "
             << FMT(6, 3) << p->getLength() << " " << *p << std::endl;
         }

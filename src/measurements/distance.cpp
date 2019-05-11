@@ -20,10 +20,11 @@ namespace tagslam {
       for (const auto &v: vertexes_) {
         const auto p = factor::Distance::cast_const((*graph_)[v]);
         if (graph_->isOptimized(v)) {
-          const double l = graph_->getOptimizedDistance(v);
+          const double l = factor::Distance::getOptimized(v, *graph_);
           const double diff = l - p->getDistance();
-          f << FMT(6, 3) << graph_->getError(v)  << " diff: " << FMT(6, 3) << diff
-            << " opt: " << FMT(6, 3) << l << " meas: "
+          f << FMT(6, 3) << graph_->getError(v)
+            << " diff: " << FMT(6, 3) << diff
+            << " opt: "  << FMT(6, 3) << l << " meas: "
             << FMT(6, 3) << p->getDistance() << " " << *p << std::endl;
         }
       }
