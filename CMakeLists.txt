@@ -97,6 +97,7 @@ src/tag_slam2.cpp src/graph.cpp
 src/body_defaults.cpp src/body.cpp src/simple_body2.cpp src/board2.cpp
 src/pose_noise.cpp src/pose_estimate.cpp src/yaml_utils.cpp
 src/utils.cpp
+src/graph_utils.cpp
 src/gtsam_utils.cpp
 src/geometry.cpp
 src/pose_noise2.cpp
@@ -120,7 +121,6 @@ src/camera_intrinsics2.cpp
 src/odometry_processor.cpp
 src/pnp.cpp
 src/profiler.cpp
-src/graph_manager.cpp
 src/graph_updater.cpp
 src/gtsam_distortion/Cal3FS2.cpp
 src/gtsam_distortion/Cal3DS3.cpp

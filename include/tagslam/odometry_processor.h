@@ -7,7 +7,6 @@
 #include "tagslam/body.h"
 #include "tagslam/geometry.h"
 #include "tagslam/pose_noise2.h"
-#include "tagslam/graph_manager.h"
 #include "tagslam/graph.h"
 
 
@@ -20,11 +19,17 @@ namespace tagslam {
     using OdometryConstPtr = nav_msgs::OdometryConstPtr;
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    OdometryProcessor(ros::NodeHandle &nh, GraphManager *graph,
+    OdometryProcessor(ros::NodeHandle &nh, const GraphPtr &graph,
                       const BodyConstPtr &body);
     void process(const OdometryConstPtr &msgs,
                  std::vector<VertexDesc> *factors);
-    GraphManager    *graphManager_{NULL};
+  private:
+    VertexDesc addBodyPoseDelta(const ros::Time &tPrev,
+                                const ros::Time &tCurr,
+                                const BodyConstPtr &body,
+                                const PoseWithNoise &deltaPose);
+    // ---- variables
+    GraphPtr        graph_;
     BodyConstPtr    body_;
     Transform       pose_;
     ros::Time       time_{0};

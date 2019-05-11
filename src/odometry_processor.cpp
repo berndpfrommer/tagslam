@@ -4,7 +4,6 @@
 
 #include "tagslam/odometry_processor.h"
 #include "tagslam/geometry.h"
-#include "tagslam/graph_manager.h"
 #include <geometry_msgs/Quaternion.h>
 #include <geometry_msgs/Point.h>
 #include <fstream>
@@ -14,10 +13,11 @@ namespace tagslam {
   using OdometryConstPtr = nav_msgs::OdometryConstPtr;
 
   OdometryProcessor::OdometryProcessor(ros::NodeHandle &nh,
-                                       GraphManager *gm,
+                                       const GraphPtr &g,
                                        const BodyConstPtr &body) :
-    graphManager_(gm), body_(body) {
-    pub_ = nh.advertise<nav_msgs::Odometry>("raw_odom/body_"+body->getName(), 5);
+    graph_(g), body_(body) {
+    pub_ =
+      nh.advertise<nav_msgs::Odometry>("raw_odom/body_"+body->getName(), 5);
     acceleration_ = body->getOdomAcceleration();
     angularAcceleration_ = body->getOdomAngularAcceleration();
     T_body_odom_ = body->getTransformBodyOdom();
@@ -65,11 +65,35 @@ namespace tagslam {
         PoseNoise2::make(std::max(dang, angularAcceleration_ * dt2),
                          std::max(dpos, acceleration_ * dt2));
       const PoseWithNoise pwn(deltaPose, pn, true);
-      auto fac = graphManager_->addBodyPoseDelta(time_, msg->header.stamp, body_, pwn);
+      auto fac = addBodyPoseDelta(time_, msg->header.stamp, body_, pwn);
       factors->push_back(fac);
     }
     pose_ = newPose;
     time_ = t;
   }
+
+  VertexDesc
+  OdometryProcessor::addBodyPoseDelta(const ros::Time &tPrev,
+                                      const ros::Time &tCurr,
+                                      const BodyConstPtr &body,
+                                      const PoseWithNoise &deltaPose) {
+    Transform prevPose;
+    const std::string name = Graph::body_name(body->getName());
+    const VertexDesc pp = graph_->findPose(tPrev, name);
+    const VertexDesc cp = graph_->findPose(tCurr, name);
+    if (!Graph::is_valid(pp)) {
+      ROS_DEBUG_STREAM("adding previous pose for " << name << " " << tPrev);
+      graph_->addPose(tPrev, name, false);
+    }
+    if (!Graph::is_valid(cp)) {
+      ROS_DEBUG_STREAM("adding current pose for " << name << " " << tCurr);
+      graph_->addPose(tCurr, name, false);
+    }
+    RelativePosePriorFactorPtr
+      fac(new factor::RelativePosePrior(tCurr, tPrev, deltaPose, name));
+    return (fac->addToGraph(fac, graph_.get()));
+  }
+
+
 
 } // end of namespace

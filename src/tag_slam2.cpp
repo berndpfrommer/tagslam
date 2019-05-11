@@ -9,6 +9,7 @@
 #include "tagslam/body.h"
 #include "tagslam/odometry_processor.h"
 #include "tagslam/yaml_utils.h"
+#include "tagslam/graph_utils.h"
 #include "tagslam/factor/distance.h"
 
 #include <cv_bridge/cv_bridge.h>
@@ -95,11 +96,9 @@ namespace tagslam {
                       poseFile, "poses.yaml");
     nh_.param<string>("bag_file", bagFile, "");
 
-    double pixelNoise, maxSubgraphError, angleLimit;
+    double maxSubgraphError, angleLimit;
     int maxIncOpt;
-    nh_.param<double>("pixel_noise", pixelNoise, 1.0);
-    graphManager_.setPixelNoise(pixelNoise);
-    graphManager_.setGraph(graph_);
+    nh_.param<double>("pixel_noise", pixelNoise_, 1.0);
 
     graphUpdater_.setGraph(graph_);
     nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
@@ -113,6 +112,7 @@ namespace tagslam {
     readSquash(config);
     readRemap(config);
     readBodies(config);
+    readDefaultBody(config);
     measurements_ = measurements::read_all(config, this);
     bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
@@ -126,21 +126,18 @@ namespace tagslam {
         throw (std::runtime_error("rig body not found!"));
       }
       PoseWithNoise pwn = PoseWithNoise::parse(cam->getName(), nh_);
-      if (!pwn.isValid()) {
-        ROS_INFO_STREAM("camera " << cam->getName() << " has no pose!");
-        graphManager_.addPose(ros::Time(0), Graph::cam_name(cam->getName()),
-                              true/*camPose*/);
-      } else {
+      if (pwn.isValid()) {
         camHasKnownPose = true;
         ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
-        graphManager_.addPoseWithPrior(ros::Time(0),
-                                Graph::cam_name(cam->getName()), pwn);
       }
+      graph_utils::add_pose_maybe_with_prior(
+        graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
     }
     if (!camHasKnownPose) {
       ROS_ERROR("at least one camera must have known pose!");
       return (false);
     }
+    // apply measurements
     for (auto &m: measurements_) {
       m->addToGraph(graph_);
       m->tryAddToOptimizer();
@@ -168,7 +165,7 @@ namespace tagslam {
     for (auto &m: measurements_) {
       m->printUnused();
     }
-    //graphManager_.plotDebug(ros::Time(0), "final");
+
     writeCameraPoses(camPoseFile);
     profiler_.reset();
     writePoses(poseFile);
@@ -197,7 +194,7 @@ namespace tagslam {
     // now read bodies
     bodies_ = Body::parse_bodies(config);
     for (const auto &body: bodies_) {
-      graphManager_.addBody(*body);
+      graph_utils::add_body(graph_.get(), *body);
       // add associated tags as vertices
       for (const auto &tag: body->getTags()) {
         tagMap_.insert(TagMap::value_type(tag->getId(), tag));
@@ -209,6 +206,9 @@ namespace tagslam {
           nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(),QSZ));
       }
     }
+  }
+
+  void TagSlam2::readDefaultBody(XmlRpc::XmlRpcValue config) {
     try {
       const string defbody = config["default_body"];
       for (auto &body: bodies_) {
@@ -302,9 +302,10 @@ namespace tagslam {
     for (const auto &cam: cameras_) {
       Transform camTF;
       geometry_msgs::TransformStamped tfm;
-      if (graphManager_.getPose(ros::Time(0), Graph::cam_name(cam->getName()), &camTF)) {
+      if (graph_utils::get_optimized_pose(*graph_, *cam, &camTF)) {
         const string &rigFrameId = cam->getRig()->getFrameId();
-        auto ctf = tf::StampedTransform(to_tftf(camTF), t, rigFrameId, cam->getFrameId());
+        auto ctf = tf::StampedTransform(
+          to_tftf(camTF), t, rigFrameId, cam->getFrameId());
         tfBroadcaster_.sendTransform(ctf);
         tf::transformStampedTFToMsg(ctf, tfm);
         tfMsg->transforms.push_back(tfm);
@@ -319,27 +320,23 @@ namespace tagslam {
       Transform bodyTF;
       const string &bodyFrameId = body->getFrameId();
       const ros::Time ts = body->isStatic() ? ros::Time(0) : t;
-      if (graphManager_.getPose(ts, Graph::body_name(body->getName()), &bodyTF)) {
-        //ROS_INFO_STREAM("publishing pose for body " << body->getName() << std::endl << bodyTF);
-        tf::StampedTransform btf = tf::StampedTransform(to_tftf(bodyTF), t, fixedFrame_, bodyFrameId);
+      if (graph_utils::get_optimized_pose(*graph_, ts, *body, &bodyTF)) {
+        tf::StampedTransform btf = tf::StampedTransform(
+          to_tftf(bodyTF), t, fixedFrame_, bodyFrameId);
         tf::transformStampedTFToMsg(btf, tfm);
         tfMsg->transforms.push_back(tfm);
         tfBroadcaster_.sendTransform(btf);
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
-          if (graphManager_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
+          if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
             const std::string frameId = "tag_" + std::to_string(tag->getId());
-            auto ttf = tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId);
+            auto ttf = tf::StampedTransform(
+              to_tftf(tagTF), t, bodyFrameId, frameId);
             tfBroadcaster_.sendTransform(ttf);
-            //ROS_INFO_STREAM("publishing pose for tag " << tag->getId() << std::endl << tagTF);
             tf::transformStampedTFToMsg(ttf, tfm);
             tfMsg->transforms.push_back(tfm);
-          } else {
-            //ROS_INFO_STREAM(t<< " no pose for tag " << tag->getId());
           }
         }
-      } else {
-        ROS_INFO_STREAM(t<< " no pose for " << body->getName());
       }
     }
   }
@@ -426,10 +423,10 @@ namespace tagslam {
     processTagsAndOdom(msgvec1, msgvec3);
   }
 
-  static nav_msgs::Odometry  make_odom(const ros::Time &t,
-                                       const std::string &fixed_frame,
-                                       const std::string &child_frame,
-                                       const Transform &pose) {
+  static nav_msgs::Odometry make_odom(const ros::Time &t,
+                                      const std::string &fixed_frame,
+                                      const std::string &child_frame,
+                                      const Transform &pose) {
     nav_msgs::Odometry odom;
     odom.header.stamp = t;
     odom.header.frame_id = fixed_frame;
@@ -442,15 +439,14 @@ namespace tagslam {
     for (const auto body_idx: irange(0ul, nonstaticBodies_.size())) {
       const auto body = nonstaticBodies_[body_idx];
       Transform pose;
-      if (graphManager_.getPose(t, Graph::body_name(body->getName()), &pose)) {
-        //ROS_INFO_STREAM("publishing odom for body " << body->getName() << std::endl << pose);
+      if (graph_utils::get_optimized_pose(*graph_, t, *body, &pose)) {
         auto msg = make_odom(t, fixedFrame_, body->getOdomFrameId(), pose);
         odomPub_[body_idx].publish(msg);
-        outBag_.write<nav_msgs::Odometry>("odom/body_" + body->getName(), t, msg);
+        outBag_.write<nav_msgs::Odometry>(
+          "odom/body_" + body->getName(), t, msg);
       }
     }
   }
-
 
   bool TagSlam2::anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs) {
     for (const auto &msg: tagmsgs) {
@@ -477,7 +473,7 @@ namespace tagslam {
       // if we have any new valid observations,
       // add unknown poses for all non-static bodies
       for (const auto &body: nonstaticBodies_) {
-        graphManager_.addPose(t, Graph::body_name(body->getName()), false);
+        graph_->addPose(t, Graph::body_name(body->getName()), false);
       }
     }
     std::vector<VertexDesc> factors;
@@ -493,7 +489,7 @@ namespace tagslam {
     profiler_.record("processTags");
     graphUpdater_.processNewFactors(t, factors);
     profiler_.record("processNewFactors");
-    //graphManager_.plotDebug(tagMsgs[0]->header.stamp, "factors");
+
     times_.push_back(t);
     publishAll(t);
     profiler_.record("publishAll");
@@ -526,8 +522,8 @@ namespace tagslam {
         ROS_WARN_STREAM("multiple bodies with frame id: " << frameId);
         ROS_WARN_STREAM("This will screw up the odom!");
       }
-      ROS_INFO_STREAM("getting odom from " << bpt->getName() << " " << frameId);
-      odomProcessors_.push_back(OdometryProcessor(nh_, &graphManager_, bpt));
+      ROS_INFO_STREAM("have odom from " << bpt->getName() << " " << frameId);
+      odomProcessors_.push_back(OdometryProcessor(nh_, graph_, bpt));
     }
   }
 
@@ -562,7 +558,7 @@ namespace tagslam {
         defaultBody_->addTag(p);
         ROS_INFO_STREAM("new tag " << tagId << " attached to " <<
                         defaultBody_->getName());
-        graphManager_.addTag(*p);
+        graph_utils::add_tag(graph_.get(), *p);
         auto iit = tagMap_.insert(TagMap::value_type(tagId, p));
         it = iit.first;
       }
@@ -574,7 +570,7 @@ namespace tagslam {
     std::ofstream f(fname);
     for (const auto &cam : cameras_) {
       f << cam->getName() << ":" << std::endl;
-      PoseWithNoise pwn = graphManager_.getCameraPoseWithNoise(cam);
+      PoseWithNoise pwn = graph_utils::get_optimized_camera_pose(*graph_,*cam);
       if (pwn.isValid()) {
         yaml_utils::write_pose_with_covariance(f, "  ", pwn.getPose(),
                                                pwn.getNoise());
@@ -591,13 +587,14 @@ namespace tagslam {
       Transform bodyTF;
       const ros::Time tbody = body->isStatic() ? ros::Time(0) : t;
       f << " - " << body->getName() << ":" << std::endl;
-      if (graphManager_.getPose(tbody, Graph::body_name(body->getName()), &bodyTF)) {
+      if (graph_utils::get_optimized_pose(*graph_, tbody, *body, &bodyTF)) {
         f << "    pose:" << std::endl;
-        yaml_utils::write_pose(f, "       ", bodyTF, PoseNoise2::make(0,0), true);
+        yaml_utils::write_pose(f, "       ",
+                               bodyTF, PoseNoise2::make(0,0), true);
       }
       for (const auto &tag: body->getTags()) {
         Transform tagTF;
-        if (graphManager_.getPose(ros::Time(0), Graph::tag_name(tag->getId()), &tagTF)) {
+        if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
           f << idn << "- id: "   << tag->getId() << std::endl;
           f << idn << "  size: " << tag->getSize() << std::endl;
           const auto &pwn = tag->getPoseWithNoise();
@@ -647,8 +644,7 @@ namespace tagslam {
     for (const auto &body: bodies_) {
       for (const auto &tag: body->getTags()) {
         Transform tagTF;
-        if (graphManager_.getPose(ros::Time(0),
-                                  Graph::tag_name(tag->getId()), &tagTF)) {
+        if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
           const auto &pwn = tag->getPoseWithNoise();
           if (pwn.isValid()) {
             const Transform poseDiff = tagTF * pwn.getPose().inverse();
@@ -696,26 +692,29 @@ namespace tagslam {
       const auto tags = findTags(tagMsgs[i]->apriltags);
       if (!tags.empty()) {
         // insert time-dependent camera pose
-        graphManager_.addPose(t, Graph::cam_name(cam->getName()),
-                              true /*camPose*/);
+        graph_->addPose(t, Graph::cam_name(cam->getName()),
+                        true /*camPose*/);
         // and tie it to the time-independent camera pose
         // with a relative prior
         const PoseWithNoise pn(Transform::Identity(), cam->getWiggle(), true);
         string  name = Graph::cam_name(cam->getName());
         RelativePosePriorFactorPtr
           fac(new factor::RelativePosePrior(t, ros::Time(0), pn, name));
-        VertexDesc v = graphManager_.addRelativePosePrior(fac);
+        VertexDesc v = fac->addToGraph(fac, graph_.get());
         sortedFactors.insert(MMap::value_type(1e10, v));
       }
       for (const auto &tag: tagMsgs[i]->apriltags) {
         Tag2ConstPtr tagPtr = findTag(tag.id);
         if (tagPtr) {
-          const geometry_msgs::Point *img_corners = &(tag.corners[0]);
-          auto fac = graphManager_.addProjectionFactor(t, tagPtr, cam,
-                                                       img_corners);
-          double sz = find_size_of_tag(img_corners);
+          const geometry_msgs::Point *corners = &(tag.corners[0]);
+          TagProjectionFactorPtr fp(
+            new factor::TagProjection(t, cam, tagPtr, corners, pixelNoise_,
+                                      cam->getName() + "-" +
+                                      Graph::tag_name(tagPtr->getId())));
+          auto fac = fp->addToGraph(fp, graph_.get());
+          double sz = find_size_of_tag(corners);
           sortedFactors.insert(MMap::value_type(sz, fac));
-          writeTagCorners(t, cam->getIndex(), tagPtr, img_corners);
+          writeTagCorners(t, cam->getIndex(), tagPtr, corners);
         }
       }
       std::stringstream ss;
@@ -813,7 +812,7 @@ namespace tagslam {
     const std::string nsec = s.substr(pos + 1, std::string::npos);
     const std::string sec  = s.substr(0, pos);
     if (nsec.size() != 9) {
-      ROS_ERROR_STREAM("bad ros nsec length, must be 9, but is: " << nsec.size());
+      ROS_ERROR_STREAM("ros nsec length is not 9 but: " << nsec.size());
       throw (std::runtime_error("bad ros nsec value"));
     }
     ros::Time t(std::stoi(sec), std::stoi(nsec));

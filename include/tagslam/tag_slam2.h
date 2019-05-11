@@ -5,7 +5,6 @@
 #pragma once
 
 #include "tagslam/tag_factory.h"
-#include "tagslam/graph_manager.h"
 #include "tagslam/graph_updater.h"
 #include "tagslam/graph.h"
 #include "tagslam/camera2.h"
@@ -89,9 +88,11 @@ namespace tagslam {
     typedef std::unordered_map<int, Tag2ConstPtr> TagMap;
 
     void readBodies(XmlRpc::XmlRpcValue config);
+    void readDefaultBody(XmlRpc::XmlRpcValue config);
     void readDistanceMeasurements();
     void readRemap(XmlRpc::XmlRpcValue config);
     void readSquash(XmlRpc::XmlRpcValue config);
+ 
     void playFromBag(const std::string &fname);
     void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
                      std::vector<VertexDesc> *factors);
@@ -129,7 +130,6 @@ namespace tagslam {
     // ------ variables --------
     ros::NodeHandle      nh_;
     GraphPtr             graph_;
-    GraphManager         graphManager_;
     GraphUpdater         graphUpdater_;
     Camera2Vec           cameras_;
     BodyVec              bodies_;
@@ -143,6 +143,7 @@ namespace tagslam {
     int                  frameNum_{0};
     int                  maxFrameNum_{1000000};
     double               playbackRate_{1.0};
+    double               pixelNoise_{1.0};
     std::vector<cv::Mat> images_;
     std::vector<OdometryProcessor> odomProcessors_;
     tf::TransformBroadcaster tfBroadcaster_;
