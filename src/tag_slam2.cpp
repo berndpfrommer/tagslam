@@ -49,126 +49,122 @@ namespace tagslam {
   }
 
   static void write_time(std::ostream &o, const ros::Time &t) {
-    o << t.sec << "." << std::setfill('0') << setw(9) << t.nsec << " " << std::setfill(' ');
+    o << t.sec << "." << std::setfill('0') << setw(9) << t.nsec
+      << " " << std::setfill(' ');
+  }
+
+  static void write_vec(std::ostream &o, const Eigen::Vector3d &v) {
+    for (const auto &i: irange(0, 3)) {
+      o << " " << FMT(7, 3) << v(i);
+    }
   }
   
   static double find_size_of_tag(const geometry_msgs::Point *imgCorn) {
     Eigen::Matrix<double, 4, 2> x;
-    x << imgCorn[0].x, imgCorn[0].y,
-      imgCorn[1].x, imgCorn[1].y,
-      imgCorn[2].x, imgCorn[2].y,
-      imgCorn[3].x, imgCorn[3].y;
+    x << imgCorn[0].x, imgCorn[0].y, imgCorn[1].x, imgCorn[1].y,
+      imgCorn[2].x, imgCorn[2].y, imgCorn[3].x, imgCorn[3].y;
     // shoelace formula
-    const double A = fabs(x(0,0)*x(1,1) + x(1,0)*x(2,1) + x(2,0)*x(3,1) + x(3,0)*x(0,1)
-                          -x(1,0)*x(0,1) - x(2,0)*x(1,1) - x(3,0)*x(2,1) - x(0,0)*x(3,1));
+    const double A =
+      fabs(x(0,0)*x(1,1) + x(1,0)*x(2,1) + x(2,0)*x(3,1) + x(3,0)*x(0,1)
+           -x(1,0)*x(0,1) - x(2,0)*x(1,1) - x(3,0)*x(2,1) - x(0,0)*x(3,1));
     return (A);
   }
  
   TagSlam2::TagSlam2(const ros::NodeHandle &nh) : nh_(nh) {
+    graph_.reset(new Graph());
+    graph_->setVerbosity("SILENT");
+    graphUpdater_.setGraph(graph_);
   }
-
 
   void TagSlam2::sleep(double dt) const {
     ros::WallTime tw0 = ros::WallTime::now();
-    for (ros::WallTime t = ros::WallTime::now(); t - tw0 < ros::WallDuration(dt);
+    for (ros::WallTime t = ros::WallTime::now(); t-tw0 < ros::WallDuration(dt);
          t = ros::WallTime::now()) {
       ros::spinOnce();
       ros::WallTime::sleepUntil(t + (t-tw0));
     }
   }
 
-  bool TagSlam2::initialize() {
-    graph_.reset(new Graph());
-    graph_->setVerbosity("SILENT");
-    XmlRpc::XmlRpcValue config;
-    nh_.getParam("tagslam_config", config);
+  void TagSlam2::readParams() {
     nh_.param<std::string>("outbag", outBagName_, "out.bag");
-    tagCornerFile_.open("tag_corners.txt");
-    outBag_.open(outBagName_, rosbag::bagmode::Write);
-    cameras_ = Camera2::parse_cameras("cameras", nh_);
-    bool optFullGraph;
-    nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
-    std::string camPoseFile, poseFile, bagFile;
-    nh_.param<string>("camera_poses_out_file",
-                      camPoseFile, "camera_poses.yaml");
-    nh_.param<string>("poses_out_file",
-                      poseFile, "poses.yaml");
-    nh_.param<string>("bag_file", bagFile, "");
-
-    double maxSubgraphError, angleLimit;
-    int maxIncOpt;
     nh_.param<double>("pixel_noise", pixelNoise_, 1.0);
-
-    graphUpdater_.setGraph(graph_);
+    nh_.param<string>("camera_poses_out_file",
+                      camPoseFile_, "camera_poses.yaml");
+    nh_.param<string>("poses_out_file",
+                      poseFile_, "poses.yaml");
+    nh_.param<string>("bag_file", inBagFile_, "");
+    nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
+    nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
+    nh_.param<bool>("write_debug_images", writeDebugImages_, false);
+    nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
+    
+    // --- graph updater params ---
+    
+    bool   optFullGraph;
+    int    maxIncOpt;
+    double maxSubgraphError, angleLimit;
+    nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
     graphUpdater_.setMinimumViewingAngle(angleLimit);
     nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
     graphUpdater_.setMaxSubgraphError(maxSubgraphError);
     nh_.param<int>("max_num_incremental_opt", maxIncOpt, 100);
     graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
-    ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     graphUpdater_.setOptimizeFullGraph(optFullGraph);
+  }
+
+  bool TagSlam2::initialize() {
+    readParams();
+    XmlRpc::XmlRpcValue config;
+    nh_.getParam("tagslam_config", config);
     readSquash(config);
     readRemap(config);
     readBodies(config);
     readDefaultBody(config);
+    readCameras(config);
     measurements_ = measurements::read_all(config, this);
-    bool camHasKnownPose(false);
-    for (auto &cam: cameras_) {
-      for (const auto &body: bodies_) {
-        if (body->getName() == cam->getRigName()) {
-          cam->setRig(body);
-        }
-      }
-      if (!cam->getRig()) {
-        ROS_ERROR_STREAM("rig body not found: " << cam->getRigName());
-        throw (std::runtime_error("rig body not found!"));
-      }
-      PoseWithNoise pwn = PoseWithNoise::parse(cam->getName(), nh_);
-      if (pwn.isValid()) {
-        camHasKnownPose = true;
-        ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
-      }
-      graph_utils::add_pose_maybe_with_prior(
-        graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
-    }
-    if (!camHasKnownPose) {
-      ROS_ERROR("at least one camera must have known pose!");
-      return (false);
-    }
     // apply measurements
     for (auto &m: measurements_) {
       m->addToGraph(graph_);
       m->tryAddToOptimizer();
     }
-    graph_->optimize(0);
-    nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
-    nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
-    nh_.param<bool>("write_debug_images", writeDebugImages_, false);
-    nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
     clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
     service_ = nh_.advertiseService("replay", &TagSlam2::replay, this);
+    return (true);
+  }
 
-    sleep(1.0);
-    playFromBag(bagFile);
+  void TagSlam2::run() {
+    // optimize the initial setup if necessary
+    graph_->optimize(0);
+    sleep(1.0); // give rviz time to connect
+    // open output files
+    outBag_.open(outBagName_, rosbag::bagmode::Write);
+    tagCornerFile_.open("tag_corners.txt");
+    // this plays back the data
+    playFromBag(inBagFile_);
+    
     std::cout.flush();
     graphUpdater_.printPerformance();
+    // do final optimization
     profiler_.reset();
     const double error = graph_->optimizeFull(true /*force*/);
     profiler_.record("finalOptimization");
     ROS_INFO_STREAM("final error: " << error);
-    publishTransforms(times_.empty() ? ros::Time(0) :
-                      *(times_.rbegin()), true);
-    outBag_.close();
     graph_->printUnoptimized();
     for (auto &m: measurements_) {
       m->printUnused();
     }
+    publishTransforms(times_.empty() ? ros::Time(0) :
+                      *(times_.rbegin()), true);
+    outBag_.close();
+    tagCornerFile_.close();
+  }
 
-    writeCameraPoses(camPoseFile);
+  void TagSlam2::finalize() {
+    writeCameraPoses(camPoseFile_);
     profiler_.reset();
-    writePoses(poseFile);
+    writePoses(poseFile_);
     profiler_.record("writePoses");
     writeErrorMap("error_map.txt");
     profiler_.record("writeErrorMaps");
@@ -180,10 +176,8 @@ namespace tagslam {
       m->writeDiagnostics();
     }
     profiler_.record("writeDiagnostics");
-    tagCornerFile_.close();
     std::cout << profiler_ << std::endl;
     std::cout.flush();
-    return (true);
   }
 
   void TagSlam2::readBodies(XmlRpc::XmlRpcValue config) {
@@ -223,6 +217,34 @@ namespace tagslam {
     } catch (const XmlRpc::XmlRpcException &e) {
       ROS_WARN("no default body!");
     }
+  }
+
+  void TagSlam2::readCameras(XmlRpc::XmlRpcValue config) {
+    cameras_ = Camera2::parse_cameras("cameras", nh_);
+    bool camHasKnownPose(false);
+    for (auto &cam: cameras_) {
+      for (const auto &body: bodies_) {
+        if (body->getName() == cam->getRigName()) {
+          cam->setRig(body);
+        }
+      }
+      if (!cam->getRig()) {
+        ROS_ERROR_STREAM("rig body not found: " << cam->getRigName());
+        throw (std::runtime_error("rig body not found!"));
+      }
+      PoseWithNoise pwn = PoseWithNoise::parse(cam->getName(), nh_);
+      if (pwn.isValid()) {
+        camHasKnownPose = true;
+        ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
+      }
+      graph_utils::add_pose_maybe_with_prior(
+        graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
+    }
+    if (!camHasKnownPose) {
+      ROS_ERROR("at least one camera must have known pose!");
+      throw (std::runtime_error("at least one cam must have known pose"));
+    }
+    ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
   }
 
   template <typename T>
@@ -632,12 +654,6 @@ namespace tagslam {
     }
   }
 
-  void write_vec(std::ostream &o, const Eigen::Vector3d &v) {
-    for (const auto &i: irange(0, 3)) {
-      o << " " << FMT(7, 3) << v(i);
-    }
-  }
-  
   void TagSlam2::writeTagDiagnostics(const string &fname) const {
     std::ofstream f(fname);
     const std::string idn = "       ";

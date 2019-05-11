@@ -49,9 +49,10 @@ namespace tagslam {
 
     // inherited from TagFactory
     Tag2ConstPtr findTag(int tagId) override;
-
     // ------ own methods
     bool initialize();
+    void run();
+    void finalize();
 
     template<typename S>
     void processBag(S *sync, rosbag::View *view) {
@@ -77,6 +78,7 @@ namespace tagslam {
       const std::vector<CompressedImageConstPtr> &msgvec2,
       const std::vector<OdometryConstPtr> &msgvec3);
   private:
+    void readParams();
     struct ReMap {
       ReMap(int i, ros::Time ts, ros::Time te) :
         remappedId(i), startTime(ts), endTime(te) {
@@ -89,6 +91,7 @@ namespace tagslam {
 
     void readBodies(XmlRpc::XmlRpcValue config);
     void readDefaultBody(XmlRpc::XmlRpcValue config);
+    void readCameras(XmlRpc::XmlRpcValue config);
     void readDistanceMeasurements();
     void readRemap(XmlRpc::XmlRpcValue config);
     void readSquash(XmlRpc::XmlRpcValue config);
@@ -154,6 +157,10 @@ namespace tagslam {
     rosbag::Bag          outBag_;
     std::ofstream        tagCornerFile_;
     std::string          outBagName_;
+    std::string          poseFile_;
+    std::string          camPoseFile_;
+    std::string          inBagFile_;
+    
     std::unordered_map<int, std::vector<ReMap>>  tagRemap_;
     std::map<ros::Time, std::set<int>> squash_;
     std::vector<MeasurementsPtr> measurements_;
