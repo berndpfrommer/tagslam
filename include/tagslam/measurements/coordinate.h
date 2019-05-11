@@ -16,7 +16,7 @@ namespace tagslam {
       typedef std::shared_ptr<Coordinate> CoordinateMeasurementsPtr;
       
       VertexDesc addFactorToGraph(const FactorPtr &factor) override {
-        return (graph_->add(cast<factor::Coordinate>(factor)));
+        return (factor->addToGraph(factor, graph_.get()));
       }
       void addFactorToOptimizer(const FactorPtr &factor) override {
         graph_->addToOptimizer(cast<factor::Coordinate>(factor).get());

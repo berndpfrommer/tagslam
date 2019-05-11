@@ -30,7 +30,7 @@ namespace tagslam {
       VertexId    getId() const override { return (make_id(time_, name_));}
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<TagProjection>(new TagProjection(*this))); }
-      VertexDesc attach(const VertexPtr &vp, Graph *g) const override;
+      VertexDesc addToGraph(const VertexPtr &vp, Graph *g) const override;
       void addToOptimizer(Graph *g) const override;
       bool establishesValues() const override { return (true); }
       // --------- own methods

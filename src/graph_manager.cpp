@@ -86,7 +86,7 @@ namespace tagslam {
                          const PoseWithNoise &pn) {
     std::shared_ptr<factor::AbsolutePosePrior>
       fac(new factor::AbsolutePosePrior(t, pn, name));
-    VertexDesc v = graph_->add(fac);
+    VertexDesc v = fac->addToGraph(fac, graph_.get());
     fac->addToOptimizer(graph_.get());
     return (v);
   }
@@ -98,9 +98,9 @@ namespace tagslam {
                                     const geometry_msgs::Point *imgCorners) {
     TagProjectionFactorPtr fac(
       new factor::TagProjection(t, cam, tag, imgCorners, pixelNoise_,
-                                cam->getName() + "-" + Graph::tag_name(tag->getId())));
-
-    return (graph_->add(fac));
+                                cam->getName() + "-" +
+                                Graph::tag_name(tag->getId())));
+    return (fac->addToGraph(fac, graph_.get()));
   }
   
   VertexDesc
@@ -142,11 +142,11 @@ namespace tagslam {
       cp = addPose(tCurr, name, false);
     }
     RelativePosePriorFactorPtr fac(new factor::RelativePosePrior(tCurr, tPrev, deltaPose, name));
-    return (graph_->add(fac));
+    return (fac->addToGraph(fac, graph_.get()));
   }
 
   VertexDesc GraphManager::addRelativePosePrior(const  RelativePosePriorFactorPtr &fac) {
-    return (graph_->add(fac));
+    return (fac->addToGraph(fac, graph_.get()));
   }
 
 }  // end of namespace

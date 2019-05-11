@@ -58,126 +58,16 @@ namespace tagslam {
     idToVertex_.insert(IdToVertexMap::value_type(vp->getId(), nv));
     return (nv);
   }
+  
+  VertexDesc
+  Graph::insertFactor(const VertexPtr &vp) {
+    const VertexDesc nv = insertVertex(vp);
+    factors_.push_back(nv);
+    return (nv);
+  }
 
   VertexDesc Graph::add(const PoseValuePtr &p) {
     return (insertVertex(p));
-  }
-
-  VertexDesc
-  Graph::add(const AbsolutePosePriorFactorPtr &fac) {
-    VertexDesc cp = find(value::Pose::id(fac->getTime(), fac->getName()));
-    if (!is_valid(cp)) {
-      ROS_ERROR_STREAM("pose missing: " << fac->getName() << " " << cp);
-      throw std::runtime_error("pose missing!");
-    }
-    VertexDesc fv = insertVertex(fac);
-    factors_.push_back(fv);
-    boost::add_edge(fv, cp, GraphEdge(0), graph_);
-    return (fv);
-  }
-
-  VertexDesc
-  Graph::add(const RelativePosePriorFactorPtr &p) {
-    VertexDesc pp = findPose(p->getPreviousTime(), p->getName());
-    VertexDesc cp = findPose(p->getTime(), p->getName());
-    if (!is_valid(pp) || !is_valid(cp)) {
-      ROS_ERROR_STREAM("pose missing: " << p->getLabel() << " " << pp << " " << cp);
-      throw std::runtime_error("pose missing!");
-    }
-    VertexDesc fv = insertVertex(p);
-    factors_.push_back(fv);
-    boost::add_edge(fv, pp, GraphEdge(0), graph_);
-    boost::add_edge(fv, cp, GraphEdge(1), graph_);
-    return (fv);
-  }
-
-  VertexDesc
-  Graph::add(const DistanceFactorPtr &f) {
-    const ros::Time t0 = ros::Time(0);
-    VertexDesc vt1p =
-      find(value::Pose::id(t0, Graph::tag_name(f->getTag(0)->getId())));
-    VertexDesc vt2p =
-      find(value::Pose::id(t0, Graph::tag_name(f->getTag(1)->getId())));
-    if (!is_valid(vt1p) || !is_valid(vt2p)) {
-      ROS_ERROR_STREAM("no tag poses found for: " << f->getLabel());
-      throw std::runtime_error("no tag poses found!");
-    }
-    VertexDesc vb1p = find(
-      value::Pose::id(t0, Graph::body_name(f->getTag(0)->getBody()->getName())));
-    VertexDesc vb2p = find(
-      value::Pose::id(t0, Graph::body_name(f->getTag(1)->getBody()->getName())));
-    if (!is_valid(vb1p) || !is_valid(vb2p)) {
-      ROS_ERROR_STREAM("no body poses found for: " << f->getLabel());
-      throw std::runtime_error("no body poses found!");
-    }
-    VertexDesc fv = insertVertex(f);
-    factors_.push_back(fv);
-    boost::add_edge(fv, vb1p, GraphEdge(0), graph_);
-    boost::add_edge(fv, vt1p, GraphEdge(1), graph_);
-    boost::add_edge(fv, vb2p, GraphEdge(2), graph_);
-    boost::add_edge(fv, vt2p, GraphEdge(3), graph_);
-    return (fv);
-  }
-
-  VertexDesc
-  Graph::add(const CoordinateFactorPtr &f) {
-    const ros::Time t0 = ros::Time(0);
-    VertexDesc vtp =
-      find(value::Pose::id(t0, Graph::tag_name(f->getTag()->getId())));
-    if (!is_valid(vtp)) {
-      ROS_ERROR_STREAM("no tag pose found for: " << f->getLabel());
-      throw std::runtime_error("no tag pose found!");
-    }
-    VertexDesc vbp = find(
-      value::Pose::id(t0, Graph::body_name(f->getTag()->getBody()->getName())));
-    if (!is_valid(vbp)) {
-      ROS_ERROR_STREAM("no body poses found for: " << f->getLabel());
-      throw std::runtime_error("no body poses found!");
-    }
-    VertexDesc fv = insertVertex(f);
-    factors_.push_back(fv);
-    boost::add_edge(fv, vbp, GraphEdge(0), graph_);
-    boost::add_edge(fv, vtp, GraphEdge(1), graph_);
-    return (fv);
-  }
-
-  VertexDesc
-  Graph::add(const TagProjectionFactorPtr &pf) {
-    // connect: tag_body_pose, tag_pose, cam_pose, rig_pose
-    VertexDesc vtp = find(value::Pose::id(ros::Time(0),
-                                      Graph::tag_name(pf->getTag()->getId())));
-    if (!is_valid(vtp)) {
-      ROS_ERROR_STREAM("no tag pose found for: " << pf->getLabel());
-      throw std::runtime_error("no tag pose found!");
-    }
-    BodyConstPtr body = pf->getTag()->getBody();
-    VertexDesc vbp = find(value::Pose::id(body->isStatic() ? ros::Time(0) : pf->getTime(),
-                                      Graph::body_name(body->getName())));
-    if (!is_valid(vbp)) {
-      ROS_ERROR_STREAM("no body pose found for: " << pf->getLabel());
-      throw std::runtime_error("no body pose found!");
-    }
-    BodyConstPtr rig = pf->getCamera()->getRig();
-    VertexDesc vrp = find(value::Pose::id(rig->isStatic() ? ros::Time(0) : pf->getTime(),
-                                      Graph::body_name(rig->getName())));
-    if (!is_valid(vrp)) {
-      ROS_ERROR_STREAM("no rig pose found for: " << pf->getLabel());
-      throw std::runtime_error("no rig pose found!");
-    }
-
-    VertexDesc vcp = find(value::Pose::id(pf->getTime(),
-                                      Graph::cam_name(pf->getCamera()->getName())));
-    if (!is_valid(vcp)) {
-      ROS_ERROR_STREAM("no camera pose found for: " << pf->getLabel());
-      throw std::runtime_error("no camera pose found!");
-    }
-    VertexDesc v = insertVertex(pf);
-    factors_.push_back(v);
-    boost::add_edge(v, vcp, GraphEdge(0), graph_); // T_r_c
-    boost::add_edge(v, vrp, GraphEdge(1), graph_); // T_w_r
-    boost::add_edge(v, vbp, GraphEdge(2), graph_); // T_w_b
-    boost::add_edge(v, vtp, GraphEdge(3), graph_); // T_b_o
-    return (v);
   }
 
 
@@ -433,13 +323,15 @@ namespace tagslam {
           copiedVals.insert(srcv);
           GraphVertex srcvp  = g.getVertex(srcv);
           GraphVertex destvp = srcvp->clone();
-          destvp->attach(destvp, this); // add new value to graph
-          AbsolutePosePriorFactorPtr app = find_abs_pose_prior(g, srcv);
-          if (app) {
+          destvp->addToGraph(destvp, this); // add new value to graph
+          AbsolutePosePriorFactorPtr pp = find_abs_pose_prior(g, srcv);
+          if (pp) {
             // This pose is already pinned down by a pose prior.
             // Want to keep the flexibility specified in the config file!
-            add(std::dynamic_pointer_cast<factor::AbsolutePosePrior>(app->clone()));
-            //ROS_DEBUG_STREAM("  copying pinned value " << *g.getVertex(srcv));
+            AbsolutePosePriorFactorPtr pp2 =
+             std::dynamic_pointer_cast<factor::AbsolutePosePrior>(pp->clone());
+            pp2->addToGraph(pp2, this);
+            //ROS_DEBUG_STREAM("  copying pinned val " << *g.getVertex(srcv));
           } else if (g.isOptimized(srcv)) {
             // Already established poses must be pinned down with a prior
             // If it's a camera pose, give it more flexibility
@@ -452,8 +344,8 @@ namespace tagslam {
               pp(new factor::AbsolutePosePrior(destvp->getTime(), pwn,
                                                destvp->getName()));
             // Add pose prior to graph
-            add(pp);
-            //ROS_DEBUG_STREAM("  copying + pinning value " << *g.getVertex(srcv));
+            pp->addToGraph(pp, this);
+            //ROS_DEBUG_STREAM("  copy + pinning val " << *g.getVertex(srcv));
           }
         }
       }
@@ -464,7 +356,7 @@ namespace tagslam {
         std::dynamic_pointer_cast<factor::Factor>(g.getVertex(srcf));
       if (fp) {
         GraphVertex destfp = fp->clone();
-        destfp->attach(destfp, this);
+        destfp->addToGraph(destfp, this);
       }
     }
   }
@@ -530,26 +422,23 @@ namespace tagslam {
     return (hasId(value::Pose::id(t, name)));
   }
 
-  VertexDesc Graph::findPose(const ros::Time &t, const string &name) const {
-    return (find(value::Pose::id(t, name)));
-  }
 
   void Graph::print(const std::string &prefix) const {
-    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
-      bool isOpt = (optimized_.find(*vi.first) != optimized_.end());
-      ROS_DEBUG_STREAM(prefix << " " << graph_[*vi.first]->getLabel()
+    for (auto v = boost::vertices(graph_); v.first != v.second; ++v.first) {
+      bool isOpt = (optimized_.find(*v.first) != optimized_.end());
+      ROS_DEBUG_STREAM(prefix << " " << graph_[*v.first]->getLabel()
                        << ":" << (isOpt ? "O":"U"));
-      if (graph_[*vi.first]->isValue()) {
-        PoseValueConstPtr  vp = std::dynamic_pointer_cast<const value::Pose>(graph_[*vi.first]);
+      if (graph_[*v.first]->isValue()) {
+        PoseValueConstPtr  vp = std::dynamic_pointer_cast<const value::Pose>(graph_[*v.first]);
       }
     }
   }
 
   std::string Graph::getStats() const {
     int numFac(0), numOptFac(0), numVal(0), numOptVal(0);
-    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
-      const VertexConstPtr vp = graph_[*vi.first];
-      if (isOptimized(*vi.first)) {
+    for (auto v = boost::vertices(graph_); v.first != v.second; ++v.first) {
+      const VertexConstPtr vp = graph_[*v.first];
+      if (isOptimized(*v.first)) {
         if (vp->isValue()) { numOptVal++;
         } else { numOptFac++; }
       } else {
@@ -564,9 +453,9 @@ namespace tagslam {
   }
 
   void Graph::printUnoptimized() const {
-    for (auto vi = boost::vertices(graph_); vi.first != vi.second; ++vi.first) {
-      const VertexConstPtr vp = graph_[*vi.first];
-      if (!isOptimized(*vi.first)) {
+    for (auto v = boost::vertices(graph_); v.first != v.second; ++v.first) {
+      const VertexConstPtr vp = graph_[*v.first];
+      if (!isOptimized(*v.first)) {
         ROS_INFO_STREAM("unoptimized: " << vp->getLabel());
       }
     }

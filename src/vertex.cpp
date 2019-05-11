@@ -4,6 +4,7 @@
 
 
 #include "tagslam/vertex.h"
+#include "tagslam/graph.h"
 
 #include <sstream>
 
@@ -25,4 +26,12 @@ namespace tagslam {
     ss << tw;
     return (ss.str());
   }
+
+  void Vertex::checkIfValid(const VertexDesc &v, const std::string &m) const {
+    if (!Graph::is_valid(v)) {
+      ROS_ERROR_STREAM(m << ": " << getLabel());
+      throw std::runtime_error(m + ": " + getLabel());
+    }
+  }
+
 }

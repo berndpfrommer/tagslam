@@ -4,6 +4,7 @@
 
 #include "tagslam/factor/distance.h"
 #include "tagslam/graph.h"
+#include "tagslam/body.h"
 #include <geometry_msgs/Point.h>
 #include <XmlRpcException.h>
 #include <string>
@@ -14,11 +15,27 @@ namespace tagslam {
   namespace factor {
     using boost::irange;
     
-    VertexDesc Distance::attach(const VertexPtr &vp, Graph *g) const {
-      DistanceFactorPtr fp =
-        std::dynamic_pointer_cast<factor::Distance>(vp);
-      return (g->add(fp));
+    VertexDesc Distance::addToGraph(const VertexPtr &vp, Graph *g) const {
+      const ros::Time t0 = ros::Time(0);
+      const VertexDesc vt1p = g->findTagPose(getTag(0)->getId());
+      checkIfValid(vt1p, "tag pose 1 not found");
+      const VertexDesc vt2p = g->findTagPose(getTag(1)->getId());
+      checkIfValid(vt2p, "tag pose 2 not found");
+      const VertexDesc vb1p = g->findBodyPose(t0,
+                                              getTag(0)->getBody()->getName());
+      checkIfValid(vb1p, "body pose 1 not found");
+      const VertexDesc vb2p = g->findBodyPose(t0,
+                                              getTag(1)->getBody()->getName());
+      checkIfValid(vb2p, "body pose 2 not found");
+      const VertexDesc fv = g->insertFactor(vp);
+      g->addEdge(fv, vb1p, 0);
+      g->addEdge(fv, vt1p, 1);
+      g->addEdge(fv, vb2p, 2);
+      g->addEdge(fv, vt2p, 3);
+      return (fv);
     }
+    
+
     void Distance::addToOptimizer(Graph *g) const {
       g->addToOptimizer(this);
     }

@@ -23,7 +23,7 @@ namespace tagslam {
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<RelativePosePrior>(
                   new RelativePosePrior(*this))); }
-      VertexDesc attach(const VertexPtr &vp, Graph *g) const override;
+      VertexDesc addToGraph(const VertexPtr &vp, Graph *g) const override;
       void addToOptimizer(Graph *g) const override;
       bool establishesValues() const override { return (true); }
       // ---------- own methods

@@ -16,7 +16,7 @@ namespace tagslam {
       typedef std::shared_ptr<Distance> DistanceMeasurementsPtr;
 
       VertexDesc addFactorToGraph(const FactorPtr &factor) override {
-        return (graph_->add(cast<factor::Distance>(factor)));
+        return (factor->addToGraph(factor, graph_.get()));
       }
       void addFactorToOptimizer(const FactorPtr &factor) override {
         graph_->addToOptimizer(cast<factor::Distance>(factor).get());

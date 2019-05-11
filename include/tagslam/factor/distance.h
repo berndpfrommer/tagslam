@@ -28,7 +28,8 @@ namespace tagslam {
       VertexId    getId() const override { return (name_);}
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<Distance>(new Distance(*this))); }
-      VertexDesc attach(const VertexPtr &vp, Graph *g) const override;
+      VertexDesc addToGraph(const VertexPtr &vp, Graph *g) const override;
+
       void addToOptimizer(Graph *g) const override;
       bool establishesValues() const override { return (false); }
 

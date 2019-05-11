@@ -4,17 +4,37 @@
 
 #include "tagslam/factor/tag_projection.h"
 #include "tagslam/graph.h"
+#include "tagslam/body.h"
+#include "tagslam/camera2.h"
 #include <geometry_msgs/Point.h>
 #include <string>
 #include <sstream>
 
 namespace tagslam {
   namespace factor {
-    VertexDesc TagProjection::attach(const VertexPtr &vp, Graph *g) const {
-      TagProjectionFactorPtr fp =
-        std::dynamic_pointer_cast<factor::TagProjection>(vp);
-      return (g->add(fp));
+    VertexDesc TagProjection::addToGraph(const VertexPtr &vp, Graph *g) const {
+      const BodyConstPtr body = getTag()->getBody(); // short hand
+      const BodyConstPtr rig = getCamera()->getRig(); // short hand
+      // connect: tag_body_pose, tag_pose, cam_pose, rig_pose
+      const VertexDesc vtp = g->findTagPose(getTag()->getId());
+      checkIfValid(vtp, "no tag pose found");
+      const VertexDesc vbp = g->findBodyPose(
+        body->isStatic() ? ros::Time(0) : getTime(), body->getName());
+      checkIfValid(vbp, "no body pose found");
+      const VertexDesc vrp = g->findBodyPose(
+        rig->isStatic() ? ros::Time(0) : getTime(), rig->getName());
+      checkIfValid(vbp, "no rig pose found");
+      const VertexDesc vcp =
+        g->findCameraPose(getTime(), getCamera()->getName());
+      checkIfValid(vcp, "no camera pose found");
+      const VertexDesc v = g->insertFactor(vp);
+      g->addEdge(v, vcp, 0); // T_r_c
+      g->addEdge(v, vrp, 1); // T_w_r
+      g->addEdge(v, vbp, 2); // T_w_b
+      g->addEdge(v, vtp, 3); // T_b_o
+      return (v);
     }
+
     void TagProjection::addToOptimizer(Graph *g) const {
       g->addToOptimizer(this);
     }

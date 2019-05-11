@@ -29,7 +29,7 @@ namespace tagslam {
     void Measurements::addToGraph(const GraphPtr &graph) {
       graph_ = graph;
       for (const auto &f: factors_) {
-        vertexes_.push_back(addFactorToGraph(f));
+        vertexes_.push_back(f->addToGraph(f, graph.get()));
       }
     }
 

@@ -21,7 +21,7 @@ namespace tagslam {
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<Pose>(new Pose(*this))); }
       VertexId getId() const override { return (id(time_, name_));}
-      VertexDesc attach(const VertexPtr &vpk, Graph *g) const override;
+      VertexDesc addToGraph(const VertexPtr &vpk, Graph *g) const override;
 
       bool isCameraPose() const { return (isCameraPose_); }
       void setIsCameraPose(bool c) {  isCameraPose_ = c; }

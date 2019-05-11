@@ -9,7 +9,7 @@
 
 namespace tagslam {
   namespace value {
-    VertexDesc Pose::attach(const VertexPtr &vp, Graph *g) const {
+    VertexDesc Pose::addToGraph(const VertexPtr &vp, Graph *g) const {
       PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>(vp);
       return (g->add(pp));
     }

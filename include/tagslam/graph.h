@@ -47,12 +47,10 @@ namespace tagslam {
     VertexVec getConnected(const VertexDesc &v) const;
     bool isOptimizableFactor(const VertexDesc &v) const;
 
+    void addEdge(const VertexDesc &from, const VertexDesc &to, int edgeId) {
+      boost::add_edge(from, to, GraphEdge(edgeId), graph_);
+    }
     VertexDesc add(const PoseValuePtr &p);
-    VertexDesc add(const RelativePosePriorFactorPtr &p);
-    VertexDesc add(const AbsolutePosePriorFactorPtr &p);
-    VertexDesc add(const DistanceFactorPtr &p);
-    VertexDesc add(const CoordinateFactorPtr &p);
-    VertexDesc add(const TagProjectionFactorPtr &p);
     
     OptimizerKey addToOptimizer(const VertexDesc &v, const Transform &tf);
     OptimizerKey addToOptimizer(const factor::RelativePosePrior *p);
@@ -84,8 +82,33 @@ namespace tagslam {
     
     VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
     VertexPtr operator[](const VertexDesc f) const { return (graph_[f]); }
+    //
+    // methods for finding vertexes in the graph
+    //
+    VertexDesc find(const Vertex *vp) const;
+    inline VertexDesc find(const VertexId &id) const {
+      // inlined function for search by string
+      const auto it = idToVertex_.find(id);
+      return (it == idToVertex_.end() ? ULONG_MAX : it->second);
+    }
+    inline VertexDesc findPose(const ros::Time &t, const string &name) const {
+      return (find(value::Pose::id(t, name)));
+    }
+    inline VertexDesc findTagPose(int tagId) const {
+      return (findPose(ros::Time(0), tag_name(tagId)));
+    }
+    inline VertexDesc findBodyPose(const ros::Time &t, const string &n) const {
+      return (findPose(t, body_name(n)));
+    }
+    inline VertexDesc findCameraPose(const ros::Time &t,const string &c) const{
+      return (findPose(t, cam_name(c)));
+    }
 
-    VertexDesc findPose(const ros::Time &t, const string &name) const;
+
+    VertexDesc insertVertex(const VertexPtr &vp);
+    VertexDesc insertFactor(const VertexPtr &vp);
+    std::vector<ValueKey> getOptKeysForFactor(VertexDesc fv, int nk) const;
+  
     // for debugging, compute error on graph
     void printUnoptimized() const;
     void printErrorMap(const std::string &prefix) const;
@@ -107,16 +130,9 @@ namespace tagslam {
     typedef std::unordered_map<VertexId, VertexDesc> IdToVertexMap;
     typedef std::unordered_map<VertexDesc,
                                std::vector<OptimizerKey>> VertexToOptMap;
-    inline VertexDesc find(const VertexId &id) const {
-      const auto it = idToVertex_.find(id);
-      return (it == idToVertex_.end() ? ULONG_MAX : it->second);
-    }
-    VertexDesc find(const Vertex *vp) const;
     VertexToOptMap::const_iterator findOptimized(const VertexDesc &v) const;
     void verifyUnoptimized(const VertexDesc &v) const;
     ValueKey findOptimizedPoseKey(const VertexDesc &v) const;
-    VertexDesc insertVertex(const VertexPtr &vp);
-    std::vector<ValueKey> getOptKeysForFactor(VertexDesc fv, int nk) const;
 
     // ------ variables --------------
     BoostGraph                 graph_;

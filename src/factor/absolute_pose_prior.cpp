@@ -10,11 +10,16 @@
 
 namespace tagslam {
   namespace factor {
-    VertexDesc AbsolutePosePrior::attach(const VertexPtr &vp, Graph *g) const {
-      AbsolutePosePriorFactorPtr fp =
-        std::dynamic_pointer_cast<factor::AbsolutePosePrior>(vp);
-      return (g->add(fp));
+    VertexDesc
+    AbsolutePosePrior::addToGraph(const VertexPtr &vp, Graph *g) const {
+      // NOTE: prior name and pose name must match!
+      const VertexDesc cp = g->findPose(getTime(), vp->getName());
+      checkIfValid(cp, "no pose for absolute pose prior");
+      const VertexDesc fv = g->insertFactor(vp);
+      g->addEdge(fv, cp, 0);
+      return (fv);
     }
+
     void AbsolutePosePrior::addToOptimizer(Graph *g) const {
       g->addToOptimizer(this);
     }

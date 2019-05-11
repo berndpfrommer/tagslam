@@ -4,6 +4,7 @@
 
 #include "tagslam/factor/coordinate.h"
 #include "tagslam/graph.h"
+#include "tagslam/body.h"
 #include <geometry_msgs/Point.h>
 #include <XmlRpcException.h>
 #include <string>
@@ -14,14 +15,23 @@ namespace tagslam {
   namespace factor {
     using boost::irange;
     
-    VertexDesc Coordinate::attach(const VertexPtr &vp, Graph *g) const {
-      CoordinateFactorPtr fp =
-        std::dynamic_pointer_cast<factor::Coordinate>(vp);
-      return (g->add(fp));
+    VertexDesc Coordinate::addToGraph(const VertexPtr &vp, Graph *g) const {
+      const ros::Time t0 = ros::Time(0);
+      const VertexDesc vtp = g->findTagPose(getTag()->getId());
+      checkIfValid(vtp, "no tag pose found");
+      const VertexDesc vbp = g->findBodyPose(t0,
+                                             getTag()->getBody()->getName());
+      checkIfValid(vbp, "no body pose found");
+      const VertexDesc fv = g->insertFactor(vp);
+      g->addEdge(fv, vbp, 0);
+      g->addEdge(fv, vtp, 1);
+      return (fv);
     }
+
     void Coordinate::addToOptimizer(Graph *g) const {
       g->addToOptimizer(this);
     }
+
     Coordinate::Coordinate(double len,  double noise,
                            const Eigen::Vector3d direction,
                            const int corn, const Tag2ConstPtr &tag,
