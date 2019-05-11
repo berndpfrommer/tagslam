@@ -36,7 +36,8 @@ namespace tagslam {
     void Measurements::tryAddToOptimizer() {
       for (const auto &v: vertexes_) {
         if (graph_->isOptimizableFactor(v) && !graph_->isOptimized(v)) {
-          addFactorToGraph(std::dynamic_pointer_cast<factor::Factor>((*graph_)[v]));
+          auto fp = std::dynamic_pointer_cast<factor::Factor>((*graph_)[v]);
+          fp->addToOptimizer(graph_.get());
         }
       }
     }
