@@ -21,8 +21,15 @@ namespace tagslam {
     }
 
     void AbsolutePosePrior::addToOptimizer(Graph *g) const {
-      g->addToOptimizer(this);
+      const VertexDesc v = g->find(this);
+      checkIfValid(v, "factor not found");
+      g->verifyUnoptimized(v);
+      const std::vector<ValueKey> optKeys = g->getOptKeysForFactor(v, 1);
+      const FactorKey fk = g->getOptimizer()->addAbsolutePosePrior(
+        optKeys[0], getPoseWithNoise());
+      g->markAsOptimized(v, fk);
     }
+
     std::string AbsolutePosePrior::getLabel() const {
       std::stringstream ss;
       ss << "app:" << name_ << ",t:" << format_time(time_);

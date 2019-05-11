@@ -37,6 +37,8 @@ namespace tagslam {
     bool isOptimized(const VertexDesc &v) const {
       return (optimized_.find(v) != optimized_.end());
     }
+    bool isOptimizableFactor(const VertexDesc &v) const;
+
     string info(const VertexDesc &v) const;
     double optimize(double thresh);
     double optimizeFull(bool force = false);
@@ -45,20 +47,11 @@ namespace tagslam {
     const BoostGraph &getBoostGraph() const { return (graph_); }
 
     VertexVec getConnected(const VertexDesc &v) const;
-    bool isOptimizableFactor(const VertexDesc &v) const;
 
     void addEdge(const VertexDesc &from, const VertexDesc &to, int edgeId) {
       boost::add_edge(from, to, GraphEdge(edgeId), graph_);
     }
-    VertexDesc add(const PoseValuePtr &p);
     
-    OptimizerKey addToOptimizer(const VertexDesc &v, const Transform &tf);
-    OptimizerKey addToOptimizer(const factor::RelativePosePrior *p);
-    OptimizerKey addToOptimizer(const factor::AbsolutePosePrior *p);
-    OptimizerKey addToOptimizer(const factor::Distance *p);
-    OptimizerKey addToOptimizer(const factor::Coordinate *p);
-   std::vector<OptimizerKey> addToOptimizer(const factor::TagProjection *p);
-
     VertexDesc addPose(const ros::Time &t, const string &name,
                        bool isCamPose = false);
   
@@ -70,6 +63,12 @@ namespace tagslam {
     
     PoseNoise2 getPoseNoise(const VertexDesc &v) const;
 
+    PoseValueConstPtr getPoseVertex(const VertexDesc f) const {
+      return (std::dynamic_pointer_cast<const value::Pose>(graph_[f]));
+    }
+    VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
+    VertexPtr operator[](const VertexDesc f) const { return (graph_[f]); }
+
     void      transferFullOptimization() {
       optimizer_->transferFullOptimization(); }
     void setVerbosity(const string &v) {
@@ -79,9 +78,14 @@ namespace tagslam {
     void  initializeFrom(const Graph &sg);
     void  print(const std::string &pre = "") const;
     std::string getStats() const;
-    
-    VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
-    VertexPtr operator[](const VertexDesc f) const { return (graph_[f]); }
+    //
+    // methods related to optimization
+    //
+    Optimizer *getOptimizer() const { return (optimizer_.get()); }
+    std::vector<ValueKey> getOptKeysForFactor(VertexDesc fv, int nk) const;
+    void markAsOptimized(const VertexDesc &v, const std::vector<FactorKey> &f);
+    void markAsOptimized(const VertexDesc &v, const FactorKey &f);
+    void verifyUnoptimized(const VertexDesc &v) const;
     //
     // methods for finding vertexes in the graph
     //
@@ -103,11 +107,8 @@ namespace tagslam {
     inline VertexDesc findCameraPose(const ros::Time &t,const string &c) const{
       return (findPose(t, cam_name(c)));
     }
-
-
     VertexDesc insertVertex(const VertexPtr &vp);
     VertexDesc insertFactor(const VertexPtr &vp);
-    std::vector<ValueKey> getOptKeysForFactor(VertexDesc fv, int nk) const;
   
     // for debugging, compute error on graph
     void printUnoptimized() const;
@@ -131,7 +132,6 @@ namespace tagslam {
     typedef std::unordered_map<VertexDesc,
                                std::vector<OptimizerKey>> VertexToOptMap;
     VertexToOptMap::const_iterator findOptimized(const VertexDesc &v) const;
-    void verifyUnoptimized(const VertexDesc &v) const;
     ValueKey findOptimizedPoseKey(const VertexDesc &v) const;
 
     // ------ variables --------------

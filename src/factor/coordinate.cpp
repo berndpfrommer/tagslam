@@ -15,6 +15,16 @@ namespace tagslam {
   namespace factor {
     using boost::irange;
     
+    Coordinate::Coordinate(double len,  double noise,
+                           const Eigen::Vector3d direction,
+                           const int corn, const Tag2ConstPtr &tag,
+                           const std::string  &name) :
+      Factor(name, ros::Time(0)),
+      length_(len), noise_(noise),
+      direction_(direction), corner_(corn),
+      tag_(tag) {
+    }
+    
     VertexDesc Coordinate::addToGraph(const VertexPtr &vp, Graph *g) const {
       const ros::Time t0 = ros::Time(0);
       const VertexDesc vtp = g->findTagPose(getTag()->getId());
@@ -29,19 +39,16 @@ namespace tagslam {
     }
 
     void Coordinate::addToOptimizer(Graph *g) const {
-      g->addToOptimizer(this);
+      const VertexDesc v = g->find(this);
+      checkIfValid(v, "factor not found");
+      const std::vector<ValueKey> optKeys = g->getOptKeysForFactor(v, 2);
+      const FactorKey fk = g->getOptimizer()->addCoordinateMeasurement(
+        getLength(), getNoise(),
+        getDirection(), getCorner(),
+        optKeys[0] /* T_w_b */, optKeys[1] /* T_b_o */);
+      g->markAsOptimized(v, fk);
     }
 
-    Coordinate::Coordinate(double len,  double noise,
-                           const Eigen::Vector3d direction,
-                           const int corn, const Tag2ConstPtr &tag,
-                           const std::string  &name) :
-      Factor(name, ros::Time(0)),
-      length_(len), noise_(noise),
-      direction_(direction), corner_(corn),
-      tag_(tag) {
-    }
-    
     double Coordinate::coordinate(
       const Transform &T_w_b, const Transform &T_b_o) const {
       const auto X = T_w_b * T_b_o * getCorner();

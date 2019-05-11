@@ -107,7 +107,7 @@ namespace tagslam {
   GraphManager::addPoseWithPrior(const ros::Time &t, const string &name,
                                  const PoseWithNoise &pn, bool isCamPose) {
     VertexDesc v = graph_->addPose(t, name, isCamPose);
-    graph_->addToOptimizer(v, pn.getPose());
+    graph_->getPoseVertex(v)->addToOptimizer(pn.getPose(), graph_.get());
     VertexDesc pv = addPrior(t, name, pn);
     return (pv);
   }

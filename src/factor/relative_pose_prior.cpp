@@ -25,8 +25,15 @@ namespace tagslam {
     }
 
     void RelativePosePrior::addToOptimizer(Graph *g) const {
-      g->addToOptimizer(this);
+      const VertexDesc v = g->find(this);
+      checkIfValid(v, "factor not found");
+      g->verifyUnoptimized(v);
+      const std::vector<ValueKey> optKeys = g->getOptKeysForFactor(v, 2);
+      const FactorKey fk = g->getOptimizer()->addRelativePosePrior(
+        optKeys[0], optKeys[1], getPoseWithNoise());
+      g->markAsOptimized(v, fk);
     }
+
     std::string RelativePosePrior::getLabel() const {
       std::stringstream ss;
       ss << "rpp:" << name_ << ",t:" << format_time(time_);

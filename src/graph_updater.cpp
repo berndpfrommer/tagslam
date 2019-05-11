@@ -243,22 +243,22 @@ namespace tagslam {
     case 0: { // T_r_c = T_r_w * T_w_b * T_b_o * T_o_c
       tf =  g->pose(T[1]).inverse() * g->pose(T[2]) *
         g->pose(T[3]) * T_c_o.inverse();
-      g->addToOptimizer(T[idx], tf);
+      g->getPoseVertex(T[idx])->addToOptimizer(tf, g);
       break; }
     case 1: { // T_w_r = T_w_b * T_b_o * T_o_c * T_c_r
       tf = g->pose(T[2]) * g->pose(T[3]) *
         T_c_o.inverse() * g->pose(T[0]).inverse();
-      g->addToOptimizer(T[idx], tf);
+      g->getPoseVertex(T[idx])->addToOptimizer(tf, g);
       break; }
     case 2: { // T_w_b = T_w_r * T_r_c * T_c_o * T_o_b
       tf = g->pose(T[1]) * g->pose(T[0]) *
         T_c_o * g->pose(T[3]).inverse();
-      g->addToOptimizer(T[idx], tf);
+      g->getPoseVertex(T[idx])->addToOptimizer(tf, g);
       break; }
     case 3: { // T_b_o = T_b_w * T_w_r * T_r_c * T_c_o
       tf = g->pose(T[2]).inverse() *g->pose(T[1]) *
         g->pose(T[0]) * T_c_o;
-      g->addToOptimizer(T[idx], tf);
+      g->getPoseVertex(T[idx])->addToOptimizer(tf, g);
       break; }
     case -1: {
       // T_c_o = T_c_r[0] * T_r_w[1] * T_w_b[2] * T_b_o[3]
@@ -294,11 +294,11 @@ namespace tagslam {
     switch (idx) {
     case 0: { // T_0 = T_1 * delta T^-1
       tf = g->pose(T[1]) * deltaPose.inverse();
-      g->addToOptimizer(T[idx], tf);
+      g->getPoseVertex(T[idx])->addToOptimizer(tf, g);
       break; }
     case 1: { // T_1 = T_0 * delta T
       tf = g->pose(T[0]) * deltaPose;
-      g->addToOptimizer(T[idx], tf);
+      g->getPoseVertex(T[idx])->addToOptimizer(tf, g);
       break; }
     case -1: {
       ROS_DEBUG_STREAM("relative pose factor has no missing values!");
@@ -346,7 +346,8 @@ namespace tagslam {
       int idx = find_connected_poses(*g, v, &T);
       if (idx == 0) {
         ROS_DEBUG_STREAM("using abs pose prior: " << g->info(v));
-        g->addToOptimizer(T[idx], ap->getPoseWithNoise().getPose());
+        g->getPoseVertex(T[idx])->addToOptimizer(
+          ap->getPoseWithNoise().getPose(), g);
         ap->addToOptimizer(g);
         return (true);
       }

@@ -10,9 +10,18 @@
 namespace tagslam {
   namespace value {
     VertexDesc Pose::addToGraph(const VertexPtr &vp, Graph *g) const {
-      PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>(vp);
-      return (g->add(pp));
+      return (g->insertVertex(vp));
     }
+
+    void Pose::addToOptimizer(const Transform &tf, Graph *g) const {
+      ROS_DEBUG_STREAM("adding pose to opt: " << *this);
+      const VertexDesc v = g->find(this);
+      checkIfValid(v, "pose not found");
+      g->verifyUnoptimized(v);
+      const ValueKey vk = g->getOptimizer()->addPose(tf);
+      g->markAsOptimized(v, vk);
+    }
+
     std::string Pose::getLabel() const {
       std::stringstream ss;
       ss << "p:" << name_ << ",t:" << format_time(time_);

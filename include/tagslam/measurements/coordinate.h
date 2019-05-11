@@ -19,7 +19,7 @@ namespace tagslam {
         return (factor->addToGraph(factor, graph_.get()));
       }
       void addFactorToOptimizer(const FactorPtr &factor) override {
-        graph_->addToOptimizer(cast<factor::Coordinate>(factor).get());
+        factor->addToOptimizer(graph_.get());
       }
 
       void writeDiagnostics() override;

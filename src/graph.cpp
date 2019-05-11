@@ -66,11 +66,6 @@ namespace tagslam {
     return (nv);
   }
 
-  VertexDesc Graph::add(const PoseValuePtr &p) {
-    return (insertVertex(p));
-  }
-
-
   std::vector<VertexDesc>
   Graph::getConnected(const VertexDesc &v) const {
     auto edges = boost::out_edges(v, graph_);
@@ -160,93 +155,19 @@ namespace tagslam {
     return (it->second[0]);
   }
   
-  OptimizerKey
-  Graph::addToOptimizer(const factor::AbsolutePosePrior *p) {
-    VertexDesc v = find(p);
-    verifyUnoptimized(v);
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 1);
-    FactorKey fk =
-      optimizer_->addAbsolutePosePrior(optKeys[0], p->getPoseWithNoise());
+  void Graph::markAsOptimized(const VertexDesc &v,
+                              const std::vector<FactorKey> &f) {
+    optimized_.insert(VertexToOptMap::value_type(v, f));
+  }
+ 
+  void Graph::markAsOptimized(const VertexDesc &v, const FactorKey &fk) {
     optimized_.insert(
       VertexToOptMap::value_type(v, std::vector<FactorKey>(1, fk)));
-    return (fk);
   }
 
-
-  OptimizerKey
-  Graph::addToOptimizer(const factor::RelativePosePrior *p) {
-    VertexDesc v = find(p);
-    verifyUnoptimized(v);
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 2);
-    FactorKey fk = optimizer_->addRelativePosePrior(optKeys[0], optKeys[1],
-                                                    p->getPoseWithNoise());
-    optimized_.insert(
-      VertexToOptMap::value_type(v, std::vector<FactorKey>(1, fk)));
-    return (fk);
-  }
-
-  OptimizerKey
-  Graph::addToOptimizer(const factor::Distance *p) {
-    VertexDesc v = find(p);
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 4);
-    FactorKey fk =
-      optimizer_->addDistanceMeasurement(p->getDistance(),
-                                         p->getNoise(),
-                                         p->getCorner(0),
-                                         optKeys[0],  // T_w_b1
-                                         optKeys[1],  // T_b1_o
-                                         p->getCorner(1),
-                                         optKeys[2],  // T_w_b2
-                                         optKeys[3]); // T_b2_o
-    optimized_.insert(
-      VertexToOptMap::value_type(v, std::vector<FactorKey>(1, fk)));
-    return (fk);
-  }
-
-  OptimizerKey
-  Graph::addToOptimizer(const factor::Coordinate *p) {
-    VertexDesc v = find(p);
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 2);
-    FactorKey fk =
-      optimizer_->addCoordinateMeasurement(p->getLength(),
-                                           p->getNoise(),
-                                           p->getDirection(),
-                                           p->getCorner(),
-                                           optKeys[0],  // T_w_b 
-                                           optKeys[1]);  // T_b_o
-    optimized_.insert(
-      VertexToOptMap::value_type(v, std::vector<FactorKey>(1, fk)));
-    return (fk);
-  }
-
-  std::vector<OptimizerKey>
-  Graph::addToOptimizer(const factor::TagProjection *p) {
-    VertexDesc v = find(p);
-    verifyUnoptimized(v);
-    std::vector<ValueKey> optKeys = getOptKeysForFactor(v, 4);
-    std::vector<FactorKey> fks = 
-      optimizer_->addTagProjectionFactor(
-        p->getImageCorners(), p->getTag()->getObjectCorners(),
-        p->getCamera()->getName(), p->getCamera()->getIntrinsics(),
-        p->getPixelNoise(), optKeys[0], optKeys[1], optKeys[2], optKeys[3]);
-    optimized_.insert(VertexToOptMap::value_type(v, fks));
-    return (fks);
-  }
-
-
-  OptimizerKey
-  Graph::addToOptimizer(const VertexDesc &v, const Transform &tf) {
-    ROS_DEBUG_STREAM("adding pose to opt: " << info(v));
-    verifyUnoptimized(v);
-    ValueKey vk = optimizer_->addPose(tf);
-    auto fk = std::vector<FactorKey>(1, vk);
-    optimized_.insert(VertexToOptMap::value_type(v, fk));
-    return (vk);
-  }
 
   VertexDesc
-  Graph::addPose(const ros::Time &t, const string &name,
-                 bool isCameraPose) {
+  Graph::addPose(const ros::Time &t, const string &name, bool isCameraPose) {
     if (hasId(value::Pose::id(t, name))) {
       ROS_ERROR_STREAM("duplicate pose inserted: " << t << " " << name);
       throw (std::runtime_error("duplicate pose inserted"));
@@ -392,7 +313,7 @@ namespace tagslam {
         }
         if (!isOptimized(dv) && sg.isOptimized(sv)) {
           //ROS_DEBUG_STREAM("transferring pose: " << pdp->getLabel());
-          addToOptimizer(dv, sg.getOptimizedPose(sv));
+          pdp->addToOptimizer(sg.getOptimizedPose(sv), this);
           numTransferredPoses++;
         }
       }

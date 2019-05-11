@@ -15,6 +15,15 @@ namespace tagslam {
   namespace factor {
     using boost::irange;
     
+    Distance::Distance(double dist,  double noise,
+                       const int corn1, const Tag2ConstPtr &tag1,
+                       const int corn2, const Tag2ConstPtr &tag2,
+                       const std::string  &name) :
+      Factor(name, ros::Time(0)), distance_(dist), noise_(noise) {
+      tag_[0] = tag1; tag_[1] = tag2;
+      corner_[0] = corn1; corner_[1] = corn2;
+    }
+
     VertexDesc Distance::addToGraph(const VertexPtr &vp, Graph *g) const {
       const ros::Time t0 = ros::Time(0);
       const VertexDesc vt1p = g->findTagPose(getTag(0)->getId());
@@ -35,20 +44,17 @@ namespace tagslam {
       return (fv);
     }
     
-
     void Distance::addToOptimizer(Graph *g) const {
-      g->addToOptimizer(this);
+      const VertexDesc v = g->find(this);
+      checkIfValid(v, "factor not found");
+      const std::vector<ValueKey> optKeys = g->getOptKeysForFactor(v, 4);
+      const FactorKey fk = g->getOptimizer()->addDistanceMeasurement(
+        getDistance(), getNoise(), getCorner(0),
+        optKeys[0] /* T_w_b1 */,  optKeys[1] /* T_b1_o */,
+        getCorner(1), optKeys[2] /* T_w_b2 */, optKeys[3] /* T_b2_o */);
+      g->markAsOptimized(v, fk);
     }
     
-    Distance::Distance(double dist,  double noise,
-                       const int corn1, const Tag2ConstPtr &tag1,
-                       const int corn2, const Tag2ConstPtr &tag2,
-                       const std::string  &name) :
-      Factor(name, ros::Time(0)), distance_(dist), noise_(noise) {
-      tag_[0] = tag1; tag_[1] = tag2;
-      corner_[0] = corn1; corner_[1] = corn2;
-    }
-
     double Distance::distance(
       const Transform &T_w_b1, const Transform &T_b1_o,
       const Transform &T_w_b2, const Transform &T_b2_o) const {
