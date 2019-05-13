@@ -102,6 +102,7 @@ src/gtsam_utils.cpp
 src/geometry.cpp
 src/pose_noise2.cpp
 src/tag2.cpp
+src/xml.cpp
 src/camera2.cpp
 src/pose_with_noise.cpp
 src/gtsam_optimizer.cpp

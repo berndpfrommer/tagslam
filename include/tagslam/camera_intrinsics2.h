@@ -17,15 +17,17 @@ namespace tagslam {
   public:
     friend std::ostream &operator<<(std::ostream &os,
                                     const CameraIntrinsics2 &ci);
-    static CameraIntrinsics2 parse(const std::string &prefix,
-                                  const ros::NodeHandle &nh);
     const std::vector<double> &getDVec() const {
       return (distortionCoeffs_); }
     const std::vector<double> &getKVec() const { return (K_); }
     const cv::Mat &getK() const { return (cvK_); }
     const cv::Mat &getD() const { return (cvD_); }
-    const DistortionModel &getDistortionModel() const { return (distortionModel_); }
+    const DistortionModel &getDistortionModel() const {
+      return (distortionModel_); }
+    // static functions
+    static CameraIntrinsics2 parse(XmlRpc::XmlRpcValue config);
   private:
+    static CameraIntrinsics2 parse_no_error(XmlRpc::XmlRpcValue config);
     std::vector<double> distortionCoeffs_;
     std::vector<double> K_; // K Matrix
     std::vector<int>    resolution_;

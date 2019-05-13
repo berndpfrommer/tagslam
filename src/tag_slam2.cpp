@@ -3,6 +3,7 @@
  */
 
 #include "tagslam/tag_slam2.h"
+#include "tagslam/logging.h"
 #include "tagslam/geometry.h"
 #include "tagslam/pose_with_noise.h"
 #include "tagslam/body_defaults.h"
@@ -116,13 +117,17 @@ namespace tagslam {
 
   bool TagSlam2::initialize() {
     readParams();
-    XmlRpc::XmlRpcValue config;
+    XmlRpc::XmlRpcValue config, camConfig;
     nh_.getParam("tagslam_config", config);
     readSquash(config);
     readRemap(config);
     readBodies(config);
     readDefaultBody(config);
-    readCameras(config);
+    if (nh_.getParam("cameras", camConfig)) {
+      readCameras(camConfig);
+    } else {
+      BOMB_OUT("no cameras config found!");
+    }
     measurements_ = measurements::read_all(config, this);
     // apply measurements
     for (auto &m: measurements_) {
@@ -205,6 +210,10 @@ namespace tagslam {
   void TagSlam2::readDefaultBody(XmlRpc::XmlRpcValue config) {
     try {
       const string defbody = config["default_body"];
+      if (defbody.empty()) {
+        ROS_WARN_STREAM("no default body specified!");
+        return;
+      }
       for (auto &body: bodies_) {
         if (body->getName() == defbody) {
           ROS_INFO_STREAM("default body: " << defbody);
@@ -220,7 +229,8 @@ namespace tagslam {
   }
 
   void TagSlam2::readCameras(XmlRpc::XmlRpcValue config) {
-    cameras_ = Camera2::parse_cameras("cameras", nh_);
+    cameras_ = Camera2::parse_cameras(config);
+    ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
       for (const auto &body: bodies_) {
@@ -229,8 +239,7 @@ namespace tagslam {
         }
       }
       if (!cam->getRig()) {
-        ROS_ERROR_STREAM("rig body not found: " << cam->getRigName());
-        throw (std::runtime_error("rig body not found!"));
+        BOMB_OUT("rig body not found: " << cam->getRigName());
       }
       PoseWithNoise pwn = PoseWithNoise::parse(cam->getName(), nh_);
       if (pwn.isValid()) {
@@ -241,10 +250,8 @@ namespace tagslam {
         graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
     }
     if (!camHasKnownPose) {
-      ROS_ERROR("at least one camera must have known pose!");
-      throw (std::runtime_error("at least one cam must have known pose"));
+      BOMB_OUT("at least one camera must have known pose!");
     }
-    ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
   }
 
   template <typename T>
@@ -269,14 +276,12 @@ namespace tagslam {
     }
     for (const auto &cam: cameras_) {
       if (cam->getTagTopic().empty()) {
-        ROS_ERROR_STREAM("camera " << cam->getName() << " no tag topic!");
-        throw (std::runtime_error("camera has no tag topic!"));
+        BOMB_OUT("camera " << cam->getName() << " no tag topic!");
       }
       topics[0].push_back(cam->getTagTopic());
       if (writeDebugImages_) {
         if (cam->getImageTopic().empty()) {
-          ROS_ERROR_STREAM("camera " << cam->getName() << " no image topic!");
-          throw (std::runtime_error("camera has no image topic!"));
+          BOMB_OUT("camera " << cam->getName() << " no image topic!");
         }
         topics[1].push_back(cam->getImageTopic());
       }
@@ -537,8 +542,7 @@ namespace tagslam {
         }
       }
       if (!bpt) {
-        ROS_ERROR_STREAM("no body found for odom frame id: " << frameId);
-        throw (std::runtime_error("no body found for frame id!"));
+        BOMB_OUT("no body found for odom frame id: " << frameId);
       }
       if (bodySet.count(bpt) != 0) {
         ROS_WARN_STREAM("multiple bodies with frame id: " << frameId);
@@ -822,14 +826,12 @@ namespace tagslam {
     const std::string s = static_cast<std::string>(v);
     size_t pos = s.find(".", 0);
     if (pos == std::string::npos) {
-      ROS_ERROR_STREAM("bad ros time value: " << s);
-      throw (std::runtime_error("bad ros time value"));
+      BOMB_OUT("bad ros time value: " << s);
     }
     const std::string nsec = s.substr(pos + 1, std::string::npos);
     const std::string sec  = s.substr(0, pos);
     if (nsec.size() != 9) {
-      ROS_ERROR_STREAM("ros nsec length is not 9 but: " << nsec.size());
-      throw (std::runtime_error("bad ros nsec value"));
+      BOMB_OUT("ros nsec length is not 9 but: " << nsec.size());
     }
     ros::Time t(std::stoi(sec), std::stoi(nsec));
     return (t);

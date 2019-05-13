@@ -35,10 +35,10 @@ namespace tagslam {
     void setRig(const std::shared_ptr<Body> &rig) { rig_ = rig; }
     
     // --- static methods
-    static Camera2 parse_camera(const string &prefix, const string &name,
-                                const ros::NodeHandle &nh);
-    static Camera2Vec parse_cameras(const string &prefix,
-                                    const ros::NodeHandle &nh);
+    static Camera2Ptr parse_camera(const string &name,
+                                   XmlRpc::XmlRpcValue config);
+    static Camera2Vec parse_cameras(XmlRpc::XmlRpcValue config);
+
   private:
     // -------- variables -------
     string                name_;

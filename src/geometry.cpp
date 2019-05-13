@@ -31,7 +31,8 @@ namespace tagslam {
   }
   
   std::ostream &operator<<(std::ostream &os, const Transform &tf) {
-    os << "[" << tf.linear() << "]," << std::endl << "[" << tf.translation().transpose() << "]";
+    os << "[" << tf.linear() << "]," << std::endl << "["
+       << tf.translation().transpose() << "]";
     return (os);
   }
 }  // namespace

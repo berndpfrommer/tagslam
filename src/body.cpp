@@ -3,14 +3,16 @@
  */
 
 #include "tagslam/body.h"
+#include "tagslam/logging.h"
 #include "tagslam/simple_body2.h"
 #include "tagslam/board2.h"
 #include "tagslam/body_defaults.h"
 #include "tagslam/yaml_utils.h"
+#include "tagslam/xml.h"
 #include <boost/range/irange.hpp>
 #include <XmlRpcException.h>
 
-//#define DEBUG_POSE_ESTIMATE
+
 namespace tagslam {
   using boost::irange;
 
@@ -26,7 +28,7 @@ namespace tagslam {
       SimpleBody2Ptr sb(new SimpleBody2(name));
       p = sb;
     } else {
-      throw std::runtime_error("invalid rigid body type: " + type);
+      BOMB_OUT("invalid rigid body type: " + type);
     }
     p->setType(type);
     p->setId(body_id++);
@@ -34,80 +36,40 @@ namespace tagslam {
   }
 
   bool Body::parseCommon(XmlRpc::XmlRpcValue body) {
-    bool hasPosePrior = false;
     try {
-      double def_pos_noise = BodyDefaults::instance()->positionNoise;
-      double def_rot_noise = BodyDefaults::instance()->rotationNoise;
-      defaultTagSize_ = static_cast<double>(body["default_tag_size"]);
-      isStatic_       = static_cast<bool>(body["is_static"]);
-      if (body.hasMember("max_hamming_distance")) {
-        maxHammingDistance_ = static_cast<int>(body["max_hamming_distance"]);
-      }
-      if (body.hasMember("override_tag_position_noise")) {
-        overrideTagPositionNoise_ =
-          static_cast<double>(body["override_tag_position_noise"]);
-      }
-      if (body.hasMember("override_tag_rotation_noise")) {
-        overrideTagRotationNoise_ =
-          static_cast<double>(body["override_tag_rotation_noise"]);
-      }
-      if (body.hasMember("T_body_odom")) {
-        Eigen::Vector3d p =
-          yaml_utils::get_vec("position",body["T_body_odom"]["position"]);
-        Eigen::Vector3d r =
-          yaml_utils::get_vec("rotvec",   body["T_body_odom"]["rotvec"]);
-        T_body_odom_ = make_transform(r, p);
-      } else {
-        T_body_odom_ = Transform::Identity();
-      }
-      if (body.hasMember("odom_frame_id")) {
-        odomFrameId_ = static_cast<std::string>(body["odom_frame_id"]);
-      }
-      if (body.hasMember("odom_topic")) {
-        odomTopic_ = static_cast<std::string>(body["odom_topic"]);
-      }
-      if (body.hasMember("odom_acceleration")) {
-        odomAcceleration_ = static_cast<double>(body["odom_acceleration"]);
-      }
-      if (body.hasMember("odom_angular_acceleration")) {
-        odomAngularAcceleration_ = static_cast<double>(body["odom_angular_acceleration"]);
-      }
-
-      if (body.hasMember("ignore_tags")) {
-        auto ignTags = body["ignore_tags"];
-        for (const auto i: irange(0, ignTags.size())) {
-          ignoreTags_.insert(static_cast<int>(ignTags[i]));
-        }
-      }
-      if (body.hasMember("pose") > 0 && body["pose"].getType() ==
-          XmlRpc::XmlRpcValue::TypeStruct) {
-        Transform pose;
-        PoseNoise2 noise;
-        if (yaml_utils::get_pose_and_noise(body["pose"], &pose, &noise,
-                                           def_pos_noise, def_rot_noise)) {
-          PoseWithNoise pn(pose, noise, true);
-          setPoseWithNoise(pn);
-          hasPosePrior = true;
-        } else {
-          setPoseWithNoise(PoseWithNoise());
-        }
-      }
+      const double def_pos_noise = BodyDefaults::instance()->positionNoise;
+      const double def_rot_noise = BodyDefaults::instance()->rotationNoise;
+      defaultTagSize_ = xml::parse<double>(body, "default_tag_size", 0.0);
+      isStatic_       = xml::parse<bool>(body,  "is_static");
+      maxHammingDistance_ = xml::parse<int>(body, "max_hamming_distance", 2);
+      overrideTagPositionNoise_ =
+        xml::parse<double>(body, "override_tag_position_noise", -1.0);
+      overrideTagRotationNoise_ =
+        xml::parse<double>(body, "override_tag_rotation_noise", -1.0);
+      T_body_odom_      = xml::parse<Transform>(body,  "T_body_odom",
+                                                Transform::Identity());
+      odomFrameId_      = xml::parse<std::string>(body, "odom_frame_id", "");
+      odomTopic_        = xml::parse<std::string>(body, "odom_topic", "");
+      odomAcceleration_ = xml::parse<double>(body, "odom_acceleration", 5.0);
+      odomAngularAcceleration_=
+        xml::parse<double>(body, "odom_angular_acceleration", 5.0);
+      ignoreTags_ = xml::parse_container<std::set<int>>(body, "ignore_tags",
+                                                        std::set<int>());
+      poseWithNoise_ = xml::parse<PoseWithNoise>(body, "pose",
+                                                 PoseWithNoise());
     } catch (const XmlRpc::XmlRpcException &e) {
-      throw std::runtime_error("error parsing body:" + name);
+      BOMB_OUT("error parsing body: " << name);
     }
-    if (!isStatic_ && hasPosePrior) {
-      throw std::runtime_error("dynamic body has prior pose: " + name);
+    if (!isStatic_ && poseWithNoise_.isValid()) {
+      BOMB_OUT("dynamic body has prior pose: " + name);
     }
     return (true);
   }
 
   BodyPtr
   Body::parse_body(const std::string &name,  XmlRpc::XmlRpcValue body) {
-    if (!body.hasMember("type")) {
-      throw (std::runtime_error("body " + name + " has no type!"));
-    }
-    std::string type = static_cast<std::string>(body["type"]);
-    BodyPtr rb = make_type(name, type);
+    const std::string type = xml::parse<std::string>(body, "type");
+    const BodyPtr rb = make_type(name, type);
     rb->parseCommon(body);
     rb->parse(body, rb);
     return (rb);
@@ -140,11 +102,10 @@ namespace tagslam {
   BodyVec
   Body::parse_bodies(XmlRpc::XmlRpcValue config) {
     BodyVec bv;
-    XmlRpc::XmlRpcValue bodies = config["bodies"];
-    if (bodies.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
-      ROS_ERROR_STREAM("no bodies found!");
-      throw std::runtime_error("invalid node type for bodies!");
+    if (!config.hasMember("bodies")) {
+      BOMB_OUT("no bodies found!");
     }
+    XmlRpc::XmlRpcValue bodies = config["bodies"];
     for (const auto i: irange(0, bodies.size())) {
       if (bodies[i].getType() !=
           XmlRpc::XmlRpcValue::TypeStruct) continue;

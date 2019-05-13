@@ -11,7 +11,11 @@ int main(int argc, char** argv) {
 
   try {
     tagslam::TagSlam2 node(pnh);
-    node.initialize();
+    if (!node.initialize()) {
+      ROS_ERROR_STREAM("init failed!");
+      ros::shutdown();
+      return (-1);
+    }
     node.run();
     node.finalize();
     ros::spin();
