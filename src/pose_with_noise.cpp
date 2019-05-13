@@ -3,12 +3,12 @@
  */
 
 #include "tagslam/pose_with_noise.h"
+#include "tagslam/logging.h"
 
 namespace tagslam {
   using std::string;
   static void bombout(const string &param, const string &name) {
-    ROS_ERROR_STREAM("error with " << param << " for " << name);
-    throw (std::runtime_error("error with " + param + " for " + name));
+    BOMB_OUT("error with " << param << " for " << name);
   }
 
   static std::vector<double>
@@ -32,7 +32,7 @@ namespace tagslam {
     if (!nh.getParam(name + "/rotvec/x", rvecd[0]) ||
         !nh.getParam(name + "/rotvec/y", rvecd[1]) ||
         !nh.getParam(name + "/rotvec/z", rvecd[2])) {
-      bombout("rotvec", name);
+      BOMB_OUT("error with parameter: " << "rotvec");
     }
     const Eigen::Vector3d rvec = Eigen::Map<Eigen::Vector3d>(rvecd);
     const Eigen::Vector3d pos = Eigen::Map<Eigen::Vector3d>(posd);

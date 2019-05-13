@@ -37,8 +37,8 @@ namespace tagslam {
 
   bool Body::parseCommon(XmlRpc::XmlRpcValue body) {
     try {
-      const double def_pos_noise = BodyDefaults::instance()->positionNoise;
-      const double def_rot_noise = BodyDefaults::instance()->rotationNoise;
+      //const double def_pos_noise = BodyDefaults::instance()->positionNoise;
+      //const double def_rot_noise = BodyDefaults::instance()->rotationNoise;
       defaultTagSize_ = xml::parse<double>(body, "default_tag_size", 0.0);
       isStatic_       = xml::parse<bool>(body,  "is_static");
       maxHammingDistance_ = xml::parse<int>(body, "max_hamming_distance", 2);

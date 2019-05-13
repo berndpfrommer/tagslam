@@ -4,6 +4,7 @@
 
 #include "tagslam/graph.h"
 #include "tagslam/body.h"
+#include "tagslam/logging.h"
 #include "tagslam/camera2.h"
 #include "tagslam/gtsam_optimizer.h"
 #include "tagslam/value/pose.h"
@@ -79,8 +80,7 @@ namespace tagslam {
   bool
   Graph::isOptimizableFactor(const VertexDesc &v) const {
     if (graph_[v]->isValue()) {
-      ROS_ERROR_STREAM("vertex is no factor: " << graph_[v]->getLabel());
-      throw std::runtime_error("vertex is no factor");
+      BOMB_OUT("vertex is no factor: " << graph_[v]->getLabel());
     }
     for (const auto &vv: getConnected(v)) {
       if (!isOptimized(vv)) {
@@ -99,15 +99,13 @@ namespace tagslam {
       VertexPtr     vvp = graph_[vv]; // pointer to value
       ValuePtr       vp = std::dynamic_pointer_cast<value::Value>(vvp);
       if (!vp) {
-        ROS_ERROR_STREAM("vertex is no pose: " << vvp->getLabel());
-        throw std::runtime_error("vertex is no pose");
+        BOMB_OUT("vertex is no pose: " << vvp->getLabel());
       }
       optKeys.push_back(findOptimizedPoseKey(vv));
     }
     if (optKeys.size() != (size_t)numKeys) {
-      ROS_ERROR_STREAM("wrong num values for " << info(fv) << ": "
-                       << optKeys.size() << " expected: " << numKeys);
-      throw std::runtime_error("wrong num values for factor");
+      BOMB_OUT("wrong num values for " << info(fv) << ": "
+               << optKeys.size() << " expected: " << numKeys);
     }
 
     return (optKeys);
@@ -117,8 +115,7 @@ namespace tagslam {
   VertexDesc Graph::find(const Vertex *vp) const {
     VertexDesc v = find(vp->getId());
     if (!is_valid(v)) {
-      ROS_ERROR_STREAM("cannot find factor " << vp->getLabel());
-      throw std::runtime_error("cannot find " + vp->getLabel());
+      BOMB_OUT("cannot find factor " << vp->getLabel());
     }
     return (v);
   }
@@ -127,8 +124,7 @@ namespace tagslam {
   Graph::findOptimized(const VertexDesc &v) const {
     VertexToOptMap::const_iterator it = optimized_.find(v);
     if (it == optimized_.end()) {
-      ROS_ERROR_STREAM("not optimized: " << info(v));
-      throw std::runtime_error("not optimized: " + info(v));
+      BOMB_OUT("not optimized: " << info(v));
     }
     return (it);
   }
@@ -136,21 +132,18 @@ namespace tagslam {
   void Graph::verifyUnoptimized(const VertexDesc &v) const {
     const VertexToOptMap::const_iterator it = optimized_.find(v);
     if (it != optimized_.end()) {
-      ROS_ERROR_STREAM("already optimized: " << info(v));
-      throw std::runtime_error("already optimized: " + info(v));
+      BOMB_OUT("already optimized: " << info(v));
     }
   }
 
   ValueKey Graph::findOptimizedPoseKey(const VertexDesc &v) const {
     VertexToOptMap::const_iterator it = optimized_.find(v);
     if (it == optimized_.end()) {
-      ROS_ERROR_STREAM("cannot find opt pose: " << info(v));
-      throw std::runtime_error("cannot find opt pose: " + info(v));
+      BOMB_OUT("cannot find opt pose: " << info(v));
     }
     if (it->second.size() != 1) {
-      ROS_DEBUG_STREAM("pose must have one opt value: " << info(v)
-                       << " but has: " << it->second.size());
-      throw std::runtime_error("pose must have one opt value!");
+      BOMB_OUT("pose must have one opt value: " << info(v)
+               << " but has: " << it->second.size());
     }
     return (it->second[0]);
   }
@@ -169,8 +162,7 @@ namespace tagslam {
   VertexDesc
   Graph::addPose(const ros::Time &t, const string &name, bool isCameraPose) {
     if (hasId(value::Pose::id(t, name))) {
-      ROS_ERROR_STREAM("duplicate pose inserted: " << t << " " << name);
-      throw (std::runtime_error("duplicate pose inserted"));
+      BOMB_OUT("duplicate pose inserted: " << t << " " << name);
     }
     PoseValuePtr pv(new value::Pose(t, name, isCameraPose));
     return (insertVertex(pv));
@@ -180,8 +172,7 @@ namespace tagslam {
   Transform Graph::getOptimizedPose(const VertexDesc &v) const {
     PoseValueConstPtr vp = std::dynamic_pointer_cast<value::Pose>(graph_[v]);
     if (!vp) {
-      ROS_ERROR_STREAM("vertex is not pose: " << info(v));
-      throw std::runtime_error("vertex is not pose");
+      BOMB_OUT("vertex is not pose: " << info(v));
     }
     VertexToOptMap::const_iterator it = findOptimized(v);
     return (optimizer_->getPose(it->second[0]));
@@ -270,13 +261,11 @@ namespace tagslam {
       if (psp) {
         const VertexDesc dv = find(psp->getId());
         if (!is_valid(dv)) {
-          ROS_ERROR_STREAM("cannot find dest value: " << psp->getLabel());
-          throw std::runtime_error("cannot find dest value");
+          BOMB_OUT("cannot find dest value: " << psp->getLabel());
         }
         PoseValuePtr pdp = std::dynamic_pointer_cast<value::Pose>(graph_[dv]);
         if (!pdp) {
-          ROS_ERROR_STREAM("invalid dest type: " << graph_[dv]->getLabel());
-          throw std::runtime_error("invalid dest type");
+          BOMB_OUT("invalid dest type: " << graph_[dv]->getLabel());
         }
         if (!isOptimized(dv) && sg.isOptimized(sv)) {
           //ROS_DEBUG_STREAM("transferring pose: " << pdp->getLabel());
@@ -298,8 +287,7 @@ namespace tagslam {
         if (is_valid(dv)) {
           sfp->addToOptimizer(this);
         } else {
-          ROS_ERROR_STREAM("no orig vertex found for: " << sg.info(sv));
-          throw std::runtime_error("no orig vertex found");
+          BOMB_OUT("no orig vertex found for: " << sg.info(sv));
         }
       }
     }

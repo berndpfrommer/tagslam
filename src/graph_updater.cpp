@@ -8,6 +8,7 @@
 #include "tagslam/pnp.h"
 #include "tagslam/camera2.h"
 #include "tagslam/tag2.h"
+#include "tagslam/logging.h"
 
 #include <boost/range/irange.hpp>
 #include <boost/graph/graph_utility.hpp>
@@ -39,8 +40,7 @@ namespace tagslam {
     //
     auto fp = factor::cast_const(graph[fac]);
     if (!fp) {
-      ROS_ERROR_STREAM("examined vertex is no factor: " << graph.info(fac));
-      throw std::runtime_error("examined vertex is no factor");
+      BOMB_OUT("examined vertex is no factor: " + graph.info(fac));
     }
     // find out if this factor allows us to determine a new value
     std::vector<VertexDesc> conn = graph.getConnected(fac);
@@ -216,8 +216,7 @@ namespace tagslam {
       VertexPtr   vvp = graph.getVertex(vv); // pointer to value
       PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>(vvp);
       if (!pp) {
-        ROS_ERROR_STREAM("vertex is no pose: " << vv);
-        throw std::runtime_error("vertex is no pose");
+        BOMB_OUT("vertex is no pose: " << vv);
       }
       //ROS_DEBUG_STREAM(" factor attached value: " << pp->getLabel());
       if (!graph.isOptimized(vv)) {
@@ -287,8 +286,7 @@ namespace tagslam {
     VertexVec T;
     int idx = find_connected_poses(*g, v, &T);
     if (T.size()  != 2) {
-      ROS_ERROR_STREAM("rel pose prior has wrong num connected: " << T.size());
-      throw std::runtime_error("rel pose prior has wrong num conn");
+      BOMB_OUT("rel pose prior has wrong num connected: " << T.size());
     }
     Transform tf;
     switch (idx) {
@@ -395,8 +393,7 @@ namespace tagslam {
             // add factor to optimizer. The values are already there.
             fp->addToOptimizer(g);
           } else {
-            ROS_DEBUG_STREAM("SHOULD NEVER HAPPEN: " << g->info(v));
-            throw std::runtime_error("internal error");
+            BOMB_OUT("SHOULD NEVER HAPPEN: " << g->info(v));
             return (false);
           }
         } else {
