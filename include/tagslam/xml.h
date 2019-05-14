@@ -56,6 +56,27 @@ namespace tagslam {
       } 
     }
 
+    // parse without a key or default
+    // int x = parse<int>(xmlrpcvalue);
+    // 
+    template <typename T>
+    T parse(XmlRpc::XmlRpcValue xml) {
+      return (cast<T>(xml));
+    }
+    
+    // parse without a key, but with default default
+    // int x = parse<int>(xmlrpcvalue);
+    // 
+    template <typename T>
+    T parse(XmlRpc::XmlRpcValue xml, const T &def) {
+      try {
+        return (cast<T>(xml));
+      } catch (const XmlRpc::XmlRpcException &e) {
+        return (def);
+      }
+    }
+
+
     // specialization for reading vectors
 
     template <>
@@ -127,5 +148,26 @@ namespace tagslam {
       }
       return (parse_container<C>(xml, key));
     }
+
+    
+
+    // specialization for reading transform without key
+
+    template<>
+    Transform parse(XmlRpc::XmlRpcValue xml);
+    
+    // specialization for reading noise without key
+
+    template<>
+    PoseNoise2 parse(XmlRpc::XmlRpcValue xml);
+
+    // specialization for reading pose with noise without key
+
+    template<>
+    PoseWithNoise parse(XmlRpc::XmlRpcValue xml);
+    
+    // reading a pose with noise with default
+    template<>
+    PoseWithNoise parse(XmlRpc::XmlRpcValue xml, const PoseWithNoise &def);
   }
 }

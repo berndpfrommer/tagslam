@@ -3,8 +3,8 @@
  */
 
 #include "tagslam/tag2.h"
-#include "tagslam/yaml_utils.h"
 #include "tagslam/body.h"
+#include "tagslam/xml.h"
 #include <ros/ros.h>
 #include <map>
 
@@ -32,31 +32,16 @@ namespace tagslam {
     std::vector<Tag2Ptr> tags;
     for (uint32_t i = 0; i < (unsigned int) xmltags.size(); i++) {
       if (xmltags[i].getType() != XmlRpc::XmlRpcValue::TypeStruct) continue;
-      int id(0), bits(6);
-      double sz(size);
-      for (XmlRpc::XmlRpcValue::iterator it = xmltags[i].begin();
-           it != xmltags[i].end(); ++it) {
-        std::string field = it->first;
-        if (field == "id") {          id   = static_cast<int>(it->second);
-        } else if (field == "bits") { bits = static_cast<int>(it->second);
-        } else if (field == "size") { sz   = static_cast<double>(it->second);
-        }
-      }
-      Transform pose;
-      PoseNoise2 noise;
-      if (yaml_utils::get_pose_and_noise(xmltags[i], &pose, &noise)) {
-        PoseWithNoise pn(pose, noise, true);
-        tags.push_back(make(id, bits, sz, pn, body));
-      } else {
-        tags.push_back(make(id, bits, sz, PoseWithNoise(), body));
-      }
+      const int id    = xml::parse<int>(xmltags[i],    "id");
+      const int bits  = xml::parse<int>(xmltags[i],    "bits", 6);
+      const double sz = xml::parse<double>(xmltags[i], "size", size);
+      const PoseWithNoise pwn = xml::parse<PoseWithNoise>(xmltags[i], PoseWithNoise());
+      tags.push_back(make(id, bits, sz, pwn, body));
     }
-    /*
-      std::cout << "-------tags: " << std::endl;
-      for (const auto &tag:tags) {
-      std::cout << *tag << std::endl;
-      }
-    */
+    //std::cout << "-------tags: " << std::endl;
+    //for (const auto &tag:tags) {
+    //std::cout << *tag << std::endl;
+    //}
     return (tags);
   }
 
