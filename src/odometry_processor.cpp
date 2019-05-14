@@ -65,7 +65,8 @@ namespace tagslam {
         PoseNoise2::make(std::max(dang, angularAcceleration_ * dt2),
                          std::max(dpos, acceleration_ * dt2));
       const PoseWithNoise pwn(deltaPose, pn, true);
-      auto fac = addBodyPoseDelta(time_, msg->header.stamp, body_, pwn);
+      auto fac = add_body_pose_delta(graph_.get(), time_, msg->header.stamp,
+                                     body_, pwn);
       factors->push_back(fac);
     }
     pose_ = newPose;
@@ -73,25 +74,25 @@ namespace tagslam {
   }
 
   VertexDesc
-  OdometryProcessor::addBodyPoseDelta(const ros::Time &tPrev,
-                                      const ros::Time &tCurr,
-                                      const BodyConstPtr &body,
-                                      const PoseWithNoise &deltaPose) {
+  OdometryProcessor::add_body_pose_delta(
+    Graph *graph, const ros::Time &tPrev,
+    const ros::Time &tCurr, const BodyConstPtr &body,
+    const PoseWithNoise &deltaPose) {
     Transform prevPose;
     const std::string name = Graph::body_name(body->getName());
-    const VertexDesc pp = graph_->findPose(tPrev, name);
-    const VertexDesc cp = graph_->findPose(tCurr, name);
+    const VertexDesc pp = graph->findPose(tPrev, name);
+    const VertexDesc cp = graph->findPose(tCurr, name);
     if (!Graph::is_valid(pp)) {
       ROS_DEBUG_STREAM("adding previous pose for " << name << " " << tPrev);
-      graph_->addPose(tPrev, name, false);
+      graph->addPose(tPrev, name, false);
     }
     if (!Graph::is_valid(cp)) {
       ROS_DEBUG_STREAM("adding current pose for " << name << " " << tCurr);
-      graph_->addPose(tCurr, name, false);
+      graph->addPose(tCurr, name, false);
     }
     RelativePosePriorFactorPtr
       fac(new factor::RelativePosePrior(tCurr, tPrev, deltaPose, name));
-    return (fac->addToGraph(fac, graph_.get()));
+    return (fac->addToGraph(fac, graph));
   }
 
 

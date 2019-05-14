@@ -198,8 +198,12 @@ namespace tagslam {
       for (const auto &tag: body->getTags()) {
         tagMap_.insert(TagMap::value_type(tag->getId(), tag));
       }
-
       if (!body->isStatic()) {
+        if (body->getFakeOdomTranslationNoise() > 0 &&
+            body->getFakeOdomRotationNoise() > 0) {
+          useFakeOdom_ = true;
+          ROS_INFO_STREAM("using fake odom for " << body->getName());
+        }
         nonstaticBodies_.push_back(body);
         odomPub_.push_back(
           nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(),QSZ));
@@ -496,7 +500,8 @@ namespace tagslam {
 
     const ros::Time t = tagmsgs.empty() ?
       odommsgs[0]->header.stamp : tagmsgs[0]->header.stamp;
-    if (anyTagsVisible(tagmsgs) || !odommsgs.empty()) {
+    const bool hasOdom = !odommsgs.empty() || useFakeOdom_;
+    if (anyTagsVisible(tagmsgs) || hasOdom) {
       // if we have any new valid observations,
       // add unknown poses for all non-static bodies
       for (const auto &body: nonstaticBodies_) {
@@ -505,13 +510,12 @@ namespace tagslam {
     }
     std::vector<VertexDesc> factors;
     profiler_.reset();
-    #define USE_ODOM
-#ifdef USE_ODOM
     if (odommsgs.size() != 0) {
       processOdom(odommsgs, &factors);
+    } else if (useFakeOdom_) {
+      fakeOdom(t, &factors);
     }
     profiler_.record("processOdom");
-#endif
     processTags(tagmsgs, &factors);
     profiler_.record("processTags");
     graphUpdater_.processNewFactors(t, factors);
@@ -530,6 +534,24 @@ namespace tagslam {
     clockPub_.publish(clockMsg);
     publishTransforms(t, false);
   }
+
+  void TagSlam2::fakeOdom(const ros::Time &tCurr,
+                          std::vector<VertexDesc> *factors) {
+    if (!times_.empty()) {
+      const auto &tPrev = times_.back();
+      for (const auto &body: bodies_) {
+        if (!body->isStatic()) {
+          const PoseNoise2 pn =
+            PoseNoise2::make(body->getFakeOdomRotationNoise(),
+                             body->getFakeOdomTranslationNoise());
+          const PoseWithNoise pwn(Transform::Identity(), pn, true);
+          factors->push_back(OdometryProcessor::add_body_pose_delta(
+                               graph_.get(), tPrev, tCurr, body, pwn));
+        }
+      }
+    }
+  }
+
   
   void TagSlam2::setupOdom(const std::vector<OdometryConstPtr> &odomMsgs) {
     std::set<BodyConstPtr> bodySet;

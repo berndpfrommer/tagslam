@@ -59,6 +59,12 @@ namespace tagslam {
     double getOverrideTagPositionNoise() const {
       return (overrideTagPositionNoise_);
     }
+    double getFakeOdomTranslationNoise() const {
+      return (fakeOdomTranslationNoise_);
+    }
+    double getFakeOdomRotationNoise() const {
+      return (fakeOdomRotationNoise_);
+    }
     std::list<Tag2ConstPtr> getTags() const;
     static BodyVec parse_bodies(XmlRpc::XmlRpcValue config);
 
@@ -92,6 +98,8 @@ namespace tagslam {
     Transform           T_body_odom_;
     double              overrideTagRotationNoise_{-1};
     double              overrideTagPositionNoise_{-1};
+    double              fakeOdomTranslationNoise_{-1.0};
+    double              fakeOdomRotationNoise_{-1.0};
     // -------- static functions
     static BodyPtr parse_body(const string &name,
                               XmlRpc::XmlRpcValue config);

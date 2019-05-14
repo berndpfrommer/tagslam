@@ -23,11 +23,10 @@ namespace tagslam {
                       const BodyConstPtr &body);
     void process(const OdometryConstPtr &msgs,
                  std::vector<VertexDesc> *factors);
+    static VertexDesc add_body_pose_delta(
+      Graph *graph, const ros::Time &tPrev, const ros::Time &tCurr,
+      const BodyConstPtr &body, const PoseWithNoise &deltaPose);
   private:
-    VertexDesc addBodyPoseDelta(const ros::Time &tPrev,
-                                const ros::Time &tCurr,
-                                const BodyConstPtr &body,
-                                const PoseWithNoise &deltaPose);
     // ---- variables
     GraphPtr        graph_;
     BodyConstPtr    body_;

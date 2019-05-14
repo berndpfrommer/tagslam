@@ -97,6 +97,8 @@ namespace tagslam {
     void readSquash(XmlRpc::XmlRpcValue config);
  
     void playFromBag(const std::string &fname);
+    void fakeOdom(const ros::Time &tCurr, std::vector<VertexDesc> *factors);
+
     void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
                      std::vector<VertexDesc> *factors);
     std::vector<std::vector<string>> makeTopics(rosbag::Bag *bag) const;
@@ -143,6 +145,7 @@ namespace tagslam {
     string               fixedFrame_;
     bool                 writeDebugImages_;
     bool                 hasCompressedImages_;
+    bool                 useFakeOdom_{false};
     int                  frameNum_{0};
     int                  maxFrameNum_{1000000};
     double               playbackRate_{1.0};

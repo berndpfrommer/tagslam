@@ -60,6 +60,10 @@ namespace tagslam {
       if (poseWithNoise_.isValid() && !isStatic_) {
         BOMB_OUT("body " << getName() << " is dynamic but has pose!");
       }
+      fakeOdomTranslationNoise_ =
+        xml::parse<double>(body, "fake_odom_translation_noise", -1.0);
+      fakeOdomRotationNoise_ =
+        xml::parse<double>(body, "fake_odom_rotation_noise", -1.0);
     } catch (const XmlRpc::XmlRpcException &e) {
       BOMB_OUT("error parsing body: " << name);
     }
