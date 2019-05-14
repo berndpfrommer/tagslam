@@ -39,7 +39,7 @@ namespace tagslam {
     }
     
     //
-    // parse without default (throws exception if not found!), for example
+    // parse without default (throws exception if not found!), e.g:
     // int x = parse<int>(xmlrpcvalue, "foo");
     // 
     template <typename T>
@@ -56,28 +56,7 @@ namespace tagslam {
       } 
     }
 
-    // parse without a key or default
-    // int x = parse<int>(xmlrpcvalue);
-    // 
-    template <typename T>
-    T parse(XmlRpc::XmlRpcValue xml) {
-      return (cast<T>(xml));
-    }
-    
-    // parse without a key, but with default default
-    // int x = parse<int>(xmlrpcvalue);
-    // 
-    template <typename T>
-    T parse(XmlRpc::XmlRpcValue xml, const T &def) {
-      try {
-        return (cast<T>(xml));
-      } catch (const XmlRpc::XmlRpcException &e) {
-        return (def);
-      }
-    }
-
-
-    // specialization for reading vectors
+    // specialization for reading 3d points
 
     template <>
     Point3d parse(XmlRpc::XmlRpcValue xml, const std::string &key);
@@ -139,6 +118,7 @@ namespace tagslam {
       return (v);
     }
 
+    // parsing containers with default
     
     template<typename C>
     C parse_container(XmlRpc::XmlRpcValue xml, const std::string &key,
@@ -149,25 +129,5 @@ namespace tagslam {
       return (parse_container<C>(xml, key));
     }
 
-    
-
-    // specialization for reading transform without key
-
-    template<>
-    Transform parse(XmlRpc::XmlRpcValue xml);
-    
-    // specialization for reading noise without key
-
-    template<>
-    PoseNoise2 parse(XmlRpc::XmlRpcValue xml);
-
-    // specialization for reading pose with noise without key
-
-    template<>
-    PoseWithNoise parse(XmlRpc::XmlRpcValue xml);
-    
-    // reading a pose with noise with default
-    template<>
-    PoseWithNoise parse(XmlRpc::XmlRpcValue xml, const PoseWithNoise &def);
   }
 }

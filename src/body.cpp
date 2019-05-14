@@ -39,8 +39,8 @@ namespace tagslam {
     try {
       //const double def_pos_noise = BodyDefaults::instance()->positionNoise;
       //const double def_rot_noise = BodyDefaults::instance()->rotationNoise;
-      defaultTagSize_ = xml::parse<double>(body, "default_tag_size", 0.0);
       isStatic_       = xml::parse<bool>(body,  "is_static");
+      defaultTagSize_ = xml::parse<double>(body, "default_tag_size", 0.0);
       maxHammingDistance_ = xml::parse<int>(body, "max_hamming_distance", 2);
       overrideTagPositionNoise_ =
         xml::parse<double>(body, "override_tag_position_noise", -1.0);
@@ -57,6 +57,9 @@ namespace tagslam {
                                                         std::set<int>());
       poseWithNoise_ = xml::parse<PoseWithNoise>(body, "pose",
                                                  PoseWithNoise());
+      if (poseWithNoise_.isValid() && !isStatic_) {
+        BOMB_OUT("body " << getName() << " is dynamic but has pose!");
+      }
     } catch (const XmlRpc::XmlRpcException &e) {
       BOMB_OUT("error parsing body: " << name);
     }

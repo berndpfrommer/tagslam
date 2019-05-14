@@ -41,19 +41,6 @@ namespace tagslam {
     }
 
     template <>
-    Transform parse(XmlRpc::XmlRpcValue xml) {
-      try {
-        const Point3d p = parse<Point3d>(xml, "position");
-        const Point3d r = parse<Point3d>(xml, "rotation");
-        return (make_transform(r, p));
-      } catch (const XmlRpc::XmlRpcException &e) {
-        ROS_ERROR_STREAM("error parsing transform");
-        //xml.write(std::cerr); std::cerr << std::endl;
-        throw (e);
-      }
-    }
-
-    template <>
     PoseNoise2 parse(XmlRpc::XmlRpcValue xml, const std::string &key) {
       if (!xml.hasMember(key)) {
         ROS_ERROR_STREAM("key not found: " << key);
@@ -65,19 +52,6 @@ namespace tagslam {
         return (PoseNoise2::make(r, p));
       } catch (const XmlRpc::XmlRpcException &e) {
         ROS_ERROR_STREAM("error parsing: " << key);
-        //xml.write(std::cerr); std::cerr << std::endl;
-        throw (e);
-      }
-    }
-  
-    template <>
-    PoseNoise2 parse(XmlRpc::XmlRpcValue xml) {
-      try {
-        const Point3d p = parse<Point3d>(xml, "position_noise");
-        const Point3d r = parse<Point3d>(xml, "rotation_noise");
-        return (PoseNoise2::make(r, p));
-      } catch (const XmlRpc::XmlRpcException &e) {
-        ROS_ERROR_STREAM("error parsing pose noise ");
         //xml.write(std::cerr); std::cerr << std::endl;
         throw (e);
       }
@@ -99,32 +73,6 @@ namespace tagslam {
         throw (e);
       }
     }
-
-    // specialization for reading pose with noise without key
-
-    template<>
-    PoseWithNoise parse(XmlRpc::XmlRpcValue xml) {
-      try {
-        const Transform  pose  = parse<Transform>(xml);
-        const PoseNoise2 noise = parse<PoseNoise2>(xml);
-        return (PoseWithNoise(pose, noise, true));
-      } catch (const XmlRpc::XmlRpcException &e) {
-        ROS_ERROR_STREAM("error parsing pose with noise!");
-        //xml.write(std::cerr); std::cerr << std::endl;
-        throw (e);
-      }
-    }
  
-    // read pose with noise with key
-    template<>
-    PoseWithNoise parse(XmlRpc::XmlRpcValue xml, const PoseWithNoise &def) {
-      try {
-        return (parse<PoseWithNoise>(xml));
-      } catch (const XmlRpc::XmlRpcException &e) {
-        return (def);
-      } 
-    }
-
-
   } // namespace
 }  // namespace

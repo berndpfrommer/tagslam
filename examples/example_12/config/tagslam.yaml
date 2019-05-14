@@ -9,11 +9,11 @@ bodies:
      default_tag_size: 0.150
      max_hamming_distance: 2
      pose:
-       center:
+       position:
          x: 0
          y: 0
          z: 0
-       rotvec:
+       rotation:
          x: 0
          y: 0
          z: 0
@@ -29,22 +29,23 @@ bodies:
      tags:
        - id: 6
          size: 0.15000000
-         center:
-           x: 1.92018
-           y: 0.5987
-           z: 2.2390
-         rotvec:
-           x: 0.0
-           y: -1.570796327
-           z: 0.0
-         position_noise:
-           x: 0.0001
-           y: 0.0001
-           z: 0.0001
-         rotation_noise:
-           x: 1.0e-5
-           y: 1.0e-5
-           z: 1.0e-5
+         pose:
+           position:
+             x: 1.92018
+             y: 0.5987
+             z: 2.2390
+           rotation:
+             x: 0.0
+             y: -1.570796327
+             z: 0.0
+           position_noise:
+             x: 0.0001
+             y: 0.0001
+             z: 0.0001
+           rotation_noise:
+             x: 1.0e-5
+             y: 1.0e-5
+             z: 1.0e-5
  - rig:
      ignore_tags: [381]
      is_static: false
@@ -58,7 +59,7 @@ bodies:
          x:  0.02568531
          y:  0.0238219
          z:  0.026066910
-       rotvec:
+       rotation:
          x:  -7.66219656e-04
          y:  2.84301166e-02
          z:  3.14080874

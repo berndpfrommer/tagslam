@@ -126,11 +126,11 @@ bodies:
      is_static: true
      default_tag_size: 0.12000000
      pose:
-       center:
+       position:
          x: 0.00635000
          y: 0.12667500
          z: 0.55050000
-       rotvec:
+       rotation:
          x: 1.20919958
          y: 1.20919958
          z: 1.20919958

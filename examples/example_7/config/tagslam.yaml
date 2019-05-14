@@ -7,11 +7,11 @@ bodies:
      is_static: true
      default_tag_size: 0.150
      pose:
-       center:
+       position:
          x: 0
          y: 0
          z: 0
-       rotvec:
+       rotation:
          x: 0
          y: 0
          z: 0
@@ -27,22 +27,23 @@ bodies:
      tags:
        - id: 1
          size: 0.150
-         center:
-           x: 0
-           y: 0
-           z: 0
-         rotvec:
-           x: 0
-           y: 0
-           z: 0
-         position_noise:
-           x: 0.0001
-           y: 0.0001
-           z: 0.0001
-         rotation_noise:
-           x: 1.0e-05
-           y: 1.0e-05
-           z: 1.0e-05
+         pose:
+           position:
+             x: 0
+             y: 0
+             z: 0
+           rotation:
+             x: 0
+             y: 0
+             z: 0
+           position_noise:
+             x: 0.0001
+             y: 0.0001
+             z: 0.0001
+           rotation_noise:
+             x: 1.0e-05
+             y: 1.0e-05
+             z: 1.0e-05
  - rig:
      is_static: false
      type: camera_rig

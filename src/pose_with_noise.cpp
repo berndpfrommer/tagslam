@@ -53,7 +53,7 @@ namespace tagslam {
   }
 
   std::ostream &operator<<(std::ostream &os, const PoseWithNoise &pe) {
-    os << "pose: " << pe.getPose() << std::endl << "noise: " << pe.getNoise();
+    os << "pose: valid: " << pe.isValid() << std::endl <<  pe.getPose() << std::endl << "noise: " << pe.getNoise();
     //os << "pose: " << pe." noise: " << pe.getNoise().getDiagonal().transpose();
     return (os);
   }
