@@ -188,26 +188,6 @@ namespace tagslam {
     return (sv);
   }
 
-  double
-  GraphUpdater::initializeFromSubgraphs(const std::vector<GraphPtr>
-                                        &subGraphs) {
-    profiler_.reset();
-    double totalError(0);
-    for (const auto &sg: subGraphs) {
-      double err = sg->getError(); // assume already opt
-      double maxErr = sg->getMaxError();
-      if (maxErr < maxSubgraphError_) {
-        totalError += err;
-        graph_->initializeFrom(*sg);
-      } else { 
-        ROS_WARN_STREAM("dropping subgraph with error: " << err << " "
-                        << maxErr);
-      }
-    }
-    profiler_.record("initialzeFromSubgraphs");
-    return (totalError);
-  }
-
   static int find_connected_poses(const Graph &graph,
                                   VertexDesc v, VertexVec *conn) {
     int missingIdx(-1), edgeNum(0), numMissing(0);
@@ -493,14 +473,16 @@ namespace tagslam {
     return (false);
   }
   
-  void
+  double
   GraphUpdater::initializeSubgraphs(std::vector<GraphPtr> *subGraphs,
                                     const std::vector<VertexDeque> &verts) {
-    profiler_.reset();
+    double totalSGError(0);
+
     ROS_DEBUG_STREAM("------ initializing " << verts.size() << " subgraphs");
     subGraphs->clear();
     for (const auto &vs: verts) {  // iterate over all subgraphs
       ROS_DEBUG_STREAM("---------- subgraph of size: " << vs.size());
+      profiler_.reset();
       std::vector<VertexDeque> orderings;
       enumerate(&orderings, vs);
       
@@ -516,16 +498,28 @@ namespace tagslam {
           break;
         }
       }
+      profiler_.record("initializeSubgraphs");
       if (bestGraph) {  // found an acceptable error value
+        profiler_.reset();
         subGraphs->push_back(bestGraph);
         ROS_DEBUG_STREAM("best subgraph init found after " << ord <<
                          " attempts with error: " << errMin);
+        const double sgErr = bestGraph->getError();
+        const double maxErr = bestGraph->getMaxError();
+        if (maxErr < maxSubgraphError_) {
+          totalSGError += sgErr;
+          graph_->initializeFrom(*bestGraph);
+        } else { 
+          ROS_WARN_STREAM("dropping subgraph with error: " << sgErr << " "
+                          << maxErr);
+        }
         //bestGraph->printErrorMap("BEST SUBGRAPH");
+        profiler_.record("initialzeFromSubgraphs");
       } else {
         ROS_WARN_STREAM("could not initialize subgraph!");
       }
     }
-    profiler_.record("initializeSubgraphs");
+    return (totalSGError);
   }
 
   double GraphUpdater::optimize(double thresh) {
@@ -594,11 +588,9 @@ namespace tagslam {
       return (false);
     }
     std::vector<GraphPtr> subGraphs;
-    initializeSubgraphs(&subGraphs, sv);
-    //optimizeSubgraphs(subGraphs);
-    double serr = initializeFromSubgraphs(subGraphs);
+    const double serr = initializeSubgraphs(&subGraphs, sv);
     subgraphError_ += serr;
-    double err = optimize(serr);
+    const double err = optimize(serr);
     ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
                     ", full graph error: " << err);
     eraseStoredFactors(t, covered->factors);
