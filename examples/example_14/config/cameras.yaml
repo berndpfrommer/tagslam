@@ -1,0 +1,48 @@
+cam0:
+  camera_model: pinhole
+  intrinsics: [470.338, 470.521, 639.698, 524.42]
+  distortion_model: equidistant
+  distortion_coeffs: [-0.013211, -0.00988947, 0.0121051, -0.00452971]
+  resolution: [1280, 1024]
+  #17221006
+  rostopic: /quadruple/bottom_left/image_raw/compressed
+  tagtopic: /quadruple/bottom_left/tags
+  rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01
+cam1:
+  camera_model: pinhole
+  intrinsics: [467.815, 467.971, 641.13, 511.084]
+  distortion_model: equidistant
+  distortion_coeffs: [-0.0144969, -0.00155277, 0.00396197, -0.00200986]
+  resolution: [1280, 1024]
+  #17221009
+  rostopic: /quadruple/bottom_right/image_raw/compressed
+  tagtopic: /quadruple/bottom_right/tags
+  rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01
+cam2:
+  camera_model: pinhole
+  intrinsics: [472.938, 472.862, 638.667, 514.481]
+  distortion_model: equidistant
+  distortion_coeffs: [0.000221074, -0.0302259, 0.0280996, -0.00926951]
+  resolution: [1280, 1024]
+  #16024503
+  rostopic: /quadruple/top_left/image_raw/compressed
+  tagtopic: /quadruple/top_left/tags
+  rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01
+cam3:
+  camera_model: pinhole
+  intrinsics: [471.777, 471.863, 629.462, 515.161]
+  distortion_model: equidistant
+  distortion_coeffs: [-0.0188628, 0.00123258, 0.00485599, -0.00313224]
+  resolution: [1280, 1024]
+  #1602449
+  rostopic: /quadruple/top_right/image_raw/compressed
+  tagtopic: /quadruple/top_right/tags
+  rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01
