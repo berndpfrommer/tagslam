@@ -5,6 +5,8 @@
 #include "tagslam/factor/distance.h"
 #include "tagslam/graph.h"
 #include "tagslam/body.h"
+#include "tagslam/logging.h"
+#include "tagslam/xml.h"
 #include <geometry_msgs/Point.h>
 #include <XmlRpcException.h>
 #include <string>
@@ -70,36 +72,25 @@ namespace tagslam {
     DistanceFactorPtr
     Distance::parse(const std::string &name, XmlRpc::XmlRpcValue meas,
                     TagFactory *tagFactory) {
-      int tag1(-1), tag2(-1), c1(-1), c2(-1);
-      double d(-1), noise(-1);
       try {
-        for (XmlRpc::XmlRpcValue::iterator it = meas.begin();
-             it != meas.end(); ++it) {
-          if (it->first == "tag1") { tag1 = static_cast<int>(it->second); }
-          if (it->first == "tag2") { tag2 = static_cast<int>(it->second); }
-          if (it->first == "corner1") { c1 = static_cast<int>(it->second); }
-          if (it->first == "corner2") { c2 = static_cast<int>(it->second); }
-          if (it->first == "distance") { d = static_cast<double>(it->second); }
-          if (it->first == "noise") { noise = static_cast<double>(it->second);}
-        }
-      } catch (const XmlRpc::XmlRpcException &e) {
-        throw std::runtime_error("error parsing measurement:" + name);
-      }
-      DistanceFactorPtr fp;
-      if (tag1 >= 0 && tag2 >= 0 && c1 >= 0 && c2 >= 0 && d > 0 && noise > 0) {
+        const int tag1  = xml::parse<int>(meas, "tag1");
+        const int tag2  = xml::parse<int>(meas, "tag2");
+        const int c1    = xml::parse<int>(meas, "corner1");
+        const int c2    = xml::parse<int>(meas, "corner2");
+        const double d  = xml::parse<double>(meas, "distance");
+        const double noise = xml::parse<double>(meas, "noise");
+        
         Tag2ConstPtr tag1Ptr = tagFactory->findTag(tag1);
         Tag2ConstPtr tag2Ptr = tagFactory->findTag(tag2);
         if (!tag1Ptr || !tag2Ptr) {
-          ROS_ERROR_STREAM("measured tags are not valid: " << name);
-          throw (std::runtime_error("measured tags are not valid!"));
+          BOMB_OUT("measured tags are not valid: " << name);
         }
-        fp.reset(new factor::Distance(d, noise, c1, tag1Ptr, c2, tag2Ptr,
-                                      name));
-      } else {                                  
-        ROS_ERROR_STREAM("distance measurement incomplete: " << name);
-        throw (std::runtime_error("distance measurement incomplete!"));
+        const DistanceFactorPtr fp(
+          new factor::Distance(d, noise, c1, tag1Ptr, c2, tag2Ptr, name));
+        return (fp);
+      } catch (const XmlRpc::XmlRpcException &e) {
+        BOMB_OUT("error parsing measurement:" + name);
       }
-      return (fp);
     }
 
     DistanceFactorPtrVec

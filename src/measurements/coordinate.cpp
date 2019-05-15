@@ -39,7 +39,8 @@ namespace tagslam {
       }
       std::shared_ptr<measurements::Coordinate>
         m(new measurements::Coordinate());
-      XmlRpc::XmlRpcValue meas = config[std::string("coordinate_measurements")];
+      XmlRpc::XmlRpcValue meas =
+        config[std::string("coordinate_measurements")];
       if (meas.getType() == XmlRpc::XmlRpcValue::TypeArray) {
         auto fpts = factor::Coordinate::parse(meas, tagFactory);
         for (const auto f: fpts) {
