@@ -57,11 +57,11 @@ namespace tagslam {
       bool foundRotNoise(false), foundPosNoise(false);
       for (XmlRpc::XmlRpcValue::iterator it = pose_and_noise.begin();
            it != pose_and_noise.end(); ++it) {
-        if (it->first == "rotvec") {
-          anglevec = get_vec("rotvec", it->second);
+        if (it->first == "rotation") {
+          anglevec = get_vec("rotation", it->second);
           nfound++;
-        } else if (it->first == "center") {
-          center   = get_vec("center", it->second);
+        } else if (it->first == "position") {
+          center   = get_vec("position", it->second);
           nfound++;
         } else if (it->first == "rotation_noise") {
           rotnoise = get_vec("rotation_noise", it->second);
@@ -95,11 +95,11 @@ namespace tagslam {
       bool foundRotNoise(false), foundPosNoise(false);
       for (XmlRpc::XmlRpcValue::iterator it = pose_and_noise.begin();
            it != pose_and_noise.end(); ++it) {
-        if (it->first == "rotvec") {
-          anglevec = get_vec("rotvec", it->second);
+        if (it->first == "rotation") {
+          anglevec = get_vec("rotation", it->second);
           nfound++;
-        } else if (it->first == "center") {
-          center   = get_vec("center", it->second);
+        } else if (it->first == "position") {
+          center   = get_vec("position", it->second);
           nfound++;
         } else if (it->first == "rotation_noise") {
           rotnoise = get_vec("rotation_noise", it->second);
@@ -129,9 +129,9 @@ namespace tagslam {
       gtsam::Vector r = gtsam::Rot3::Logmap(pose.rotation());
       gtsam::Vector t(pose.translation());
       const std::string pps = prefix + "  ";
-      of << prefix << "center:" << std::endl;
+      of << prefix << "position:" << std::endl;
       write_vec(of, pps, t(0), t(1), t(2));
-      of << prefix << "rotvec:" << std::endl;
+      of << prefix << "rotation:" << std::endl;
       write_vec(of, pps, r(0), r(1), r(2));
       if (writeNoise) {
         gtsam::Vector nvec = n->sigmas();
@@ -149,9 +149,9 @@ namespace tagslam {
       Point3d r = aa.angle() * aa.axis();
       Point3d t(pose.translation());
       const std::string pps = prefix + "  ";
-      of << prefix << "center:" << std::endl;
+      of << prefix << "position:" << std::endl;
       write_vec(of, pps, t(0), t(1), t(2));
-      of << prefix << "rotvec:" << std::endl;
+      of << prefix << "rotation:" << std::endl;
       write_vec(of, pps, r(0), r(1), r(2));
       if (writeNoise) {
         Eigen::Matrix<double, 6, 1> diag = n.getDiagonal();
@@ -171,7 +171,7 @@ namespace tagslam {
       const std::string pps = prefix + "  ";
       of << prefix << "position:" << std::endl;
       write_vec(of, pps, t(0), t(1), t(2));
-      of << prefix << "rotvec:" << std::endl;
+      of << prefix << "rotation:" << std::endl;
       write_vec(of, pps, r(0), r(1), r(2));
       of << prefix << "R:" << std::endl;
       const auto &R = n->R();
@@ -201,7 +201,7 @@ namespace tagslam {
       const std::string pps = prefix + "  ";
       of << prefix << "position:" << std::endl;
       write_vec(of, pps, t(0), t(1), t(2));
-      of << prefix << "rotvec:" << std::endl;
+      of << prefix << "rotation:" << std::endl;
       write_vec(of, pps, r(0), r(1), r(2));
       of << prefix << "R:" << std::endl;
       const auto R = n.convertToR();

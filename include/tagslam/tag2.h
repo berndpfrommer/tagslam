@@ -30,8 +30,8 @@ namespace tagslam {
     const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
     const Eigen::Matrix<double, 4, 3> &getObjectCorners()
       const { return (objectCorners_); }
-    const Eigen::Vector3d getObjectCorner(int idx)
-      const { return (objectCorners_.row(idx)); }
+    const Point3d getObjectCorner(int idx)
+      const { return (idx >= 0 ? objectCorners_.row(idx) : Point3d(0,0,0)); }
 
     friend std::ostream &operator<<(std::ostream &os, const Tag2 &tag);
     // ----------- static methods

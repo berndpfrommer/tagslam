@@ -3,10 +3,17 @@
  */
 
 #include "tagslam/geometry.h"
-
+#include "tagslam/logging.h"
 #include <iostream>
 
 namespace tagslam {
+  Point3d make_point(const std::vector<double> &vec) {
+    if (vec.size() != 3) {
+      BOMB_OUT("3d point has only " << vec.size() << "components!");
+    }
+    return (Point3d(vec[0], vec[1], vec[2]));
+  }
+
   Transform make_transform(const Eigen::Matrix3d &rot, const Point3d &trans) {
     Transform tf = Transform::Identity();
     tf.linear()      = rot;

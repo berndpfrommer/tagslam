@@ -645,8 +645,9 @@ namespace tagslam {
         if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
           f << idn << "- id: "   << tag->getId() << std::endl;
           f << idn << "  size: " << tag->getSize() << std::endl;
+          f << idn << "  pose:" << std::endl;
           const auto &pwn = tag->getPoseWithNoise();
-          yaml_utils::write_pose(f, idn + "  ", tagTF, pwn.getNoise(), true);
+          yaml_utils::write_pose(f, idn + "    ", tagTF, pwn.getNoise(), true);
         }
       }
     }

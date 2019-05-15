@@ -5,6 +5,8 @@
 #include "tagslam/factor/coordinate.h"
 #include "tagslam/graph.h"
 #include "tagslam/body.h"
+#include "tagslam/logging.h"
+#include "tagslam/xml.h"
 #include <geometry_msgs/Point.h>
 #include <XmlRpcException.h>
 #include <string>
@@ -66,42 +68,29 @@ namespace tagslam {
       double len(-1e10), noise(-1);
       Eigen::Vector3d dir(0.0, 0.0, 0.0);
       try {
-        for (XmlRpc::XmlRpcValue::iterator it = meas.begin();
-             it != meas.end(); ++it) {
-          if (it->first == "tag") { tag = static_cast<int>(it->second); }
-          if (it->first == "corner") { c = static_cast<int>(it->second); }
-          if (it->first == "length") { len = static_cast<double>(it->second); }
-          if (it->first == "noise") { noise = static_cast<double>(it->second);}
-          if (it->first == "direction") {
-            for (int j = 0; j < std::min(it->second.size(), 3); j++) {
-              if (it->second[j].getType() != XmlRpc::XmlRpcValue::TypeDouble) {
-                throw (std::runtime_error("bad value for direction " + name));
-              } else {
-                dir(j) = static_cast<double>(it->second[j]);
-              }
-            }
-          }
-        }
+        tag   = xml::parse<int>(meas, "tag");
+        c     = xml::parse<int>(meas, "corner");
+        len   = xml::parse<double>(meas, "length");
+        noise = xml::parse<double>(meas, "noise");
+        dir   = make_point(
+          xml::parse_container<std::vector<double>>(meas, "direction"));
       } catch (const XmlRpc::XmlRpcException &e) {
         ROS_ERROR_STREAM("error parsing measurement: " << name);
         throw std::runtime_error("error parsing measurement:" + name);
       }
       if (std::abs(dir.norm() - 1.0) > 1e-5) {
-        ROS_ERROR_STREAM("measurement " << name << " has non-unit direction");
-        throw std::runtime_error("non-unit direction for meas " + name);
+        BOMB_OUT("measurement " + name + " has non-unit direction");
       }
       CoordinateFactorPtr fp;
       if (tag >= 0 && c >= 0 && len > -1e10 && noise > 0) {
         Tag2ConstPtr tagPtr = tagFactory->findTag(tag);
         if (!tagPtr) {
-          ROS_ERROR_STREAM("measured tag is not valid: " << name);
-          throw (std::runtime_error("measured tag is not valid!"));
+          BOMB_OUT("measured tag is not valid: " << name);
         }
         fp.reset(new factor::Coordinate(len, noise, dir, c, tagPtr,
                                         name));
       } else {                                  
-        ROS_ERROR_STREAM("coordinate measurement incomplete: " << name);
-        throw (std::runtime_error("coordinate measurement incomplete!"));
+        BOMB_OUT("coordinate measurement incomplete: " << name);
       }
       return (fp);
     }
@@ -109,8 +98,8 @@ namespace tagslam {
     CoordinateFactorPtrVec
     Coordinate::parse(XmlRpc::XmlRpcValue meas, TagFactory *tagFactory) {
       CoordinateFactorPtrVec fv;
-      if (meas.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
-        throw std::runtime_error("invalid node type for measurement!");
+      if (meas.getType() != XmlRpc::XmlRpcValue::TypeArray) {
+        BOMB_OUT("invalid node type for coordinate measurements!");
       }
       for (const auto i: irange(0, meas.size())) {
         if (meas[i].getType() != XmlRpc::XmlRpcValue::TypeStruct) continue;

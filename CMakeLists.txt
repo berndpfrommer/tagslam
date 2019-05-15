@@ -115,6 +115,7 @@ src/factor/coordinate.cpp
 src/measurements/measurements.cpp
 src/measurements/distance.cpp
 src/measurements/coordinate.cpp
+src/measurements/plane.cpp
 src/graph_vertex.cpp
 src/graph_edge.cpp
 src/vertex.cpp

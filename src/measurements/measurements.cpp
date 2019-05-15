@@ -5,6 +5,7 @@
 #include "tagslam/measurements/measurements.h"
 #include "tagslam/measurements/distance.h"
 #include "tagslam/measurements/coordinate.h"
+#include "tagslam/measurements/plane.h"
 #include <XmlRpcException.h>
 
 #include <boost/range/irange.hpp>
@@ -21,6 +22,9 @@ namespace tagslam {
       if (m) { meas.push_back(m); }
       
       m = measurements::Coordinate::read(config, tagFactory);
+      if (m) { meas.push_back(m); }
+
+      m = measurements::Plane::read(config, tagFactory);
       if (m) { meas.push_back(m); }
     
       return (meas);
