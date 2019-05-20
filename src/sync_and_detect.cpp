@@ -51,6 +51,7 @@ namespace tagslam {
         apriltag_ros::DetectorType::Umich, apriltag_ros::TagFamily::tf36h11);
     } else {
       ROS_ERROR_STREAM("INVALID DETECTOR TYPE: " << detectorType_);
+      return (false);
     }
     int borderWidth;
     nh_.param<int>("black_border_width", borderWidth, 1);

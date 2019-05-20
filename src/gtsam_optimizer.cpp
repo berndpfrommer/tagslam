@@ -2,6 +2,7 @@
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
+#include "tagslam/logging.h"
 #include "tagslam/gtsam_optimizer.h"
 #include "tagslam/gtsam_utils.h"
 #include "tagslam/vertex.h"
@@ -212,8 +213,7 @@ namespace tagslam {
         newGraph_.addExpressionFactor(predict, imgPoint, pnit->second);
         break;  }
       default:
-        ROS_ERROR_STREAM("invalid dist model: " << ci.getDistortionModel());
-        throw (std::runtime_error("invalid dist model"));
+        BOMB_OUT("invalid dist model: " << ci.getDistortionModel());
         break;
       }
       keys.push_back(fullGraph_.size() + newGraph_.size() - 1);

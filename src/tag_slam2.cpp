@@ -739,8 +739,8 @@ namespace tagslam {
   void TagSlam2::processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
                              std::vector<VertexDesc> *factors) {
     if (tagMsgs.size() != cameras_.size()) {
-      ROS_ERROR_STREAM("tag msgs size mismatch!");
-      return;
+      BOMB_OUT("tag msgs size mismatch: " << tagMsgs.size()
+               << " " << cameras_.size());
     }
     typedef std::multimap<double, VertexDesc> MMap;
     MMap sortedFactors;

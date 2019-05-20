@@ -10,8 +10,10 @@
 
 namespace tagslam {
 
-#define BOMB_OUT(X) \
-  { ROS_ERROR_STREAM(X); std::stringstream SS; SS << X; \
+#define BOMB_OUT(...) \
+  { ROS_ERROR_STREAM(__VA_ARGS__); \
+    std::stringstream SS; \
+    SS << __VA_ARGS__;                        \
     throw (std::runtime_error(SS.str())); }
 
 }

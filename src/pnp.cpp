@@ -4,6 +4,7 @@
 
 #include "tagslam/pnp.h"
 #include "tagslam/camera_intrinsics2.h"
+#include "tagslam/logging.h"
 
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -164,12 +165,10 @@ namespace tagslam {
       //std::cout << "test2: must have zero z:" << std::endl << V.col(1) << std::endl;
       double sig1(SIG.at<double>(0)),  sig2(SIG.at<double>(1)), sig3(SIG.at<double>(2));
       if (fabs(sig2 - 1.0) > 1e-7) {
-        ROS_ERROR_STREAM("2nd singular value must be 1.0, but is " << sig2);
-        throw std::runtime_error("2nd singular value must be 1.0!");
+        BOMB_OUT("2nd singular value must be 1.0, but is " << sig2);
       }
       if (sig1 < sig2 || sig2 < sig3) {
-        ROS_ERROR_STREAM("singular values not sorted!");
-        throw std::runtime_error("singular values not sorted!");
+        BOMB_OUT("singular values not sorted!");
       }
       double c1(std::sqrt(sig1  - 1.0)), c3(std::sqrt(1.0 - sig3));
       double dsig(std::sqrt(sig1 - sig3));

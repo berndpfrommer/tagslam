@@ -18,8 +18,7 @@ namespace tagslam {
 
   static int body_id = 0;
 
-  static BodyPtr make_type(const std::string &name,
-                                const std::string &type) {
+  static BodyPtr make_type(const std::string &name, const std::string &type) {
     BodyPtr p;
     if (type == "board") {
       Board2Ptr board(new Board2(name));

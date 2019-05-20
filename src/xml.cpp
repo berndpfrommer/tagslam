@@ -18,7 +18,6 @@ namespace tagslam {
         return (v);
       } catch (const XmlRpc::XmlRpcException &e) {
         ROS_ERROR_STREAM("error parsing: " << key);
-        //xml.write(std::cerr); std::cerr << std::endl;
         throw (e);
       }
     }
@@ -35,7 +34,6 @@ namespace tagslam {
         return (make_transform(r, p));
       } catch (const XmlRpc::XmlRpcException &e) {
         ROS_ERROR_STREAM("error parsing: " << key);
-        //xml.write(std::cerr); std::cerr << std::endl;
         throw (e);
       }
     }
@@ -52,7 +50,6 @@ namespace tagslam {
         return (PoseNoise2::make(r, p));
       } catch (const XmlRpc::XmlRpcException &e) {
         ROS_ERROR_STREAM("error parsing: " << key);
-        //xml.write(std::cerr); std::cerr << std::endl;
         throw (e);
       }
     }

@@ -24,8 +24,8 @@ namespace tagslam {
     cam.tagTopic_   = xml::parse<string>(config, "tagtopic", "");
     cam.rigName_    = xml::parse<string>(config, "rig_body");
     cam.frameId_    = xml::parse<string>(config, "frameId", cam.name_);
-    double wiggleR = xml::parse<double>(config, "wiggle_rotation", 0.00001);
-    double wiggleT = xml::parse<double>(config, "wiggle_translation", 0.00001);
+    double wiggleR  = xml::parse<double>(config, "wiggle_rotation",   0.00001);
+    double wiggleT  = xml::parse<double>(config, "wiggle_translation",0.00001);
     cam.wiggle_    = PoseNoise2::make(wiggleR, wiggleT);
     return (camPtr);
   }
