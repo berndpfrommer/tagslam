@@ -37,8 +37,6 @@ IF(OPENMP_FOUND)
  SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_C_FLAGS}")
 ENDIF()
 
-
-
 catkin_package(
 	INCLUDE_DIRS include
 	CATKIN_DEPENDS geometry_msgs rosgraph_msgs roscpp flex_sync nodelet
@@ -53,38 +51,22 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME} src/tag_slam.cpp src/camera.cpp
-src/tag.cpp src/yaml_utils.cpp src/utils.cpp src/tag.cpp
-src/pose_change.cpp
-src/pose_noise.cpp
-src/rigid_body.cpp
-src/simple_body.cpp
-src/board.cpp
-src/pose_estimate.cpp
-src/distance_measurement.cpp
-src/position_measurement.cpp
-src/profiler.cpp
-src/tag_graph.cpp src/initial_pose_graph.cpp
-src/gtsam_distortion/Cal3FS2.cpp
-src/gtsam_distortion/Cal3DS3.cpp
-src/init_pose.cpp
-src/geometry.cpp
-src/pose_noise2.cpp
-)
+#add_library(${PROJECT_NAME}
+#)
 
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES}
-${OpenCV_LIBRARIES} ${GTSAM_LIBRARIES})
+#target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES}
+#${OpenCV_LIBRARIES} ${GTSAM_LIBRARIES})
 
-add_dependencies(${PROJECT_NAME}
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
-  ${catkin_EXPORTED_TARGETS}
-)
+#add_dependencies(${PROJECT_NAME}
+#  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+#  ${catkin_EXPORTED_TARGETS}
+#)
 
-add_executable(${PROJECT_NAME}_node src/tag_slam_node.cpp)
-target_link_libraries(${PROJECT_NAME}_node
-  ${PROJECT_NAME} 
- ${catkin_LIBRARIES}
-)
+#add_executable(${PROJECT_NAME}_node src/tag_slam_node.cpp)
+#target_link_libraries(${PROJECT_NAME}_node
+#  ${PROJECT_NAME} 
+# ${catkin_LIBRARIES}
+#)
 
 add_executable(sync_and_detect_node src/sync_and_detect_node.cpp
 src/sync_and_detect.cpp)
@@ -92,9 +74,12 @@ target_link_libraries(sync_and_detect_node ${catkin_LIBRARIES})
 
 
 add_library(tagslam2
-src/tag_slam2.cpp src/graph.cpp
-src/body_defaults.cpp src/body.cpp src/simple_body2.cpp src/board2.cpp
-src/pose_noise.cpp src/pose_estimate.cpp src/yaml_utils.cpp
+src/tag_slam2.cpp
+src/graph.cpp
+src/body_defaults.cpp
+src/body.cpp
+src/simple_body2.cpp src/board2.cpp
+src/yaml_utils.cpp
 src/utils.cpp
 src/graph_utils.cpp
 src/gtsam_utils.cpp
@@ -126,6 +111,7 @@ src/graph_updater.cpp
 src/gtsam_distortion/Cal3FS2.cpp
 src/gtsam_distortion/Cal3DS3.cpp
 )
+
 target_link_libraries(tagslam2 ${catkin_LIBRARIES}  ${Boost_LIBRARIES}
 ${GTSAM_LIBRARIES})
 #cotire(tagslam2)

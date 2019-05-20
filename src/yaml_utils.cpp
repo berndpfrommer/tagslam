@@ -50,43 +50,6 @@ namespace tagslam {
 
 
     bool get_pose_and_noise(XmlRpc::XmlRpcValue pose_and_noise,
-                            gtsam::Pose3 *pose, PoseNoise *noise,
-                            double defPosNoise, double defRotNoise) {
-      Eigen::Vector3d anglevec, center, rotnoise, posnoise;
-      int nfound(0);
-      bool foundRotNoise(false), foundPosNoise(false);
-      for (XmlRpc::XmlRpcValue::iterator it = pose_and_noise.begin();
-           it != pose_and_noise.end(); ++it) {
-        if (it->first == "rotation") {
-          anglevec = get_vec("rotation", it->second);
-          nfound++;
-        } else if (it->first == "position") {
-          center   = get_vec("position", it->second);
-          nfound++;
-        } else if (it->first == "rotation_noise") {
-          rotnoise = get_vec("rotation_noise", it->second);
-          foundRotNoise = true;
-        } else if (it->first == "position_noise") {
-          posnoise = get_vec("position_noise", it->second);
-          foundPosNoise = true;
-        }
-      }
-      gtsam::Rot3   R(utils::rotmat(anglevec));
-      gtsam::Point3 T(center);
-      *pose = gtsam::Pose3(R, T);
-      if (!foundRotNoise) {
-        rotnoise = gtsam::Vector(3);
-        rotnoise << defRotNoise, defRotNoise, defRotNoise;
-      }
-      if (!foundPosNoise) {
-        posnoise = gtsam::Vector(3);
-        posnoise << defPosNoise, defPosNoise, defPosNoise;
-      }
-      *noise = makePoseNoise(rotnoise, posnoise);
-      return (nfound == 2);
-    }
-
-    bool get_pose_and_noise(XmlRpc::XmlRpcValue pose_and_noise,
                             Transform *pose, PoseNoise2 *noise,
                             double defPosNoise, double defRotNoise) {
       Eigen::Vector3d anglevec, center;
@@ -124,25 +87,6 @@ namespace tagslam {
     }
  
     void write_pose(std::ostream &of, const std::string &prefix,
-                    const gtsam::Pose3 &pose,
-                    const PoseNoise &n, bool writeNoise) {
-      gtsam::Vector r = gtsam::Rot3::Logmap(pose.rotation());
-      gtsam::Vector t(pose.translation());
-      const std::string pps = prefix + "  ";
-      of << prefix << "position:" << std::endl;
-      write_vec(of, pps, t(0), t(1), t(2));
-      of << prefix << "rotation:" << std::endl;
-      write_vec(of, pps, r(0), r(1), r(2));
-      if (writeNoise) {
-        gtsam::Vector nvec = n->sigmas();
-        of << prefix << "position_noise:" << std::endl;
-        write_vec(of, pps, nvec(3),nvec(4),nvec(5));
-        of << prefix << "rotation_noise:" << std::endl;
-        write_vec(of, pps, nvec(0),nvec(1),nvec(2));
-      }
-    }
-
-    void write_pose(std::ostream &of, const std::string &prefix,
                     const Transform &pose,
                     const PoseNoise2 &n, bool writeNoise) {
       Eigen::AngleAxisd aa(pose.linear());
@@ -160,34 +104,6 @@ namespace tagslam {
         of << prefix << "rotation_noise:" << std::endl;
         write_vec(of, pps, diag(0),diag(1),diag(2));
       }
-    }
-
-    void write_pose_with_covariance(std::ostream &of,
-                                    const std::string &prefix,
-                                    const gtsam::Pose3 &pose,
-                                    const PoseNoise &n) {
-      gtsam::Vector r = gtsam::Rot3::Logmap(pose.rotation());
-      gtsam::Vector t(pose.translation());
-      const std::string pps = prefix + "  ";
-      of << prefix << "position:" << std::endl;
-      write_vec(of, pps, t(0), t(1), t(2));
-      of << prefix << "rotation:" << std::endl;
-      write_vec(of, pps, r(0), r(1), r(2));
-      of << prefix << "R:" << std::endl;
-      const auto &R = n->R();
-      of << prefix << "  [ ";
-      for (const auto i: irange(0l, R.rows())) {
-        for (const auto j: irange(0l, R.cols())) {
-          of << R(i, j);
-          if (i != R.rows() - 1 || j != R.cols() - 1) {
-            of << ", ";
-          }
-        }
-        if (i != R.rows() - 1) {
-          of << std::endl << prefix << "    ";
-        }
-      }
-      of << " ]" << std::endl;
     }
 
     void write_pose_with_covariance(std::ostream &of,
