@@ -16,9 +16,14 @@ int main(int argc, char** argv) {
       ros::shutdown();
       return (-1);
     }
-    node.run();
-    node.finalize();
-    ros::spin();
+    if (node.runOnline()) {
+      node.subscribe();
+      ros::spin();
+    } else {
+      node.run();
+      node.finalize();
+      ros::spin(); // wait for potential replay service call
+    }
   } catch (const std::exception& e) {
     ROS_ERROR("%s: %s", pnh.getNamespace().c_str(), e.what());
   }

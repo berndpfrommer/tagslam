@@ -12,7 +12,9 @@
 #include "tagslam/odometry_processor.h"
 #include "tagslam/measurements/measurements.h"
 
-#include <flex_sync/sync.h>
+#include <flex_sync/subscribing_sync.h>
+
+
 #include <tf/transform_broadcaster.h>
 #include <ros/ros.h>
 #include <rosbag/bag.h>
@@ -42,6 +44,10 @@ namespace tagslam {
     using CompressedImage = sensor_msgs::CompressedImage;
     using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
     using string = std::string;
+    typedef flex_sync::SubscribingSync<TagArray, CompressedImage, Odometry>
+    SubSyncCompressed;
+    typedef flex_sync::SubscribingSync<TagArray, Image, Odometry> SubSync;
+
   public:
     TagSlam2(const ros::NodeHandle &nh);
     TagSlam2(const TagSlam2&) = delete;
@@ -53,6 +59,8 @@ namespace tagslam {
     bool initialize();
     void run();
     void finalize();
+    void subscribe();
+    bool runOnline() const { return (inBagFile_.empty()); }
 
     template<typename S>
     void processBag(S *sync, rosbag::View *view) {
@@ -101,7 +109,11 @@ namespace tagslam {
 
     void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
                      std::vector<VertexDesc> *factors);
-    std::vector<std::vector<string>> makeTopics(rosbag::Bag *bag) const;
+    std::vector<std::vector<std::string>> makeTopics() const;
+    void
+    testIfInBag(rosbag::Bag *bag,
+                const std::vector<std::vector<std::string>> &topics) const;
+
     void setupOdom(const std::vector<OdometryConstPtr> &odomMsgs);
     void processTagsAndOdom(const std::vector<TagArrayConstPtr> &tagmsgs,
                             const std::vector<OdometryConstPtr> &odommsgs);
@@ -163,6 +175,8 @@ namespace tagslam {
     std::string          poseFile_;
     std::string          camPoseFile_;
     std::string          inBagFile_;
+    std::shared_ptr<SubSyncCompressed> subSyncCompressed_;
+    std::shared_ptr<SubSync> subSync_;
     
     std::unordered_map<int, std::vector<ReMap>>  tagRemap_;
     std::map<ros::Time, std::set<int>> squash_;

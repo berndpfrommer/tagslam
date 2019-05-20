@@ -13,9 +13,11 @@
 #include "tagslam/graph_utils.h"
 #include "tagslam/factor/distance.h"
 
-#include <cv_bridge/cv_bridge.h>
+#include <flex_sync/sync.h>
 
+#include <cv_bridge/cv_bridge.h>
 #include <rosbag/view.h>
+
 #include <rosgraph_msgs/Clock.h>
 #include <tf_conversions/tf_eigen.h>
 #include <eigen_conversions/eigen_msg.h>
@@ -38,6 +40,7 @@ namespace tagslam {
   using CompressedImage = sensor_msgs::CompressedImage;
   using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
   using boost::irange;
+  using std::string;
   using std::setw;
   using std::fixed;
   using std::setprecision;
@@ -87,7 +90,7 @@ namespace tagslam {
   }
 
   void TagSlam2::readParams() {
-    nh_.param<std::string>("outbag", outBagName_, "out.bag");
+    nh_.param<string>("outbag", outBagName_, "out.bag");
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
     nh_.param<double>("pixel_noise", pixelNoise_, 1.0);
     nh_.param<string>("camera_poses_out_file",
@@ -136,20 +139,40 @@ namespace tagslam {
     }
     clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
     service_ = nh_.advertiseService("replay", &TagSlam2::replay, this);
-    return (true);
-  }
-
-  void TagSlam2::run() {
     // optimize the initial setup if necessary
     graph_->optimize(0);
-    sleep(1.0); // give rviz time to connect
     // open output files
     outBag_.open(outBagName_, rosbag::bagmode::Write);
     tagCornerFile_.open("tag_corners.txt");
+    return (true);
+  }
+
+  void TagSlam2::subscribe() {
+    std::vector<std::vector<std::string>> topics = makeTopics();
+    if (hasCompressedImages_) {
+      subSyncCompressed_.reset(
+        new flex_sync::SubscribingSync<TagArray, CompressedImage, Odometry>(
+          nh_, topics, std::bind(&TagSlam2::syncCallbackCompressed, this,
+                                 std::placeholders::_1, std::placeholders::_2,
+                                 std::placeholders::_3), 5));
+    } else {
+      subSync_.reset(
+        new flex_sync::SubscribingSync<TagArray, Image, Odometry>(
+          nh_, topics, std::bind(&TagSlam2::syncCallback, this,
+                                 std::placeholders::_1, std::placeholders::_2,
+                                 std::placeholders::_3), 5));
+    }
+    // subscribe to 
+  }
+
+  void TagSlam2::run() {
+    sleep(1.0); // give rviz time to connect
     // this plays back the data
     playFromBag(inBagFile_);
-    
     std::cout.flush();
+  }
+
+  void TagSlam2::finalize() {
     graphUpdater_.printPerformance();
     // do final optimization
     profiler_.reset();
@@ -164,9 +187,7 @@ namespace tagslam {
                       *(times_.rbegin()), true);
     outBag_.close();
     tagCornerFile_.close();
-  }
-
-  void TagSlam2::finalize() {
+    
     writeCameraPoses(camPoseFile_);
     profiler_.reset();
     writePoses(poseFile_);
@@ -270,8 +291,12 @@ namespace tagslam {
     }
   }
 
+  void TagSlam2::testIfInBag(
+    rosbag::Bag *bag, const std::vector<std::vector<string>> &topics) const {
+  }
+
   std::vector<std::vector<std::string>>
-  TagSlam2::makeTopics(rosbag::Bag *bag) const {
+  TagSlam2::makeTopics() const {
     std::vector<std::vector<string>> topics(3);
     for (const auto &body: bodies_) {
       if (!body->getOdomTopic().empty()) {
@@ -288,18 +313,6 @@ namespace tagslam {
           BOMB_OUT("camera " << cam->getName() << " no image topic!");
         }
         topics[1].push_back(cam->getImageTopic());
-      }
-    }
-    // test if in bag
-    for (const auto &topic: topics) {
-      for (const auto &t: topic) {
-        rosbag::View v(*bag, rosbag::TopicQuery({t}));
-        if (v.begin() == v.end()) {
-          ROS_WARN_STREAM("cannot find topic: " << t <<
-                          " in bag, sync will fail!");
-        } else {
-          ROS_INFO_STREAM("playing topic: " << t);
-        }
       }
     }
     ROS_INFO_STREAM("number of tag   topics: " << topics[0].size());
@@ -372,7 +385,8 @@ namespace tagslam {
     }
   }
 
-  void TagSlam2::publishOriginalTagTransforms(const ros::Time &t, tf::tfMessage *tfMsg) {
+  void TagSlam2::publishOriginalTagTransforms(const ros::Time &t,
+                                              tf::tfMessage *tfMsg) {
     geometry_msgs::TransformStamped tfm;
     for (const auto &body: bodies_) {
       if (!body->getPoseWithNoise().isValid()) {
@@ -383,7 +397,8 @@ namespace tagslam {
         if (tag->getPoseWithNoise().isValid()) {
           const Transform tagTF = tag->getPoseWithNoise().getPose();
           const std::string frameId = "o_tag_" + std::to_string(tag->getId());
-          auto ttf = tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId);
+          auto ttf =
+            tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId);
           tfBroadcaster_.sendTransform(ttf);
           tf::transformStampedTFToMsg(ttf, tfm);
           tfMsg->transforms.push_back(tfm);
@@ -406,7 +421,8 @@ namespace tagslam {
     rosbag::Bag bag;
     ROS_INFO_STREAM("reading from bag: " << fname);
     bag.open(fname, rosbag::bagmode::Read);
-    std::vector<std::vector<string>> topics = makeTopics(&bag);
+    std::vector<std::vector<string>> topics = makeTopics();
+    testIfInBag(&bag, topics);
     std::vector<string> flatTopics;
     for (const auto &v: topics) {
       flatTopics.insert(flatTopics.begin(), v.begin(), v.end());

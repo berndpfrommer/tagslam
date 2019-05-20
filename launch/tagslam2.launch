@@ -29,7 +29,10 @@
 	    	<param name="bag_start_time" value="26.5"/>
 	-->
 	<param name="bag_start_time" value="$(arg start_time)"/>
-	<param name="bag_file" value="$(arg bag)"/>
+	<!--
+	    <param name="bag_file" value="$(arg bag)"/>
+	-->
+	<param name="bag_file" value=""/>
 	<param name="optimize_full_graph" value="false"/>
 	<param name="max_subgraph_error" value="50.0"/>
 	<param name="has_compressed_images" value="false"/>
