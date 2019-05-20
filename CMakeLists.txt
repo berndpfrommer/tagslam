@@ -3,7 +3,6 @@ project(tagslam)
 
 add_definitions(-std=c++11 -g -Wall -Wno-misleading-indentation -Wno-int-in-bool-context)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
-#include(cotire)
 
 find_package(catkin REQUIRED COMPONENTS
   cmake_modules
