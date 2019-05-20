@@ -37,8 +37,6 @@ namespace tagslam {
 
   bool Body::parseCommon(XmlRpc::XmlRpcValue body) {
     try {
-      //const double def_pos_noise = BodyDefaults::instance()->positionNoise;
-      //const double def_rot_noise = BodyDefaults::instance()->rotationNoise;
       isStatic_       = xml::parse<bool>(body,  "is_static");
       defaultTagSize_ = xml::parse<double>(body, "default_tag_size", 0.0);
       maxHammingDistance_ = xml::parse<int>(body, "max_hamming_distance", 2);
@@ -48,8 +46,8 @@ namespace tagslam {
         xml::parse<double>(body, "override_tag_rotation_noise", -1.0);
       T_body_odom_      = xml::parse<Transform>(body,  "T_body_odom",
                                                 Transform::Identity());
-      odomFrameId_      = xml::parse<std::string>(body, "odom_frame_id", "");
-      odomTopic_        = xml::parse<std::string>(body, "odom_topic", "");
+      odomFrameId_      = xml::parse<string>(body, "odom_frame_id", "");
+      odomTopic_        = xml::parse<string>(body, "odom_topic", "");
       odomAcceleration_ = xml::parse<double>(body, "odom_acceleration", 5.0);
       odomAngularAcceleration_=
         xml::parse<double>(body, "odom_angular_acceleration", 5.0);
@@ -65,17 +63,17 @@ namespace tagslam {
       fakeOdomRotationNoise_ =
         xml::parse<double>(body, "fake_odom_rotation_noise", -1.0);
     } catch (const XmlRpc::XmlRpcException &e) {
-      BOMB_OUT("error parsing body: " << name);
+      BOMB_OUT("error parsing body: " << name_);
     }
     if (!isStatic_ && poseWithNoise_.isValid()) {
-      BOMB_OUT("dynamic body has prior pose: " + name);
+      BOMB_OUT("dynamic body has prior pose: " + name_);
     }
     return (true);
   }
 
   BodyPtr
-  Body::parse_body(const std::string &name,  XmlRpc::XmlRpcValue body) {
-    const std::string type = xml::parse<std::string>(body, "type");
+  Body::parse_body(const string &name,  XmlRpc::XmlRpcValue body) {
+    const string type = xml::parse<string>(body, "type");
     const BodyPtr rb = make_type(name, type);
     rb->parseCommon(body);
     rb->parse(body, rb);
@@ -83,27 +81,20 @@ namespace tagslam {
   }
 
   Tag2Ptr Body::findTag(int tagId, int bits) const {
-    const auto it = tags.find(tagId);
-    return ((it == tags.end() || it->second->getBits() != bits)?
+    const auto it = tags_.find(tagId);
+    return ((it == tags_.end() || it->second->getBits() != bits)?
             NULL: it->second);
   }
 
   void Body::addTag(const Tag2Ptr &tag) {
-    tags.insert(Tag2Map::value_type(tag->getId(), tag));
+    tags_.insert(Tag2Map::value_type(tag->getId(), tag));
+    tagList_.push_back(tag);
   }
 
   void Body::addTags(const Tag2Vec &tags) {
     for (const auto &tag:tags) {
       addTag(tag);
     }
-  }
-
-  std::list<Tag2ConstPtr> Body::getTags() const {
-    std::list<Tag2ConstPtr> taglist;
-    for (const auto &tag_it: tags) {
-      taglist.push_back(tag_it.second);
-    }
-    return (taglist);
   }
 
   BodyVec
@@ -128,19 +119,19 @@ namespace tagslam {
     return (bv);
   }
 
-  bool Body::writeCommon(std::ostream &os, const std::string &prefix) const {
-    os << prefix << "- " << name << ":" << std::endl;
-    std::string pfix = prefix + "    ";
-    os << pfix << "type: " << type << std::endl;
+  bool Body::writeCommon(std::ostream &os, const string &prefix) const {
+    os << prefix << "- " << name_ << ":" << std::endl;
+    string pfix = prefix + "    ";
+    os << pfix << "type: " << type_ << std::endl;
     os << pfix << "is_static: " <<
       (isStatic_ ? "true" : "false") << std::endl;
     os << pfix << "default_tag_size: " << defaultTagSize_ << std::endl;
     if (isStatic_) {
-      os << pfix << "pose:" << std::endl;;
+      os << pfix << "pose:" << std::endl;
+      // TODO: compute true pose noise from marginals!
       PoseNoise2 smallNoise = PoseNoise2::make(0.001, 0.001);
       yaml_utils::write_pose(os, pfix + "  ", poseWithNoise_.getPose(),
                              smallNoise, poseWithNoise_.isValid());
-      // TODO: poseEstimate.getNoise());
     }
     return (true);
   }

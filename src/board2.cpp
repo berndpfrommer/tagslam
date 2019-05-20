@@ -12,7 +12,7 @@ namespace tagslam {
   using boost::irange;
   bool Board2::parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) {
     try {
-      const XmlRpc::XmlRpcValue board = body[type];
+      const XmlRpc::XmlRpcValue board = body[type_];
       tagStartId_ = xml::parse<int>(board, "tag_start_id");
       tagSize_    = xml::parse<double>(board, "tag_size");
       tagSpacing_ = xml::parse<double>(board, "tag_spacing");
@@ -22,7 +22,7 @@ namespace tagslam {
       tagRotationNoise_ = xml::parse<double>(board, "tag_rotation_noise", 0.0);
       tagPositionNoise_ = xml::parse<double>(board, "tag_position_noise", 0.0);
     } catch (const XmlRpc::XmlRpcException &e) {
-      BOMB_OUT("error parsing board of body: " + name);
+      BOMB_OUT("error parsing board of body: " + name_);
     }
     int tagid = tagStartId_;
     for (const int row: irange(0, tagRows_)) {
@@ -44,7 +44,7 @@ namespace tagslam {
     if (!Body::writeCommon(os, prefix)) {
       return (false);
     }
-    os << prefix + "    " << type << ":" << std::endl;
+    os << prefix + "    " << type_ << ":" << std::endl;
     const std::string ind = prefix + "      "; // indent
     os << ind << "tag_start_id: "  << tagStartId_ << std::endl;
     os << ind << "tag_size: " << tagSize_ << std::endl;

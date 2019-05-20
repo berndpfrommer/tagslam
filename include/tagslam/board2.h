@@ -16,7 +16,7 @@ namespace tagslam {
 
     Board2(const std::string &n  = std::string(""), bool iS = false) :
       Body(n, iS) {
-      type = "board";
+      type_ = "board";
     }
     bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) override;
     bool write(std::ostream &os, const std::string &prefix) const override;

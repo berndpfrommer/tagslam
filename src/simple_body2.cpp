@@ -26,7 +26,7 @@ namespace tagslam {
     const std::string ind = prefix + "    "; // indent
     os << ind << "tags: " << std::endl;
     PoseNoise2 smallNoise = PoseNoise2::make(0.001, 0.001);
-    for (const auto &tm: tags) {
+    for (const auto &tm: tags_) {
       const auto &tag = tm.second;
       os << ind << "- id: "   << tag->getId() << std::endl;
       os << ind << "  size: " << tag->getSize() << std::endl;
