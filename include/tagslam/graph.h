@@ -66,12 +66,13 @@ namespace tagslam {
     }
     VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
     VertexPtr operator[](const VertexDesc f) const { return (graph_[f]); }
-
+    std::pair<BoostGraph::vertex_iterator, BoostGraph::vertex_iterator>
+    getVertexIterator() const { return (boost::vertices(graph_)); }
+    
     void transferFullOptimization() { optimizer_->transferFullOptimization(); }
     void setVerbosity(const string &v) {
       optimizer_->setVerbosity(v);
     }
-    void  copyFrom(const Graph &g, const std::deque<VertexDesc> &vsrc);
     void  initializeFrom(const Graph &sg);
     void  print(const string &pre = "") const;
     string getStats() const;

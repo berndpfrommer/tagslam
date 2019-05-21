@@ -9,6 +9,7 @@
 #include "tagslam/camera2.h"
 #include "tagslam/tag2.h"
 #include "tagslam/logging.h"
+#include "tagslam/graph_utils.h"
 
 #include <boost/range/irange.hpp>
 #include <boost/graph/graph_utility.hpp>
@@ -443,7 +444,7 @@ namespace tagslam {
     GraphPtr sg(new Graph());
     Graph &subGraph = *sg;
     // populate the subgraph with factors from the full graph
-    subGraph.copyFrom(g, factors);
+    graph_utils::copy_subgraph(sg.get(), g, factors);
     //subGraph.print("init subgraph");
     if (initialize_subgraph(&subGraph, minViewAngle)) {
       double err    = subGraph.optimizeFull();
@@ -508,7 +509,7 @@ namespace tagslam {
         const double maxErr = bestGraph->getMaxError();
         if (maxErr < maxSubgraphError_) {
           totalSGError += sgErr;
-          graph_->initializeFrom(*bestGraph);
+          graph_utils::initialize_from(graph_.get(), *bestGraph);
         } else { 
           ROS_WARN_STREAM("dropping subgraph with error: " << sgErr << " "
                           << maxErr);

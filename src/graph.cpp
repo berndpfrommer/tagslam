@@ -180,67 +180,6 @@ namespace tagslam {
   }
 
 
-  static AbsolutePosePriorFactorPtr
-  find_abs_pose_prior(const Graph &g, const VertexDesc &vv) {
-    AbsolutePosePriorFactorPtr p;
-    for (const auto &fv: g.getConnected(vv)) {
-      p = std::dynamic_pointer_cast<factor::AbsolutePosePrior>(g[fv]);
-      if (p) {
-        break;
-      }
-    }
-    return (p);
-  }
-
-  void
-  Graph::copyFrom(const Graph &g, const std::deque<VertexDesc> &srcfacs) {
-    std::set<VertexDesc> copiedVals;
-    // first copy the values
-    for (const auto &srcf: srcfacs) { // loop through factors
-      ROS_DEBUG_STREAM(" copying for factor " << g.info(srcf));
-      for (const auto &srcv: g.getConnected(srcf)) {
-        if (copiedVals.count(srcv) == 0) { // avoid duplication
-          copiedVals.insert(srcv);
-          GraphVertex srcvp  = g.getVertex(srcv);
-          GraphVertex destvp = srcvp->clone();
-          destvp->addToGraph(destvp, this); // add new value to graph
-          AbsolutePosePriorFactorPtr pp = find_abs_pose_prior(g, srcv);
-          if (pp) {
-            // This pose is already pinned down by a pose prior.
-            // Want to keep the flexibility specified in the config file!
-            AbsolutePosePriorFactorPtr pp2 =
-             std::dynamic_pointer_cast<factor::AbsolutePosePrior>(pp->clone());
-            pp2->addToGraph(pp2, this);
-            //ROS_DEBUG_STREAM("  copying pinned val " << *g.getVertex(srcv));
-          } else if (g.isOptimized(srcv)) {
-            // Already established poses must be pinned down with a prior
-            // If it's a camera pose, give it more flexibility
-            PoseValuePtr srcpp =
-              std::dynamic_pointer_cast<value::Pose>(srcvp);
-            Transform pose = g.getOptimizedPose(srcv);
-            double ns = srcpp->isCameraPose() ? 0.05 : 0.001;
-            PoseWithNoise pwn(pose, PoseNoise2::make(ns, ns), true);
-            AbsolutePosePriorFactorPtr
-              pp(new factor::AbsolutePosePrior(destvp->getTime(), pwn,
-                                               destvp->getName()));
-            // Add pose prior to graph
-            pp->addToGraph(pp, this);
-            //ROS_DEBUG_STREAM("  copy + pinning val " << *g.getVertex(srcv));
-          }
-        }
-      }
-    }
-    // now copy factors
-    for (const auto &srcf: srcfacs) { // loop through factors
-      FactorPtr fp =
-        std::dynamic_pointer_cast<factor::Factor>(g.getVertex(srcf));
-      if (fp) {
-        GraphVertex destfp = fp->clone();
-        destfp->addToGraph(destfp, this);
-      }
-    }
-  }
-
   void Graph::plotDebug(const ros::Time &t, const string &tag) {
     std::stringstream ss;
     ss << tag << "_" <<  t.toNSec() << ".dot";
@@ -249,49 +188,6 @@ namespace tagslam {
 
   string Graph::info(const VertexDesc &v) const {
     return (graph_[v]->getLabel());
-  }
-
-  void Graph::initializeFrom(const Graph &sg) {
-    // first initialize all values and add to optimizer
-    int numTransferredPoses(0);
-    for (auto vi = boost::vertices(sg.graph_); vi.first != vi.second;
-         ++vi.first) {
-      const VertexDesc sv = *vi.first;
-      PoseValuePtr psp =
-        std::dynamic_pointer_cast<value::Pose>(sg.graph_[sv]);
-      if (psp) {
-        const VertexDesc dv = find(psp->getId());
-        if (!is_valid(dv)) {
-          BOMB_OUT("cannot find dest value: " << psp->getLabel());
-        }
-        PoseValuePtr pdp = std::dynamic_pointer_cast<value::Pose>(graph_[dv]);
-        if (!pdp) {
-          BOMB_OUT("invalid dest type: " << graph_[dv]->getLabel());
-        }
-        if (!isOptimized(dv) && sg.isOptimized(sv)) {
-          //ROS_DEBUG_STREAM("transferring pose: " << pdp->getLabel());
-          pdp->addToOptimizer(sg.getOptimizedPose(sv), this);
-          numTransferredPoses++;
-        }
-      }
-    }
-    // now add all necessary factors to optimizer
-    for (auto vi = boost::vertices(sg.graph_); vi.first != vi.second;
-         ++vi.first) {
-      const VertexDesc sv = *vi.first;
-      const FactorConstPtr sfp =
-        std::dynamic_pointer_cast<factor::Factor>(sg.graph_[sv]);
-      if (sfp && !std::dynamic_pointer_cast<
-          factor::AbsolutePosePrior>(sg.graph_[sv])) {
-        //ROS_DEBUG_STREAM("transferring factor: " << sg.info(sv));
-        VertexDesc dv = find(sfp->getId());
-        if (is_valid(dv)) {
-          sfp->addToOptimizer(this);
-        } else {
-          BOMB_OUT("no orig vertex found for: " << sg.info(sv));
-        }
-      }
-    }
   }
 
   bool Graph::hasPose(const ros::Time &t,

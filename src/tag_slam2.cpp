@@ -372,7 +372,8 @@ namespace tagslam {
     }
   }
 
-  void TagSlam2::publishTagAndBodyTransforms(const ros::Time &t, tf::tfMessage *tfMsg) {
+  void TagSlam2::publishTagAndBodyTransforms(const ros::Time &t,
+                                             tf::tfMessage *tfMsg) {
     geometry_msgs::TransformStamped tfm;
     for (const auto &body: bodies_) {
       Transform bodyTF;
