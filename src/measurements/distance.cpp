@@ -4,9 +4,10 @@
 
 #include "tagslam/measurements/distance.h"
 #include "tagslam/body.h"
+#include "tagslam/logging.h"
+
 #include <XmlRpcException.h>
 
-#include <boost/range/irange.hpp>
 #include <fstream>
 #include <iomanip>
 
@@ -44,8 +45,7 @@ namespace tagslam {
         for (const auto f: factors) {
           if (!f->getTag(0)->getBody()->isStatic()
               || !f->getTag(1)->getBody()->isStatic()) {
-            ROS_ERROR_STREAM("measured bodies must be static: " << *f);
-            throw (std::runtime_error("measured bodies must be static!"));
+            BOMB_OUT("measured bodies must be static: " << *f);
           }
           ROS_INFO_STREAM("found distance: " << *f);
           m->factors_.push_back(f);

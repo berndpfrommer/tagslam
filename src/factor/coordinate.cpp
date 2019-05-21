@@ -74,8 +74,7 @@ namespace tagslam {
         dir   = make_point(
           xml::parse_container<std::vector<double>>(meas, "direction"));
       } catch (const XmlRpc::XmlRpcException &e) {
-        ROS_ERROR_STREAM("error parsing measurement: " << name);
-        throw std::runtime_error("error parsing measurement:" + name);
+        BOMB_OUT("error parsing measurement: " << name);
       }
       if (std::abs(dir.norm() - 1.0) > 1e-5) {
         BOMB_OUT("measurement " + name + " has non-unit direction");
@@ -128,8 +127,7 @@ namespace tagslam {
       }
       const auto p = std::dynamic_pointer_cast<const factor::Coordinate>(g[v]);
       if (!p) {
-        ROS_ERROR_STREAM("vertex is not coord: " << *g[v]);
-        throw std::runtime_error("vertex is not coord");
+        BOMB_OUT("vertex is not coord: " << *g[v]);
       }
       const std::vector<ValueKey> optKeys = g.getOptKeysForFactor(v, 2);
       const auto opt = g.getOptimizer();

@@ -128,8 +128,7 @@ namespace tagslam {
       }
       const auto p = std::dynamic_pointer_cast<const factor::Distance>(g[v]);
       if (!p) {
-        ROS_ERROR_STREAM("vertex is not distance: " << g[v]);
-        throw std::runtime_error("vertex is not distance");
+        BOMB_OUT("vertex is not distance: " << g[v]);
       }
       const std::vector<ValueKey> optKeys = g.getOptKeysForFactor(v, 4);
       const auto opt = g.getOptimizer();

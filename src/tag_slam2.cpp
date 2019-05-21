@@ -524,7 +524,7 @@ namespace tagslam {
     std::vector<TagArrayConstPtr> tagmsgs;
     remapAndSquash(&tagmsgs, origtagmsgs);
     if (tagmsgs.empty() && odommsgs.empty()) {
-      ROS_ERROR_STREAM("neither tags nor odom!");
+      ROS_WARN_STREAM("neither tags nor odom!");
       return;
     }
 

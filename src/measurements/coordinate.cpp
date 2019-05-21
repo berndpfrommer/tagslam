@@ -4,9 +4,10 @@
 
 #include "tagslam/measurements/coordinate.h"
 #include "tagslam/body.h"
+#include "tagslam/logging.h"
+
 #include <XmlRpcException.h>
 
-#include <boost/range/irange.hpp>
 #include <fstream>
 #include <iomanip>
 
@@ -45,8 +46,7 @@ namespace tagslam {
         auto fpts = factor::Coordinate::parse(meas, tagFactory);
         for (const auto f: fpts) {
           if (!f->getTag()->getBody()->isStatic()) {
-            ROS_ERROR_STREAM("measured body must be static: " << *f);
-            throw (std::runtime_error("measured body must be static!"));
+            BOMB_OUT("measured body must be static: " << *f);
           }
           ROS_INFO_STREAM("found coordinate: " << *f);
           m->factors_.push_back(f);
