@@ -12,7 +12,7 @@
 #include <utility>
 
 namespace tagslam {
-  namespace pnp {
+  namespace init_pose {
     std::pair<Transform, bool> pose_from_4(
       const Eigen::Matrix<double, 4,2> & imgPoints,
       const Eigen::Matrix<double, 4,3> & objPoints,

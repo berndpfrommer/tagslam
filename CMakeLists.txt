@@ -74,19 +74,18 @@ target_link_libraries(sync_and_detect_node ${catkin_LIBRARIES})
 
 
 add_library(tagslam2
-src/tag_slam2.cpp
-src/graph.cpp
-src/body_defaults.cpp
 src/body.cpp
-src/simple_body2.cpp src/board2.cpp
-src/yaml_utils.cpp
-src/utils.cpp
+src/body_defaults.cpp
+src/graph.cpp
 src/graph_utils.cpp
 src/gtsam_utils.cpp
 src/geometry.cpp
 src/pose_noise2.cpp
-src/tag2.cpp
+src/tag_slam2.cpp
+src/yaml_utils.cpp
 src/xml.cpp
+src/simple_body2.cpp src/board2.cpp
+src/tag2.cpp
 src/camera2.cpp
 src/pose_with_noise.cpp
 src/gtsam_optimizer.cpp
@@ -105,7 +104,7 @@ src/graph_edge.cpp
 src/vertex.cpp
 src/camera_intrinsics2.cpp
 src/odometry_processor.cpp
-src/pnp.cpp
+src/init_pose.cpp
 src/profiler.cpp
 src/graph_updater.cpp
 src/gtsam_distortion/Cal3FS2.cpp

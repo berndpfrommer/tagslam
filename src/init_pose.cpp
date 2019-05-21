@@ -2,7 +2,7 @@
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#include "tagslam/pnp.h"
+#include "tagslam/init_pose.h"
 #include "tagslam/camera_intrinsics2.h"
 #include "tagslam/logging.h"
 
@@ -14,11 +14,12 @@
 #include <boost/range/irange.hpp>
 #include <iostream>
 
-//#define DEBUG_PNP
+//#define DEBUG_POSE
 
 namespace tagslam {
-  namespace pnp {
+  namespace init_pose {
     using boost::irange;
+#ifdef DEBUG_POSE    
     std::string cv_type_to_str(int type) {
       std::string r;
       uchar depth = type & CV_MAT_DEPTH_MASK;
@@ -65,37 +66,9 @@ namespace tagslam {
         std::cout << std::endl;
       }
     }
+#endif
 
-    static void decompose_homography_simple_2(const cv::Mat &H,
-                                            cv::Mat *R,
-                                            cv::Mat *rvec, cv::Mat *tvec) {
-      cv::Mat RR(3,3,CV_64F);
-      // now normalize and orthogonalize the first two columns,
-      // which are the first two columns of the rotation matrix R
-      cv::Mat r1 = -H.col(0)/cv::norm(H.col(0));
-      cv::Mat r2 = -(H.col(1) - H.col(1).dot(r1)*r1);
-      r2 = r2/cv::norm(r2);
-      r1.copyTo(RR.col(0));
-      r2.copyTo(RR.col(1));
-      // r3 = r1 x r2
-      RR.at<double>(0,2) = r1.at<double>(1,0)*r2.at<double>(2,0) -
-        r1.at<double>(2,0)*r2.at<double>(1,0);
-      RR.at<double>(1,2) = r1.at<double>(2,0)*r2.at<double>(0,0) -
-        r1.at<double>(0,0)*r2.at<double>(2,0);
-      RR.at<double>(2,2) = r1.at<double>(0,0)*r2.at<double>(1,0) -
-        r1.at<double>(1,0)*r2.at<double>(0,0);
-      //std::cout << "decomposed homography simple: " << std::endl << RR << std::endl;
-      *tvec = cv::Mat(3,1,CV_64F);
-      cv::Mat tmp = -H.col(2);
-      tmp.copyTo(*tvec);
-      *R = RR;
-      std::cout << "R from simple2: " << std::endl << RR << std::endl;
-      std::cout << "T from simple2: " << std::endl << *tvec << std::endl; 
-      *rvec = cv::Mat(3,1,CV_64F);
-      cv::Rodrigues(RR, *rvec);
-    }
-
-
+#ifdef ALTERNATIVE_DECOMPOSITIONS
     static void decompose_homography_simple(const cv::Mat &H,
                                             cv::Mat *R,
                                             cv::Mat *rvec, cv::Mat *tvec) {
@@ -114,7 +87,6 @@ namespace tagslam {
         r1.at<double>(0,0)*r2.at<double>(2,0);
       RR.at<double>(2,2) = r1.at<double>(0,0)*r2.at<double>(1,0) -
         r1.at<double>(1,0)*r2.at<double>(0,0);
-      //std::cout << "decomposed homography simple: " << std::endl << RR << std::endl;
       *tvec = cv::Mat(3,1,CV_64F);
       H.col(2).copyTo(*tvec);
       *R = RR;
@@ -124,46 +96,18 @@ namespace tagslam {
       cv::Rodrigues(RR, *rvec);
     }
 
-    static void decompose_homography_svd(const cv::Mat &H,
-                                         cv::Mat *R,
-                                         cv::Mat *rvec, cv::Mat *tvec) {
-      cv::Mat RR(3,3,CV_64F);
-      cv::Mat H12 = cv::Mat_<double>(3,3);
-      H.col(0).copyTo(H12.col(0));
-      H.col(1).copyTo(H12.col(1));
-      H.col(0).cross(H.col(1)).copyTo(H12.col(2));
-      cv::Mat W, U, VT;
-      cv::SVD::compute(H12, W, U, VT);
-      cv::Mat diag = (cv::Mat_<double>(3,3) << 1, 0, 0,    0, 1, 0,   0, 0, cv::determinant(U*VT));
-      cv::Mat RSVD = U * diag * VT;
-      //std::cout << "decomposed homography SVD: " << cv::determinant(RSVD) << std::endl << RSVD << std::endl;
-      //std::cout << "error vs homography SVD: " << W.at<double>(0) << " " << W.at<double>(1) << " " << W.at<double>(2) << std::endl << RSVD * RR.t() << std::endl;
-      RR = RSVD;
-      *tvec = cv::Mat(3,1,CV_64F);
-      cv::Mat hl(3, 1, CV_64F);
-      H.col(2).copyTo(hl);
-      hl = hl / cv::norm(H.col(0));
-      hl.copyTo(*tvec);
-      *R = RR;
-#ifdef DEBUG_PNP      
-      std::cout << "R from SVD: " << std::endl << RR << std::endl;
-      std::cout << "T from SVD: " << std::endl << *tvec << std::endl;
-#endif      
-      *rvec = cv::Mat(3,1,CV_64F);
-      cv::Rodrigues(RR, *rvec);
-    }
- 
-    static bool decompose_homography(const cv::Mat &H,
-                                     cv::Mat *R,
-                                     cv::Mat *rvec, cv::Mat *tvec) {
+    static bool decompose_homography(
+      const cv::Mat &H, cv::Mat *R, cv::Mat *rvec, cv::Mat *tvec) {
+      //
+      // This follows Ma "An invitation to 3D vision
+      //
       cv::Mat HTH, V, SIG, tmp;
       cv::SVD::compute(H.t() * H, SIG, V, tmp);
       std::cout << "H: " << std::endl << H << std::endl;
       std::cout << "V: " << std::endl << V << std::endl;
       std::cout << "SIG^2: " << std::endl << SIG << std::endl;
-      //std::cout << "test1: " << std::endl << V.col(1) << std::endl  << H.t() * H * V.col(1) << std::endl;
-      //std::cout << "test2: must have zero z:" << std::endl << V.col(1) << std::endl;
-      double sig1(SIG.at<double>(0)),  sig2(SIG.at<double>(1)), sig3(SIG.at<double>(2));
+      double sig1(SIG.at<double>(0)),  sig2(SIG.at<double>(1)),
+        sig3(SIG.at<double>(2));
       if (fabs(sig2 - 1.0) > 1e-7) {
         BOMB_OUT("2nd singular value must be 1.0, but is " << sig2);
       }
@@ -178,18 +122,15 @@ namespace tagslam {
       cv::Mat v3 = V.col(2);
       cv::Mat u1 = (c3 * v1 + c1 * v3) / dsig;
       cv::Mat u2 = (c3 * v1 - c1 * v3) / dsig;
-      cv::Mat U1(3,3, CV_64F), U2(3,3,CV_64F), W1(3,3, CV_64F), W2(3,3, CV_64F);
+      cv::Mat U1(3,3, CV_64F), U2(3,3,CV_64F),
+                 W1(3,3, CV_64F), W2(3,3, CV_64F);
       v2.copyTo(U1(cv::Rect(0, 0, 1, 3)));
       u1.copyTo(U1(cv::Rect(1, 0, 1, 3)));
       v2.cross(u1).copyTo(U1(cv::Rect(2, 0, 1, 3)));
-      //std::cout << "U1: " << std::endl << U1 << std::endl;
-      //std::cout << "U1 orthog test: " << std::endl << U1.t() * U1 << std::endl;
 
       v2.copyTo(U2(cv::Rect(0, 0, 1, 3)));
       u2.copyTo(U2(cv::Rect(1, 0, 1, 3)));
       v2.cross(u2).copyTo(U2(cv::Rect(2, 0, 1, 3)));
-
-      //std::cout << "U2 orthog test: " << std::endl << U2.t() * U2 << std::endl;
 
       cv::Mat Hv2(H * v2), Hu1(H * u1), Hu2(H * u2);
       Hv2.copyTo(W1(cv::Rect(0, 0, 1, 3)));
@@ -200,19 +141,12 @@ namespace tagslam {
       Hu2.copyTo(W2(cv::Rect(1, 0, 1, 3)));
       Hv2.cross(Hu2).copyTo(W2(cv::Rect(2, 0, 1, 3)));
 
-      //std::cout << "W1 orthog test: " << std::endl << W1.t() * W1 << std::endl;
-      //std::cout << "W2 orthog test: " << std::endl << W2.t() * W2 << std::endl;
-  
-      //std::cout << "U1: " << std::endl << U1 << std::endl;
-      //std::cout << "U2: " << std::endl << U2 << std::endl;
-
       cv::Mat R1 = W1 * U1.t();
       cv::Mat N1 = v2.cross(u1);
       cv::Mat T1 = (H - R1) * N1;
       std::cout << "R1: " << std::endl << R1 << std::endl;
       std::cout << "N1: " << std::endl << N1 << std::endl;
       std::cout << "T1: " << std::endl << T1 << std::endl;
-      //std::cout << "R1 orthog test: " << std::endl << R1.t() * R1 << std::endl;
 
       cv::Mat R2 = W2 * U2.t();
       cv::Mat N2 = v2.cross(u2);
@@ -221,11 +155,12 @@ namespace tagslam {
       std::cout << "R2: " << std::endl << R2 << std::endl;
       std::cout << "N2: " << std::endl << N2 << std::endl;
       std::cout << "T2: " << std::endl << T2 << std::endl;
-      //std::cout << "R2 orthog test: " << std::endl << R2.t() * R2 << std::endl;
+
       // which ever solution has larger N along z component wins
       bool hasGoodR1 = R1.at<double>(2,2) < 0;
       bool hasGoodR2 = R2.at<double>(2,2) < 0;
-      bool use1 = hasGoodR1 && (fabs(N1.at<double>(2)) > fabs(N2.at<double>(2)) || !hasGoodR2);
+      bool use1 = hasGoodR1 && (fabs(N1.at<double>(2))
+                                > fabs(N2.at<double>(2)) || !hasGoodR2);
       *R = use1 ? R1 : R2;
       cv::Mat N    = use1 ? N1 : N2;
       cv::Mat Traw = use1 ? T1 : T2;
@@ -238,6 +173,40 @@ namespace tagslam {
       return ((hasGoodR1 || hasGoodR2) && T.at<double>(2) > 0);
     }
 
+#endif // end of ALTERNATIVE_DECOMPOSITIONS
+
+    static void decompose_homography_svd(const cv::Mat &H,
+                                         cv::Mat *R,
+                                         cv::Mat *rvec, cv::Mat *tvec) {
+      //
+      // Taken from Kostas Daniliidis' MEAM 620 lecture notes
+      //
+      cv::Mat RR(3,3,CV_64F);
+      cv::Mat H12 = cv::Mat_<double>(3,3);
+      H.col(0).copyTo(H12.col(0));
+      H.col(1).copyTo(H12.col(1));
+      H.col(0).cross(H.col(1)).copyTo(H12.col(2));
+      cv::Mat W, U, VT;
+      cv::SVD::compute(H12, W, U, VT);
+      cv::Mat diag = (cv::Mat_<double>(3,3) << 1, 0, 0,
+                      0, 1, 0,   0, 0, cv::determinant(U*VT));
+      cv::Mat RSVD = U * diag * VT;
+
+      RR = RSVD;
+      *tvec = cv::Mat(3,1,CV_64F);
+      cv::Mat hl(3, 1, CV_64F);
+      H.col(2).copyTo(hl);
+      hl = hl / cv::norm(H.col(0));
+      hl.copyTo(*tvec);
+      *R = RR;
+#ifdef DEBUG_POSE      
+      std::cout << "R from SVD: " << std::endl << RR << std::endl;
+      std::cout << "T from SVD: " << std::endl << *tvec << std::endl;
+#endif      
+      *rvec = cv::Mat(3,1,CV_64F);
+      cv::Rodrigues(RR, *rvec);
+    }
+ 
     static cv::Mat
     undistort_points(const cv::Mat &im,
                      const cv::Mat &K,  DistortionModel distModel,
@@ -255,7 +224,7 @@ namespace tagslam {
         return (im_undist);
         break; }
       default:
-        std::cout << "ERROR: invalid distortion model: " << distModel << std::endl;
+        BOMB_OUT("ERROR: invalid distortion model: " << distModel);
         break;
       }
       return (im);
@@ -265,16 +234,14 @@ namespace tagslam {
                                         cv::Mat *rvec,  cv::Mat *tvec) {
       cv::Mat wc = wp.clone();
       cv::Mat wo = wc(cv::Rect(0,0,2,wc.rows)); 
-      // but the reference camera system is 1.0 away from the tag, so
-      // we need to shift the coordinates all by 1.0 in the z direction
-      //wo.col(2) = 1.0;
-#ifdef DEBUG_PNP      
+#ifdef DEBUG_POSE      
       std::cout << "world points: " << cv_info(wp) << std::endl << wp << std::endl;
       std::cout << "image points: " << std::endl << ip << std::endl;
 #endif
+      // use opencv to get the homography
       cv::Mat HL;
       HL = cv::findHomography(wo, ip);
-#ifdef DEBUG_PNP      
+#ifdef DEBUG_POSE      
       std::cout << "HL from getHomography" << std::endl << HL << std::endl;
 #endif
       // first normalize the homography matrix (Ma, pg 136 top) so it has form
@@ -299,16 +266,17 @@ namespace tagslam {
       cv::Mat Hpos = (sumDiag >= 0)? H : -H;
       //std::cout << "raw homography: " << std::endl << Hpos << std::endl;
       cv::Mat R;
-#ifdef DEBUG_PNP
+#ifdef DEBUG_POSE
       bool foo = decompose_homography(Hpos, &R, rvec, tvec);
       std::cout << "fancy homography reprojection test: " << std::endl;
       test_reprojection(ip, wp, R, *tvec);
       decompose_homography_simple(Hpos, &R, rvec, tvec);
       std::cout << "simple homography reprojection test: " << std::endl;
       test_reprojection(ip, wp, R, *tvec);
-#endif      
+#endif
+      // use standard svd decomposition
       decompose_homography_svd(Hpos, &R, rvec, tvec);
-#ifdef DEBUG_PNP
+#ifdef DEBUG_POSE
       std::cout << "svd homography reprojection test: " << std::endl;
       test_reprojection(ip, wp, R, *tvec);
 #endif      
@@ -328,7 +296,7 @@ namespace tagslam {
       cv::Mat wp(4, 3, CV_64F);
       cv::eigen2cv(imgPoints, ip);
       cv::eigen2cv(objPoints, wp);
-#ifdef DEBUG_PNP      
+#ifdef DEBUG_POSE      
       std::cout << "uv points: " << std::endl << imgPoints << std::endl;
 #endif      
       const cv::Mat imu = undistort_points(ip, K, distModel, D);

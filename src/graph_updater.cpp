@@ -5,7 +5,7 @@
 #include "tagslam/graph_updater.h"
 #include "tagslam/factor/tag_projection.h"
 #include "tagslam/factor/relative_pose_prior.h"
-#include "tagslam/pnp.h"
+#include "tagslam/init_pose.h"
 #include "tagslam/camera2.h"
 #include "tagslam/tag2.h"
 #include "tagslam/logging.h"
@@ -359,9 +359,9 @@ namespace tagslam {
     // do homography for this vertex
     const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
     ROS_DEBUG_STREAM("computing pose for factor " << g->info(v));
-    auto rv = pnp::pose_from_4(fp->getImageCorners(),
-                               fp->getTag()->getObjectCorners(),
-                               ci.getK(), ci.getDistortionModel(), ci.getD());
+    auto rv = init_pose::pose_from_4(
+      fp->getImageCorners(), fp->getTag()->getObjectCorners(),
+      ci.getK(), ci.getDistortionModel(), ci.getD());
     if (rv.second) { // got valid homography
       // viewing angle is determined by position of camera in tag coord
       const Transform &tf = rv.first;

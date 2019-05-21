@@ -3,7 +3,6 @@
  */
 #pragma once
 
-#include "tagslam/utils.h"
 #include "tagslam/pose_noise2.h"
 #include "tagslam/geometry.h"
 
