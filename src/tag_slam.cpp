@@ -280,7 +280,6 @@ namespace tagslam {
     }
     cameras_ = Camera::parse_cameras(config);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
-    bool camHasKnownPose(false);
     for (auto &cam: cameras_) {
       for (const auto &body: bodies_) {
         if (body->getName() == cam->getRigName()) {
