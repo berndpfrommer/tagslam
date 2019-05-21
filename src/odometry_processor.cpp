@@ -75,8 +75,8 @@ namespace tagslam {
       // the noise could go to zero if the position update is zero,
       // meaning the odometry measurements are trusted completely, causing
       // the optimizer to bomb out.
-      const PoseNoise2 pn =
-        PoseNoise2::make(std::max(dang, angularAcceleration_ * dt2),
+      const PoseNoise pn =
+        PoseNoise::make(std::max(dang, angularAcceleration_ * dt2),
                          std::max(dpos, acceleration_ * dt2));
       const PoseWithNoise pwn(deltaPose, pn, true);
       auto fac = add_body_pose_delta(graph_.get(), time_, msg->header.stamp,

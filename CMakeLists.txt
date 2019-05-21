@@ -73,20 +73,20 @@ src/sync_and_detect.cpp)
 target_link_libraries(sync_and_detect_node ${catkin_LIBRARIES})
 
 
-add_library(tagslam2
+add_library(tagslam
 src/body.cpp
 src/body_defaults.cpp
 src/graph.cpp
 src/graph_utils.cpp
 src/gtsam_utils.cpp
 src/geometry.cpp
-src/pose_noise2.cpp
-src/tag_slam2.cpp
+src/pose_noise.cpp
+src/tag_slam.cpp
 src/yaml_utils.cpp
 src/xml.cpp
-src/simple_body2.cpp src/board2.cpp
-src/tag2.cpp
-src/camera2.cpp
+src/simple_body.cpp src/board.cpp
+src/tag.cpp
+src/camera.cpp
 src/pose_with_noise.cpp
 src/gtsam_optimizer.cpp
 src/value/pose.cpp
@@ -102,7 +102,7 @@ src/measurements/plane.cpp
 src/graph_vertex.cpp
 src/graph_edge.cpp
 src/vertex.cpp
-src/camera_intrinsics2.cpp
+src/camera_intrinsics.cpp
 src/odometry_processor.cpp
 src/init_pose.cpp
 src/profiler.cpp
@@ -111,20 +111,20 @@ src/gtsam_distortion/Cal3FS2.cpp
 src/gtsam_distortion/Cal3DS3.cpp
 )
 
-target_link_libraries(tagslam2 ${catkin_LIBRARIES}  ${Boost_LIBRARIES}
+target_link_libraries(tagslam ${catkin_LIBRARIES}  ${Boost_LIBRARIES}
 ${GTSAM_LIBRARIES})
-#cotire(tagslam2)
+#cotire(tagslam)
 
 # -- nodelet ---
-add_library(tagslam2_nodelet src/tagslam2_nodelet.cpp)
-target_link_libraries(tagslam2_nodelet tagslam2 ${catkin_LIBRARIES})
-add_dependencies(tagslam2_nodelet ${catkin_EXPORTED_TARGETS})
-#cotire(tagslam2_nodelet)
+add_library(tagslam_nodelet src/tagslam_nodelet.cpp)
+target_link_libraries(tagslam_nodelet tagslam ${catkin_LIBRARIES})
+add_dependencies(tagslam_nodelet ${catkin_EXPORTED_TARGETS})
+#cotire(tagslam_nodelet)
 
 # -- node ---
-add_executable(tagslam2_node src/tagslam2_node.cpp)
-target_link_libraries(tagslam2_node tagslam2 ${catkin_LIBRARIES})
-#cotire(tagslam2_node)
+add_executable(tagslam_node src/tagslam_node.cpp)
+target_link_libraries(tagslam_node tagslam ${catkin_LIBRARIES})
+#cotire(tagslam_node)
 
 install(FILES nodelet_plugins.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}

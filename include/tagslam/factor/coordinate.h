@@ -7,7 +7,7 @@
 #include "tagslam/factor/factor.h"
 #include "tagslam/tag_factory.h"
 #include "tagslam/geometry.h"
-#include "tagslam/tag2.h"
+#include "tagslam/tag.h"
 
 #include <ros/ros.h>
 #include <memory>
@@ -24,7 +24,7 @@ namespace tagslam {
 
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       Coordinate(double len,  double noise, const Point3d &direction,
-                 const int corn, const Tag2ConstPtr &tag,
+                 const int corn, const TagConstPtr &tag,
                  const string  &name);
       // ------ inherited methods -----
       string getLabel() const override;
@@ -41,7 +41,7 @@ namespace tagslam {
       const Eigen::Vector3d &getDirection() const { return (direction_); }
       double coordinate(const Transform &T_w_b,
                         const Transform &T_b_o) const;
-      const Tag2ConstPtr getTag() const { return (tag_); }
+      const TagConstPtr getTag() const { return (tag_); }
       const Eigen::Vector3d getCorner() const;
 
       // --- static methods
@@ -65,7 +65,7 @@ namespace tagslam {
       double          noise_;
       Eigen::Vector3d direction_;
       int             corner_;
-      Tag2ConstPtr    tag_;
+      TagConstPtr     tag_;
     };
   }
   typedef factor::Coordinate::CoordinateFactorPtr      CoordinateFactorPtr;

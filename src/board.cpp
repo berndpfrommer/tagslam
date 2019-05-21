@@ -2,7 +2,7 @@
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#include "tagslam/board2.h"
+#include "tagslam/board.h"
 #include "tagslam/xml.h"
 #include "tagslam/logging.h"
 #include <boost/range/irange.hpp>
@@ -10,7 +10,7 @@
 
 namespace tagslam {
   using boost::irange;
-  bool Board2::parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) {
+  bool Board::parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) {
     try {
       const XmlRpc::XmlRpcValue board = body[type_];
       tagStartId_ = xml::parse<int>(board, "tag_start_id");
@@ -30,16 +30,16 @@ namespace tagslam {
         const Point3d center(col * tagSize_ * (1.0 + tagSpacing_),
                              row * tagSize_ * (1.0 + tagSpacing_), 0.0);
         const Transform pose = make_transform(Point3d(0,0,0), center);
-        const PoseNoise2 noise =
-          PoseNoise2::make(tagRotationNoise_, tagPositionNoise_);
+        const PoseNoise noise =
+          PoseNoise::make(tagRotationNoise_, tagPositionNoise_);
         const PoseWithNoise pn(pose, noise, true);
-        addTag(Tag2::make(tagid++, tagBits_, tagSize_, pn, bp));
+        addTag(Tag::make(tagid++, tagBits_, tagSize_, pn, bp));
       }
     }
     return (true);
   }
 
-  bool Board2::write(std::ostream &os, const string &prefix) const {
+  bool Board::write(std::ostream &os, const string &prefix) const {
     // write common section
     if (!Body::writeCommon(os, prefix)) {
       return (false);

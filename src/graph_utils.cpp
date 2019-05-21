@@ -37,7 +37,7 @@ namespace tagslam {
       }
     }
 
-    void add_tag(Graph *g, const Tag2 &tag) {
+    void add_tag(Graph *g, const Tag &tag) {
       const string name = Graph::tag_name(tag.getId());
       const ros::Time t0(0);
       add_pose_maybe_with_prior(g, t0, name, tag.getPoseWithNoise(), false);
@@ -85,7 +85,7 @@ namespace tagslam {
                 std::dynamic_pointer_cast<value::Pose>(srcvp);
               Transform pose = src.getOptimizedPose(srcv);
               double ns = srcpp->isCameraPose() ? 0.05 : 0.001;
-              PoseWithNoise pwn(pose, PoseNoise2::make(ns, ns), true);
+              PoseWithNoise pwn(pose, PoseNoise::make(ns, ns), true);
               AbsolutePosePriorFactorPtr
                 pp(new factor::AbsolutePosePrior(destvp->getTime(), pwn,
                                                  destvp->getName()));
@@ -158,7 +158,7 @@ namespace tagslam {
       return (true);
     }
 
-    bool get_optimized_pose(const Graph &g, const Camera2 &cam,
+    bool get_optimized_pose(const Graph &g, const Camera &cam,
                             Transform *tf) {
       return (get_optimized_pose(g, ros::Time(0),
                                  Graph::cam_name(cam.getName()), tf));
@@ -169,13 +169,13 @@ namespace tagslam {
       return (get_optimized_pose(g, t, Graph::body_name(body.getName()), tf));
     }
 
-    bool get_optimized_pose(const Graph &g, const Tag2 &tag, Transform *tf) {
+    bool get_optimized_pose(const Graph &g, const Tag &tag, Transform *tf) {
       return (get_optimized_pose(g, ros::Time(0),
                                  Graph::tag_name(tag.getId()), tf));
     }
     
     PoseWithNoise get_optimized_camera_pose(const Graph &g,
-                                            const Camera2 &cam) {
+                                            const Camera &cam) {
       PoseWithNoise pwn;
       const VertexDesc v = g.findPose(ros::Time(0),
                                       Graph::cam_name(cam.getName()));

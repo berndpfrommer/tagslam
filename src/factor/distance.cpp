@@ -18,8 +18,8 @@ namespace tagslam {
     using boost::irange;
     
     Distance::Distance(double dist,  double noise,
-                       const int corn1, const Tag2ConstPtr &tag1,
-                       const int corn2, const Tag2ConstPtr &tag2,
+                       const int corn1, const TagConstPtr &tag1,
+                       const int corn2, const TagConstPtr &tag2,
                        const string  &name) :
       Factor(name, ros::Time(0)), distance_(dist), noise_(noise) {
       tag_[0] = tag1; tag_[1] = tag2;
@@ -80,8 +80,8 @@ namespace tagslam {
         const double d  = xml::parse<double>(meas, "distance");
         const double noise = xml::parse<double>(meas, "noise");
         
-        Tag2ConstPtr tag1Ptr = tagFactory->findTag(tag1);
-        Tag2ConstPtr tag2Ptr = tagFactory->findTag(tag2);
+        TagConstPtr tag1Ptr = tagFactory->findTag(tag1);
+        TagConstPtr tag2Ptr = tagFactory->findTag(tag2);
         if (!tag1Ptr || !tag2Ptr) {
           BOMB_OUT("measured tags are not valid: " << name);
         }

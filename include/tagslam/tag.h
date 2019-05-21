@@ -15,13 +15,13 @@
 
 namespace tagslam {
   class Body;
-  class Tag2 {
+  class Tag {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     //
-    typedef std::shared_ptr<Tag2>        Tag2Ptr;
-    typedef std::shared_ptr<const Tag2>  Tag2ConstPtr;
-    typedef std::vector<Tag2Ptr>         Tag2Vec;
+    typedef std::shared_ptr<Tag>        TagPtr;
+    typedef std::shared_ptr<const Tag>  TagConstPtr;
+    typedef std::vector<TagPtr>         TagVec;
 
     int    getId()   const { return (id_); }
     int    getBits() const { return (bits_); }
@@ -33,14 +33,14 @@ namespace tagslam {
     const Point3d getObjectCorner(int idx)
       const { return (idx >= 0 ? objectCorners_.row(idx) : Point3d(0,0,0)); }
 
-    friend std::ostream &operator<<(std::ostream &os, const Tag2 &tag);
+    friend std::ostream &operator<<(std::ostream &os, const Tag &tag);
     // ----------- static methods
-    static Tag2Vec parseTags(XmlRpc::XmlRpcValue xmltags, double sz,
+    static TagVec parseTags(XmlRpc::XmlRpcValue xmltags, double sz,
                              const std::shared_ptr<Body> &body);
-    static Tag2Ptr make(int ida, int bits, double sz, const PoseWithNoise &pe,
+    static TagPtr make(int ida, int bits, double sz, const PoseWithNoise &pe,
                         const std::shared_ptr<Body> &body);
   private:
-    Tag2(int ida, int bits, double sz, const PoseWithNoise &pe,
+    Tag(int ida, int bits, double sz, const PoseWithNoise &pe,
          const std::shared_ptr<Body> &body);
 
     // ------- variables --------------
@@ -51,9 +51,9 @@ namespace tagslam {
     std::shared_ptr<Body> body_;   // body to which this tag belongs
     Eigen::Matrix<double, 4, 3> objectCorners_;
   };
-  typedef Tag2::Tag2Ptr Tag2Ptr;
-  typedef Tag2::Tag2ConstPtr Tag2ConstPtr;
-  typedef Tag2::Tag2Vec Tag2Vec;
-  typedef std::map<int, Tag2Ptr> Tag2Map;
-  std::ostream &operator<<(std::ostream &os, const Tag2 &tag);
+  typedef Tag::TagPtr TagPtr;
+  typedef Tag::TagConstPtr TagConstPtr;
+  typedef Tag::TagVec TagVec;
+  typedef std::map<int, TagPtr> TagMap;
+  std::ostream &operator<<(std::ostream &os, const Tag &tag);
 }

@@ -38,7 +38,7 @@ namespace tagslam {
       std::vector<FactorPtr> factors;
       for (const auto &tag: tags) {
         std::string coordName = name + "_tag_" + std::to_string(tag);
-        Tag2ConstPtr tagPtr = tagFac->findTag(tag);
+        TagConstPtr tagPtr = tagFac->findTag(tag);
         if (!tagPtr) {
           BOMB_OUT("measured tag is not valid: " << tag);
         }

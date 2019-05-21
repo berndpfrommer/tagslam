@@ -6,7 +6,7 @@
 
 #include "tagslam/body.h"
 #include "tagslam/geometry.h"
-#include "tagslam/pose_noise2.h"
+#include "tagslam/pose_noise.h"
 #include "tagslam/graph.h"
 
 

@@ -6,8 +6,8 @@
 #include "tagslam/factor/tag_projection.h"
 #include "tagslam/factor/relative_pose_prior.h"
 #include "tagslam/init_pose.h"
-#include "tagslam/camera2.h"
-#include "tagslam/tag2.h"
+#include "tagslam/camera.h"
+#include "tagslam/tag.h"
 #include "tagslam/logging.h"
 #include "tagslam/graph_utils.h"
 
@@ -358,7 +358,7 @@ namespace tagslam {
       return (false);
     }
     // do homography for this vertex
-    const CameraIntrinsics2 ci = fp->getCamera()->getIntrinsics();
+    const CameraIntrinsics ci = fp->getCamera()->getIntrinsics();
     ROS_DEBUG_STREAM("computing pose for factor " << g->info(v));
     auto rv = init_pose::pose_from_4(
       fp->getImageCorners(), fp->getTag()->getObjectCorners(),

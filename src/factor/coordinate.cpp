@@ -18,7 +18,7 @@ namespace tagslam {
     using boost::irange;
     
     Coordinate::Coordinate(double len, double noise, const Point3d &direction,
-                           const int corn, const Tag2ConstPtr &tag,
+                           const int corn, const TagConstPtr &tag,
                            const string &name) :
       Factor(name, ros::Time(0)),
       length_(len), noise_(noise),
@@ -81,7 +81,7 @@ namespace tagslam {
       }
       CoordinateFactorPtr fp;
       if (tag >= 0 && c >= 0 && len > -1e10 && noise > 0) {
-        Tag2ConstPtr tagPtr = tagFactory->findTag(tag);
+        TagConstPtr tagPtr = tagFactory->findTag(tag);
         if (!tagPtr) {
           BOMB_OUT("measured tag is not valid: " << name);
         }

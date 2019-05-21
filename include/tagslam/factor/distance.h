@@ -7,7 +7,7 @@
 #include "tagslam/factor/factor.h"
 #include "tagslam/tag_factory.h"
 #include "tagslam/geometry.h"
-#include "tagslam/tag2.h"
+#include "tagslam/tag.h"
 #include <ros/ros.h>
 
 #include <string>
@@ -23,8 +23,8 @@ namespace tagslam {
 
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       Distance(double dist,  double noise,
-               const int corn1, const Tag2ConstPtr &tag1,
-               const int corn2, const Tag2ConstPtr &tag2,
+               const int corn1, const TagConstPtr &tag1,
+               const int corn2, const TagConstPtr &tag2,
                const string  &name);
       // ------ inherited methods -----
       string getLabel() const override;
@@ -43,7 +43,7 @@ namespace tagslam {
                       const Transform &T_b1_o,
                       const Transform &T_w_b2,
                       const Transform &T_b2_o) const;
-      const Tag2ConstPtr getTag(int idx) const { return (tag_[idx]); }
+      const TagConstPtr getTag(int idx) const { return (tag_[idx]); }
       const Eigen::Vector3d getCorner(int idx) const;
       // --- static methods
       inline static std::shared_ptr<const factor::Distance> cast_const(
@@ -64,7 +64,7 @@ namespace tagslam {
                                      TagFactory *factory);
       double       distance_;
       double       noise_;
-      Tag2ConstPtr tag_[2];
+      TagConstPtr  tag_[2];
       int          corner_[2];
     };
   }

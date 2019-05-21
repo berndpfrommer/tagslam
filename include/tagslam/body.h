@@ -5,7 +5,7 @@
 #pragma once
 
 #include "tagslam/pose_with_noise.h"
-#include "tagslam/tag2.h"
+#include "tagslam/tag.h"
 #include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <map>
 #include <unordered_map>
@@ -24,12 +24,13 @@ namespace tagslam {
     typedef std::shared_ptr<const Body>      BodyConstPtr;
     typedef std::vector<BodyPtr>             BodyVec;
     typedef std::vector<BodyConstPtr>        BodyConstVec;
-    typedef std::unordered_map<int, Tag2Ptr> IdToTagMap;
+    typedef std::unordered_map<int, TagPtr> IdToTagMap;
 
     // virtual methods to be implemented by derived classes
     virtual bool write(std::ostream &os, const string &prefix) const = 0;
     virtual bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) = 0;
     //
+
     // getters
     //
     const string &getName() const        { return (name_); }
@@ -40,7 +41,7 @@ namespace tagslam {
     const PoseWithNoise getPoseWithNoise() const  { return (poseWithNoise_); }
     const Transform &getTransformBodyOdom() const { return (T_body_odom_); }
     double getDefaultTagSize() const              { return (defaultTagSize_); }
-    const std::list<Tag2Ptr> &getTags() const     { return (tagList_); }
+    const std::list<TagPtr> &getTags() const     { return (tagList_); }
     
     double getOdomAcceleration() const {
       return (odomAcceleration_); }
@@ -70,9 +71,9 @@ namespace tagslam {
       return (overrideTagRotationNoise_ > 0 &&
               overrideTagPositionNoise_ > 0);
     }
-    Tag2Ptr findTag(int tagId, int bits) const;
-    void    addTag(const Tag2Ptr &tag);
-    void    addTags(const Tag2Vec &tags);
+    TagPtr  findTag(int tagId, int bits) const;
+    void    addTag(const TagPtr &tag);
+    void    addTags(const TagVec &tags);
 
     // static functions
 
@@ -91,7 +92,7 @@ namespace tagslam {
     bool                isStatic_{true};
     string              type_;
     int                 maxHammingDistance_{2};
-    Tag2Map             tags_; // tags that are hanging off of it
+    TagMap             tags_; // tags that are hanging off of it
     std::set<int>       ignoreTags_; // reject these tags for this body
     double              defaultTagSize_{0}; // tag size for discovered tags
     PoseWithNoise       poseWithNoise_; // initial pose prior if valid
@@ -108,7 +109,7 @@ namespace tagslam {
     // -------- static functions
     static BodyPtr parse_body(const string &name, XmlRpc::XmlRpcValue config);
   private:
-    std::list<Tag2Ptr>  tagList_;
+    std::list<TagPtr>   tagList_;
   };
   using BodyPtr      = Body::BodyPtr;
   using BodyConstPtr = Body::BodyConstPtr;

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "tagslam/camera_intrinsics2.h"
+#include "tagslam/camera_intrinsics.h"
 #include "tagslam/pose_with_noise.h"
 #include <ros/ros.h>
 #include <memory>
@@ -14,14 +14,14 @@
 
 namespace tagslam {
   class Body; // need forward declaration here
-  class Camera2 {
+  class Camera {
     using string = std::string;
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // --------- typedefs -------
-    typedef std::shared_ptr<Camera2>       Camera2Ptr;
-    typedef std::shared_ptr<const Camera2> Camera2ConstPtr;
-    typedef std::vector<Camera2Ptr>        Camera2Vec;
+    typedef std::shared_ptr<Camera>       CameraPtr;
+    typedef std::shared_ptr<const Camera> CameraConstPtr;
+    typedef std::vector<CameraPtr>        CameraVec;
     // --- getters/setters
     const string &getName()       const { return (name_); }
     const string &getImageTopic() const { return (imageTopic_); }
@@ -29,15 +29,15 @@ namespace tagslam {
     const string &getFrameId()    const { return (frameId_); }
     const string &getRigName()    const { return (rigName_); }
     const std::shared_ptr<Body> getRig() const { return (rig_); }
-    const PoseNoise2 &getWiggle() const { return (wiggle_); }
-    const CameraIntrinsics2& getIntrinsics() const { return (intrinsics_); }
+    const PoseNoise &getWiggle() const { return (wiggle_); }
+    const CameraIntrinsics& getIntrinsics() const { return (intrinsics_); }
     int  getIndex() const { return (index_); }
     void setRig(const std::shared_ptr<Body> &rig) { rig_ = rig; }
     
     // --- static methods
-    static Camera2Ptr parse_camera(const string &name,
+    static CameraPtr parse_camera(const string &name,
                                    XmlRpc::XmlRpcValue config);
-    static Camera2Vec parse_cameras(XmlRpc::XmlRpcValue config);
+    static CameraVec parse_cameras(XmlRpc::XmlRpcValue config);
 
   private:
     // -------- variables -------
@@ -48,11 +48,11 @@ namespace tagslam {
     string                frameId_;    // ros frame id of camera
     string                rigName_;    // name of rig body
     std::shared_ptr<Body> rig_;        // pointer to rig body
-    CameraIntrinsics2     intrinsics_; // intrinsic calibration
-    PoseNoise2            wiggle_;     // how rigid the ext calib is
+    CameraIntrinsics      intrinsics_; // intrinsic calibration
+    PoseNoise             wiggle_;     // how rigid the ext calib is
   };
 
-  using Camera2Ptr      = Camera2::Camera2Ptr;
-  using Camera2ConstPtr = Camera2::Camera2ConstPtr;
-  using Camera2Vec      = Camera2::Camera2Vec;
+  using CameraPtr      = Camera::CameraPtr;
+  using CameraConstPtr = Camera::CameraConstPtr;
+  using CameraVec      = Camera::CameraVec;
 }

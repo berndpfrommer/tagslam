@@ -5,7 +5,7 @@
 #include "tagslam/graph.h"
 #include "tagslam/body.h"
 #include "tagslam/logging.h"
-#include "tagslam/camera2.h"
+#include "tagslam/camera.h"
 #include "tagslam/gtsam_optimizer.h"
 #include "tagslam/value/pose.h"
 #include "tagslam/factor/absolute_pose_prior.h"
@@ -306,9 +306,9 @@ namespace tagslam {
     return (m);
   }
 
-  PoseNoise2 Graph::getPoseNoise(const VertexDesc &v) const {
+  PoseNoise Graph::getPoseNoise(const VertexDesc &v) const {
     const ValueKey k = findOptimizedPoseKey(v);
-    return (PoseNoise2(optimizer_->getMarginal(k)));
+    return (PoseNoise(optimizer_->getMarginal(k)));
   }
  
   // static method!

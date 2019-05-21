@@ -13,11 +13,11 @@
 #include <iostream>
 
 namespace tagslam {
-  class CameraIntrinsics2 {
+  class CameraIntrinsics {
     using string = std::string;
   public:
     friend std::ostream &operator<<(std::ostream &os,
-                                    const CameraIntrinsics2 &ci);
+                                    const CameraIntrinsics &ci);
     const std::vector<double> &getDVec() const {
       return (distortionCoeffs_); }
     const std::vector<double> &getKVec() const { return (K_); }
@@ -26,9 +26,9 @@ namespace tagslam {
     const DistortionModel &getDistortionModel() const {
       return (distortionModel_); }
     // static functions
-    static CameraIntrinsics2 parse(XmlRpc::XmlRpcValue config);
+    static CameraIntrinsics parse(XmlRpc::XmlRpcValue config);
   private:
-    static CameraIntrinsics2 parse_no_error(XmlRpc::XmlRpcValue config);
+    static CameraIntrinsics parse_no_error(XmlRpc::XmlRpcValue config);
     std::vector<double> distortionCoeffs_;
     std::vector<double> K_; // K Matrix
     std::vector<int>    resolution_;
@@ -37,5 +37,5 @@ namespace tagslam {
     cv::Mat cvK_; // precomputed for speed
     cv::Mat cvD_; // precomputed for speed
   };
-  std::ostream &operator<<(std::ostream &os, const CameraIntrinsics2 &ci);
+  std::ostream &operator<<(std::ostream &os, const CameraIntrinsics &ci);
 }

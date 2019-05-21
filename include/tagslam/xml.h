@@ -70,7 +70,7 @@ namespace tagslam {
     // specialization for reading noise
  
     template <>
-    PoseNoise2 parse(XmlRpc::XmlRpcValue xml, const std::string &key);
+    PoseNoise parse(XmlRpc::XmlRpcValue xml, const std::string &key);
     //
     // specialization for reading pose with noise
     // 

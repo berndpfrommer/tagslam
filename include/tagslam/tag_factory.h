@@ -4,11 +4,11 @@
 
 #pragma once
 
-#include "tagslam/tag2.h"
+#include "tagslam/tag.h"
 namespace tagslam {
   class TagFactory {
   public:
     virtual ~TagFactory() {};
-    virtual Tag2ConstPtr findTag(int tagId) = 0;
+    virtual TagConstPtr findTag(int tagId) = 0;
   };
 }

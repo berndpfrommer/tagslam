@@ -9,13 +9,13 @@
 #include <memory>
 
 namespace tagslam {
-  class Board2: public Body {
+  class Board: public Body {
   public:
     using string = std::string;
-    typedef std::shared_ptr<Board2> Board2Ptr;
-    typedef std::shared_ptr<const Board2> Board2ConstPtr;
+    typedef std::shared_ptr<Board> BoardPtr;
+    typedef std::shared_ptr<const Board> BoardConstPtr;
 
-    Board2(const string &n  = string(""), bool iS = false) :
+    Board(const string &n  = string(""), bool iS = false) :
       Body(n, iS) {
       type_ = "board";
     }
@@ -31,6 +31,6 @@ namespace tagslam {
     double  tagRotationNoise_;
     double  tagPositionNoise_;
   };
-  using Board2Ptr      = Board2::Board2Ptr;
-  using Board2ConstPtr = Board2::Board2ConstPtr;
+  using BoardPtr      = Board::BoardPtr;
+  using BoardConstPtr = Board::BoardConstPtr;
 }

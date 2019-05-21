@@ -39,7 +39,7 @@ namespace tagslam {
     }
 
     template <>
-    PoseNoise2 parse(XmlRpc::XmlRpcValue xml, const std::string &key) {
+    PoseNoise parse(XmlRpc::XmlRpcValue xml, const std::string &key) {
       if (!xml.hasMember(key)) {
         ROS_ERROR_STREAM("key not found: " << key);
         throw XmlRpc::XmlRpcException("key not found: " + key);
@@ -49,11 +49,11 @@ namespace tagslam {
             xml[key].hasMember("rotation_noise")) {
           const Point3d p = parse<Point3d>(xml[key], "position_noise");
           const Point3d r = parse<Point3d>(xml[key], "rotation_noise");
-          return (PoseNoise2::make(r, p));
+          return (PoseNoise::make(r, p));
         } else if (xml[key].hasMember("R")) {
           auto Rd = parse_container<std::vector<double>>(xml[key], "R");
           const auto R = Eigen::Map<Eigen::Matrix<double, 6, 6> >(&Rd[0]);
-          return (PoseNoise2::makeFromR(R));
+          return (PoseNoise::makeFromR(R));
         } else {
           throw XmlRpc::XmlRpcException("no valid noise for: " + key);
         }
@@ -71,7 +71,7 @@ namespace tagslam {
       }
       try {
         const Transform  pose  = parse<Transform>(xml, key);
-        const PoseNoise2 noise = parse<PoseNoise2>(xml, key);
+        const PoseNoise noise = parse<PoseNoise>(xml, key);
         return (PoseWithNoise(pose, noise, true));
       } catch (const XmlRpc::XmlRpcException &e) {
         ROS_ERROR_STREAM("error parsing: " << key);

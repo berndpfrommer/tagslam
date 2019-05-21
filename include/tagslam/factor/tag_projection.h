@@ -11,18 +11,18 @@
 #include <ros/ros.h>
 
 namespace tagslam {
-  class Tag2;
-  class Camera2;
+  class Tag;
+  class Camera;
   namespace factor {
     using std::string;
     class TagProjection: public Factor {
     public:
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       TagProjection(const ros::Time     &t  = ros::Time(0),
-                    const std::shared_ptr<const Camera2> &cam =
-                    std::shared_ptr<Camera2>(),
-                    const std::shared_ptr<const Tag2> &tag =
-                    std::shared_ptr<Tag2>(),
+                    const std::shared_ptr<const Camera> &cam =
+                    std::shared_ptr<Camera>(),
+                    const std::shared_ptr<const Tag> &tag =
+                    std::shared_ptr<Tag>(),
                     const geometry_msgs::Point *imgCorn = NULL,
                     double pixelNoise = 1.0,
                     const string   &name = "");
@@ -37,12 +37,12 @@ namespace tagslam {
       // --------- own methods
       const Eigen::Matrix<double, 4,2> &getImageCorners() const
         { return (imgCorners_); }
-      const std::shared_ptr<const Camera2> getCamera() const { return (cam_); }
-      const std::shared_ptr<const Tag2> getTag() const { return (tag_); }
+      const std::shared_ptr<const Camera> getCamera() const { return (cam_); }
+      const std::shared_ptr<const Tag> getTag() const { return (tag_); }
       double getPixelNoise() const { return (pixelNoise_); }
     private:
-      const std::shared_ptr<const Camera2> cam_;
-      const std::shared_ptr<const Tag2>    tag_;
+      const std::shared_ptr<const Camera>  cam_;
+      const std::shared_ptr<const Tag>     tag_;
       double                               pixelNoise_;
       Eigen::Matrix<double, 4, 2>          imgCorners_;
     };

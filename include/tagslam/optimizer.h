@@ -6,7 +6,7 @@
 #include "tagslam/value_key.h"
 #include "tagslam/factor_key.h"
 #include "tagslam/geometry.h"
-#include "tagslam/camera_intrinsics2.h"
+#include "tagslam/camera_intrinsics.h"
 #include "tagslam/pose_with_noise.h"
 
 namespace tagslam {
@@ -28,7 +28,7 @@ namespace tagslam {
     // retrieves the optimized pose for a given key
     virtual Transform getPose(ValueKey key) = 0;
     // retrieves marginal for given key
-    virtual PoseNoise2 getMarginal(const ValueKey k) = 0;
+    virtual PoseNoise getMarginal(const ValueKey k) = 0;
     // adds the starting guess for a new value (e.g. camera pose)
     virtual ValueKey addPose(const Transform &pose) = 0;
     // relative pose prior, i.e. err = ||Pose(key1) - deltaPose * Pose(key2)||
@@ -47,7 +47,7 @@ namespace tagslam {
       // X = object points (3d, but in plane with z = 0)
       const Eigen::Matrix<double, 4, 3> &X,
       const string &cameraName,
-      const CameraIntrinsics2 &ci,
+      const CameraIntrinsics &ci,
       double pixelNoise,
       ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) = 0;
  

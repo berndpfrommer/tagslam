@@ -3,7 +3,7 @@
  */
 
 #include "tagslam/init_pose.h"
-#include "tagslam/camera_intrinsics2.h"
+#include "tagslam/camera_intrinsics.h"
 #include "tagslam/logging.h"
 
 #include <opencv2/calib3d/calib3d.hpp>

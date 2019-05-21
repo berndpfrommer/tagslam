@@ -2,7 +2,7 @@
  * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#include "tagslam/tag2.h"
+#include "tagslam/tag.h"
 #include "tagslam/body.h"
 #include "tagslam/xml.h"
 #include <ros/ros.h>
@@ -12,7 +12,7 @@ using std::cout;
 using std::endl;
 
 namespace tagslam {
-  Tag2::Tag2(int ida, int bts, double s, const PoseWithNoise &pn,
+  Tag::Tag(int ida, int bts, double s, const PoseWithNoise &pn,
              const std::shared_ptr<Body> &body) :
     id_(ida), bits_(bts), size_(s), poseWithNoise_(pn), body_(body)  {
     objectCorners_ <<
@@ -22,14 +22,14 @@ namespace tagslam {
       -s/2,  s/2, 0;
     if (poseWithNoise_.isValid() && body->overrides()) {
       poseWithNoise_.setNoise(
-        PoseNoise2::make(body->getOverrideTagRotationNoise(),
+        PoseNoise::make(body->getOverrideTagRotationNoise(),
                          body->getOverrideTagPositionNoise()));
     }
   }
 
-  Tag2Vec Tag2::parseTags(XmlRpc::XmlRpcValue xmltags, double size,
+  TagVec Tag::parseTags(XmlRpc::XmlRpcValue xmltags, double size,
                           const std::shared_ptr<Body> &body) {
-    std::vector<Tag2Ptr> tags;
+    std::vector<TagPtr> tags;
     for (uint32_t i = 0; i < (unsigned int) xmltags.size(); i++) {
       if (xmltags[i].getType() != XmlRpc::XmlRpcValue::TypeStruct) continue;
       const int id    = xml::parse<int>(xmltags[i],    "id");
@@ -46,13 +46,13 @@ namespace tagslam {
     return (tags);
   }
 
-  Tag2Ptr Tag2::make(int tagId, int bits, double size, const PoseWithNoise &pn,
+  TagPtr Tag::make(int tagId, int bits, double size, const PoseWithNoise &pn,
                      const std::shared_ptr<Body> &body) {
-    Tag2Ptr tagPtr(new Tag2(tagId, bits, size, pn, body));
+    TagPtr tagPtr(new Tag(tagId, bits, size, pn, body));
     return (tagPtr);
   }
   
-  std::ostream &operator<<(std::ostream &os, const Tag2 &tag) {
+  std::ostream &operator<<(std::ostream &os, const Tag &tag) {
     os << tag.id_ << " sz: " << tag.size_ << " " << tag.body_->getName()
        << " " << tag.poseWithNoise_;
     return (os);

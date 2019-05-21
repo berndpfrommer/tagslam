@@ -8,17 +8,17 @@
 #include <iostream>
 
 namespace tagslam {
-  struct SimpleBody2: public Body {
-    SimpleBody2(const std::string &n  = std::string(""),
+  struct SimpleBody: public Body {
+    SimpleBody(const std::string &n  = std::string(""),
                bool iS = false) : Body(n, iS) {
       type_ = "simple";
     }
-    typedef std::shared_ptr<SimpleBody2>       SimpleBody2Ptr;
-    typedef std::shared_ptr<const SimpleBody2> SimpleBody2ConstPtr;
+    typedef std::shared_ptr<SimpleBody>       SimpleBodyPtr;
+    typedef std::shared_ptr<const SimpleBody> SimpleBodyConstPtr;
 
     bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) override;
     bool write(std::ostream &os, const std::string &prefix) const override;
   };
-  using SimpleBody2Ptr      = SimpleBody2::SimpleBody2Ptr;
-  using SimpleBody2ConstPtr = SimpleBody2::SimpleBody2ConstPtr;
+  using SimpleBodyPtr      = SimpleBody::SimpleBodyPtr;
+  using SimpleBodyConstPtr = SimpleBody::SimpleBodyConstPtr;
 }

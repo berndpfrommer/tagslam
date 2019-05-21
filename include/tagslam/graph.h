@@ -59,7 +59,7 @@ namespace tagslam {
     inline Transform pose(const VertexDesc &v) const {
       return (getOptimizedPose(v)); }
     
-    PoseNoise2 getPoseNoise(const VertexDesc &v) const;
+    PoseNoise getPoseNoise(const VertexDesc &v) const;
 
     PoseValueConstPtr getPoseVertex(const VertexDesc f) const {
       return (std::dynamic_pointer_cast<const value::Pose>(graph_[f]));

@@ -2,7 +2,7 @@
  * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#include "tagslam/camera_intrinsics2.h"
+#include "tagslam/camera_intrinsics.h"
 #include "tagslam/xml.h"
 #include "tagslam/logging.h"
 
@@ -21,9 +21,9 @@ namespace tagslam {
     {"equidistant", EQUIDISTANT}, {"equi", EQUIDISTANT},
     {"fisheye", EQUIDISTANT}};
 
-  CameraIntrinsics2
-  CameraIntrinsics2::parse_no_error(XmlRpc::XmlRpcValue config) {
-    CameraIntrinsics2 ci;
+  CameraIntrinsics
+  CameraIntrinsics::parse_no_error(XmlRpc::XmlRpcValue config) {
+    CameraIntrinsics ci;
     ci.cameraModel_= xml::parse<string>(config, "camera_model");
     const string distModel = xml::parse<string>(config, "distortion_model");
     if (distMap.count(distModel) == 0) {
@@ -47,8 +47,8 @@ namespace tagslam {
     }
     return (ci);
   }
-  CameraIntrinsics2
-  CameraIntrinsics2::parse(XmlRpc::XmlRpcValue config) {
+  CameraIntrinsics
+  CameraIntrinsics::parse(XmlRpc::XmlRpcValue config) {
     try {
       return (parse_no_error(config));
     } catch (const XmlRpc::XmlRpcException &e) {

@@ -5,15 +5,15 @@
 #include "tagslam/factor/tag_projection.h"
 #include "tagslam/graph.h"
 #include "tagslam/body.h"
-#include "tagslam/camera2.h"
+#include "tagslam/camera.h"
 #include <geometry_msgs/Point.h>
 #include <sstream>
 
 namespace tagslam {
   namespace factor {
     TagProjection::TagProjection(const ros::Time &t,
-                                 const std::shared_ptr<const Camera2> &cam,
-                                 const std::shared_ptr<const Tag2> &tag,
+                                 const std::shared_ptr<const Camera> &cam,
+                                 const std::shared_ptr<const Tag> &tag,
                                  const geometry_msgs::Point *imgCorn,
                                  double pxn,
                                  const string   &name) :

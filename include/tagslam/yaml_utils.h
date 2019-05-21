@@ -3,7 +3,7 @@
  */
 #pragma once
 
-#include "tagslam/pose_noise2.h"
+#include "tagslam/pose_noise.h"
 #include "tagslam/geometry.h"
 
 #include <Eigen/Dense>
@@ -19,11 +19,11 @@ namespace tagslam {
   namespace yaml_utils {
     void write_pose(std::ostream &of, const std::string &prefix,
                     const Transform &pose,
-                    const PoseNoise2 &n, bool writeNoise);
+                    const PoseNoise &n, bool writeNoise);
     void write_pose_with_covariance(std::ostream &of,
                                     const std::string &prefix,
                                     const Transform &pose,
-                                    const PoseNoise2 &n);
+                                    const PoseNoise &n);
     template <typename T>
     T parse(XmlRpc::XmlRpcValue xml, const std::string key, const T &def) {
       if (xml.hasMember(key)) {

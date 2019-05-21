@@ -24,7 +24,7 @@ namespace tagslam {
 
     void write_pose(std::ostream &of, const std::string &prefix,
                     const Transform &pose,
-                    const PoseNoise2 &n, bool writeNoise) {
+                    const PoseNoise &n, bool writeNoise) {
       Eigen::AngleAxisd aa(pose.linear());
       Point3d r = aa.angle() * aa.axis();
       Point3d t(pose.translation());
@@ -45,7 +45,7 @@ namespace tagslam {
     void write_pose_with_covariance(std::ostream &of,
                                     const std::string &prefix,
                                     const Transform &pose,
-                                    const PoseNoise2 &n) {
+                                    const PoseNoise &n) {
       Eigen::AngleAxisd aa;
       aa.fromRotationMatrix(pose.rotation());
       Eigen::Vector3d r = aa.angle() * aa.axis();

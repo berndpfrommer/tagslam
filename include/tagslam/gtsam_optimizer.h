@@ -30,7 +30,7 @@ namespace tagslam {
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
     void      setVerbosity(const string &v) { verbosity_ = v;}
     Transform getPose(ValueKey key) override;
-    PoseNoise2 getMarginal(const ValueKey k) override;
+    PoseNoise getMarginal(const ValueKey k) override;
     ValueKey  addPose(const Transform &pose) override;
     FactorKey addRelativePosePrior(ValueKey key1, ValueKey key2,
                                    const PoseWithNoise &deltaPose) override;
@@ -40,7 +40,7 @@ namespace tagslam {
       const Eigen::Matrix<double, 4, 2> &imgCorners,
       const Eigen::Matrix<double, 4, 3> &objCorners,
       const string &cameraName,
-      const CameraIntrinsics2 &ci,
+      const CameraIntrinsics &ci,
       double pixelNoise,
       ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) override;
     FactorKey addDistanceMeasurement(
@@ -62,9 +62,9 @@ namespace tagslam {
     typedef std::unordered_map<
       double, gtsam::noiseModel::Isotropic::shared_ptr> PixelNoiseMap;
     std::shared_ptr<Cal3FS2> getEquiModel(
-      const string &cname, const CameraIntrinsics2 &ci);
+      const string &cname, const CameraIntrinsics &ci);
     std::shared_ptr<Cal3DS3> getRadTanModel(
-      const string &cname, const CameraIntrinsics2 &ci);
+      const string &cname, const CameraIntrinsics &ci);
     double checkForLargeErrors(double thresh) const;
     // ------------ variables ------------
     ValueKey                      key_{0};

@@ -7,7 +7,7 @@
 #include "tagslam/tag_factory.h"
 #include "tagslam/graph_updater.h"
 #include "tagslam/graph.h"
-#include "tagslam/camera2.h"
+#include "tagslam/camera.h"
 #include "tagslam/profiler.h"
 #include "tagslam/odometry_processor.h"
 #include "tagslam/measurements/measurements.h"
@@ -32,7 +32,7 @@
 
 
 namespace tagslam {
-  class TagSlam2: public TagFactory {
+  class TagSlam: public TagFactory {
     using Apriltag = apriltag_msgs::Apriltag;
     using TagArray = apriltag_msgs::ApriltagArrayStamped;
     using TagArrayPtr = TagArray::Ptr;
@@ -49,12 +49,12 @@ namespace tagslam {
     typedef flex_sync::SubscribingSync<TagArray, Image, Odometry> SubSync;
 
   public:
-    TagSlam2(const ros::NodeHandle &nh);
-    TagSlam2(const TagSlam2&) = delete;
-    TagSlam2& operator=(const TagSlam2&) = delete;
+    TagSlam(const ros::NodeHandle &nh);
+    TagSlam(const TagSlam&) = delete;
+    TagSlam& operator=(const TagSlam&) = delete;
 
     // inherited from TagFactory
-    Tag2ConstPtr findTag(int tagId) override;
+    TagConstPtr findTag(int tagId) override;
     // ------ own methods
     bool initialize();
     void run();
@@ -95,7 +95,7 @@ namespace tagslam {
       ros::Time startTime;
       ros::Time endTime;
     };
-    typedef std::unordered_map<int, Tag2ConstPtr> TagMap;
+    typedef std::unordered_map<int, TagConstPtr> TagMap;
 
     void readBodies(XmlRpc::XmlRpcValue config);
     void readDefaultBody(XmlRpc::XmlRpcValue config);
@@ -127,7 +127,7 @@ namespace tagslam {
     void sleep(double dt) const;
     void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
                      std::vector<VertexDesc> *factors);
-    std::vector<Tag2ConstPtr> findTags(const std::vector<Apriltag> &ta);
+    std::vector<TagConstPtr> findTags(const std::vector<Apriltag> &ta);
     bool anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs);
     void publishAll(const ros::Time &t);
     bool replay(std_srvs::Trigger::Request& req,
@@ -138,7 +138,7 @@ namespace tagslam {
     void writeTimeDiagnostics(const string &fname) const;
     void writeDistanceDiagnostics(const string &fname) const;
     void writeErrorMap(const string &fname) const;
-    void writeTagCorners(const ros::Time &t, int camIdx, const Tag2ConstPtr &tag,
+    void writeTagCorners(const ros::Time &t, int camIdx, const TagConstPtr &tag,
                          const geometry_msgs::Point *img_corners);
 
     void remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
@@ -149,7 +149,7 @@ namespace tagslam {
     ros::NodeHandle      nh_;
     GraphPtr             graph_;
     GraphUpdater         graphUpdater_;
-    Camera2Vec           cameras_;
+    CameraVec            cameras_;
     BodyVec              bodies_;
     BodyVec              nonstaticBodies_;
     BodyPtr              defaultBody_;

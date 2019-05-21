@@ -3,14 +3,14 @@
  */
 
 #include <ros/ros.h>
-#include "tagslam/tag_slam2.h"
+#include "tagslam/tag_slam.h"
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "tagslam2_node");
+  ros::init(argc, argv, "tagslam_node");
   ros::NodeHandle pnh("~");
 
   try {
-    tagslam::TagSlam2 node(pnh);
+    tagslam::TagSlam node(pnh);
     if (!node.initialize()) {
       ROS_ERROR_STREAM("init failed!");
       ros::shutdown();

@@ -44,7 +44,7 @@ namespace tagslam {
   }
 
   std::shared_ptr<Cal3DS3> GTSAMOptimizer::getRadTanModel(
-    const string &cname, const CameraIntrinsics2 &ci) {
+    const string &cname, const CameraIntrinsics &ci) {
     // TODO: introduce camera ID and use lookup table!
     auto it = radTanModelMap_.find(cname);
     if (it == radTanModelMap_.end()) {
@@ -67,7 +67,7 @@ namespace tagslam {
   }
   
   std::shared_ptr<Cal3FS2> GTSAMOptimizer::getEquiModel(
-    const string &cname, const CameraIntrinsics2 &ci) {
+    const string &cname, const CameraIntrinsics &ci) {
     // TODO: introduce camera ID and use lookup table!
     auto it = equiModelMap_.find(cname);
     if (it == equiModelMap_.end()) {
@@ -177,7 +177,7 @@ namespace tagslam {
     const Eigen::Matrix<double, 4, 2> &imgCorners,
     const Eigen::Matrix<double, 4, 3> &objCorners,
     const string &camName,
-    const CameraIntrinsics2 &ci,
+    const CameraIntrinsics &ci,
     double pixelNoise,
     ValueKey T_r_c, ValueKey T_w_r, ValueKey T_w_b, ValueKey T_b_o) {
     //ROS_DEBUG_STREAM("gtsam: adding tag proj fac: " << T_r_c << " " <<
@@ -380,7 +380,7 @@ namespace tagslam {
     return (lastError_);
   }
 
-  PoseNoise2 GTSAMOptimizer::getMarginal(const ValueKey k)  {
+  PoseNoise GTSAMOptimizer::getMarginal(const ValueKey k)  {
     auto it = covariances_.find(k);
     if (it == covariances_.end()) {
       gtsam::Marginals marginals(fullGraph_, values_);
@@ -389,7 +389,7 @@ namespace tagslam {
         gtsam::Matrix>::value_type(k, marginals.marginalCovariance(k))).first;
     }
     const Matrix6d mat = it->second;
-    return (PoseNoise2(mat));
+    return (PoseNoise(mat));
   }
 
   void GTSAMOptimizer::transferFullOptimization() {

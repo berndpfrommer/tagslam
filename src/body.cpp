@@ -4,8 +4,8 @@
 
 #include "tagslam/body.h"
 #include "tagslam/logging.h"
-#include "tagslam/simple_body2.h"
-#include "tagslam/board2.h"
+#include "tagslam/simple_body.h"
+#include "tagslam/board.h"
 #include "tagslam/body_defaults.h"
 #include "tagslam/yaml_utils.h"
 #include "tagslam/xml.h"
@@ -21,10 +21,10 @@ namespace tagslam {
   static BodyPtr make_type(const std::string &name, const std::string &type) {
     BodyPtr p;
     if (type == "board") {
-      Board2Ptr board(new Board2(name));
+      BoardPtr board(new Board(name));
       p = board;
     } else  if (type == "simple" || type == "camera_rig") {
-      SimpleBody2Ptr sb(new SimpleBody2(name));
+      SimpleBodyPtr sb(new SimpleBody(name));
       p = sb;
     } else {
       BOMB_OUT("invalid rigid body type: " + type);
@@ -79,18 +79,18 @@ namespace tagslam {
     return (rb);
   }
 
-  Tag2Ptr Body::findTag(int tagId, int bits) const {
+  TagPtr Body::findTag(int tagId, int bits) const {
     const auto it = tags_.find(tagId);
     return ((it == tags_.end() || it->second->getBits() != bits)?
             NULL: it->second);
   }
 
-  void Body::addTag(const Tag2Ptr &tag) {
-    tags_.insert(Tag2Map::value_type(tag->getId(), tag));
+  void Body::addTag(const TagPtr &tag) {
+    tags_.insert(TagMap::value_type(tag->getId(), tag));
     tagList_.push_back(tag);
   }
 
-  void Body::addTags(const Tag2Vec &tags) {
+  void Body::addTags(const TagVec &tags) {
     for (const auto &tag:tags) {
       addTag(tag);
     }
@@ -128,7 +128,7 @@ namespace tagslam {
     if (isStatic_) {
       os << pfix << "pose:" << std::endl;
       // TODO: compute true pose noise from marginals!
-      PoseNoise2 smallNoise = PoseNoise2::make(0.001, 0.001);
+      PoseNoise smallNoise = PoseNoise::make(0.001, 0.001);
       yaml_utils::write_pose(os, pfix + "  ", poseWithNoise_.getPose(),
                              smallNoise, poseWithNoise_.isValid());
     }
