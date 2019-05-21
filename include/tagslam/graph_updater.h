@@ -38,8 +38,7 @@ namespace tagslam {
     void setMaxNumIncrementalOpt(int n) { maxNumIncrementalOpt_ = n; }
     void setMinimumViewingAngle(double angDeg);
 
-    void processNewFactors(const ros::Time &t,
-                           const VertexVec &facs);
+    void processNewFactors(const ros::Time &t, const VertexVec &facs);
     void printPerformance();
   private:
     typedef std::map<ros::Time, VertexVec> TimeToVertexesMap;
@@ -48,17 +47,14 @@ namespace tagslam {
                  SubGraph *found, SubGraph *sg);
 
     std::vector<VertexDeque>
-    findSubgraphs(const ros::Time &t, const VertexVec &fac,
-                  SubGraph *found);
+    findSubgraphs(const ros::Time &t, const VertexVec &fac, SubGraph *found);
  
-    double   initializeSubgraphs(std::vector<GraphPtr> *subGraphs,
-                                 const std::vector<VertexDeque> &verts);
-    void exploreSubGraph(const ros::Time &t,
-                         VertexDesc start,
+    double initializeSubgraphs(std::vector<GraphPtr> *subGraphs,
+                               const std::vector<VertexDeque> &verts);
+    void exploreSubGraph(const ros::Time &t, VertexDesc start,
                          SubGraph *subGraph, SubGraph *found);
-    bool   applyFactorsToGraph(const ros::Time &t,
-                               const VertexVec &facs,
-                               SubGraph *covered);
+    bool applyFactorsToGraph(const ros::Time &t, const VertexVec &facs,
+                             SubGraph *covered);
     void eraseStoredFactors(const ros::Time &t,
                             const SubGraph::FactorCollection &covered);
     double optimize(double thresh);

@@ -16,7 +16,7 @@ using std::string;
 
 namespace tagslam {
 
-  static std::map<std::string, DistortionModel> distMap = {
+  static std::map<string, DistortionModel> distMap = {
     {"rad_tan", RADTAN}, {"radtan", RADTAN}, {"plumb_bob", RADTAN},
     {"equidistant", EQUIDISTANT}, {"equi", EQUIDISTANT},
     {"fisheye", EQUIDISTANT}};
@@ -25,7 +25,7 @@ namespace tagslam {
   CameraIntrinsics2::parse_no_error(XmlRpc::XmlRpcValue config) {
     CameraIntrinsics2 ci;
     ci.cameraModel_= xml::parse<string>(config, "camera_model");
-    std::string distModel = xml::parse<string>(config, "distortion_model");
+    const string distModel = xml::parse<string>(config, "distortion_model");
     if (distMap.count(distModel) == 0) {
       BOMB_OUT("unknown distortion model: " << distModel);
     }

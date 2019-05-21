@@ -21,6 +21,7 @@
 namespace tagslam {
 
   using boost::irange;
+  using std::string;
 
   class LabelWriter {
   public:
@@ -28,7 +29,7 @@ namespace tagslam {
     template <class VertexOrEdge>
     void operator()(std::ostream &out, const VertexOrEdge& v) const {
       VertexConstPtr vp = graph_->getVertex(v);
-      const std::string color =  graph_->isOptimized(v) ? "green" : "red";
+      const string color =  graph_->isOptimized(v) ? "green" : "red";
       out << "[label=\"" << vp->getLabel() << "\", shape="
           << vp->getShape() << ", color=" << color << "]";
     }
@@ -36,7 +37,7 @@ namespace tagslam {
     const Graph *graph_;
   };
 
-  static void plot(const std::string &fname, const Graph *g) {
+  static void plot(const string &fname, const Graph *g) {
     std::ofstream ofile(fname);
     boost::write_graphviz(ofile, g->getBoostGraph(), LabelWriter(g));
   }
@@ -246,7 +247,7 @@ namespace tagslam {
     plot(ss.str(), this);
   }
 
-  std::string Graph::info(const VertexDesc &v) const {
+  string Graph::info(const VertexDesc &v) const {
     return (graph_[v]->getLabel());
   }
 
@@ -294,12 +295,12 @@ namespace tagslam {
   }
 
   bool Graph::hasPose(const ros::Time &t,
-                      const std::string &name) const {
+                      const string &name) const {
     return (hasId(value::Pose::id(t, name)));
   }
 
 
-  void Graph::print(const std::string &prefix) const {
+  void Graph::print(const string &prefix) const {
     for (auto v = boost::vertices(graph_); v.first != v.second; ++v.first) {
       bool isOpt = (optimized_.find(*v.first) != optimized_.end());
       ROS_DEBUG_STREAM(prefix << " " << graph_[*v.first]->getLabel()
@@ -310,7 +311,7 @@ namespace tagslam {
     }
   }
 
-  std::string Graph::getStats() const {
+  string Graph::getStats() const {
     int numFac(0), numOptFac(0), numVal(0), numOptVal(0);
     for (auto v = boost::vertices(graph_); v.first != v.second; ++v.first) {
       const VertexConstPtr vp = graph_[*v.first];
@@ -366,7 +367,7 @@ namespace tagslam {
     return (errMap);
   }
 
-  void Graph::printErrorMap(const std::string &prefix) const {
+  void Graph::printErrorMap(const string &prefix) const {
     for (auto vi = boost::vertices(graph_); vi.first != vi.second;
          ++vi.first) {
       const VertexDesc v = *vi.first;
@@ -415,20 +416,16 @@ namespace tagslam {
   }
  
   // static method!
-  std::string Graph::tag_name(int tagid) {
+  string Graph::tag_name(int tagid) {
     return (string("tag:") + std::to_string(tagid));
   }
   // static method!
-  std::string Graph::body_name(const string &body) {
+  string Graph::body_name(const string &body) {
     return ("body:" + body);
   }
   // static method!
-  std::string Graph::cam_name(const string &cam) {
+  string Graph::cam_name(const string &cam) {
     return ("cam:" + cam);
-  }
-  // static method!
-  std::string Graph::dist_name(const string &dist) {
-    return ("d:" + dist);
   }
 
 }  // end of namespace

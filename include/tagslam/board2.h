@@ -11,15 +11,16 @@
 namespace tagslam {
   class Board2: public Body {
   public:
+    using string = std::string;
     typedef std::shared_ptr<Board2> Board2Ptr;
     typedef std::shared_ptr<const Board2> Board2ConstPtr;
 
-    Board2(const std::string &n  = std::string(""), bool iS = false) :
+    Board2(const string &n  = string(""), bool iS = false) :
       Body(n, iS) {
       type_ = "board";
     }
     bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) override;
-    bool write(std::ostream &os, const std::string &prefix) const override;
+    bool write(std::ostream &os, const string &prefix) const override;
   private:
     int     tagStartId_{-1};
     double  tagSize_{-1.0};

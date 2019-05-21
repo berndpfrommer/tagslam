@@ -33,7 +33,7 @@ namespace tagslam {
     <ros::Time, std::vector<std::pair<FactorConstPtr, double>>> TimeToErrorMap;
     
     bool hasId(const VertexId &id) const { return (idToVertex_.count(id)!=0);}
-    bool hasPose(const ros::Time &t, const std::string &name) const;
+    bool hasPose(const ros::Time &t, const string &name) const;
     bool isOptimized(const VertexDesc &v) const {
       return (optimized_.find(v) != optimized_.end());
     }
@@ -43,7 +43,7 @@ namespace tagslam {
     double optimize(double thresh);
     double optimizeFull(bool force = false);
 
-    const VertexVec &getFactors() const { return (factors_); }
+    const VertexVec  &getFactors() const { return (factors_); }
     const BoostGraph &getBoostGraph() const { return (graph_); }
 
     VertexVec getConnected(const VertexDesc &v) const;
@@ -67,15 +67,14 @@ namespace tagslam {
     VertexPtr getVertex(const VertexDesc f) const { return (graph_[f]); }
     VertexPtr operator[](const VertexDesc f) const { return (graph_[f]); }
 
-    void      transferFullOptimization() {
-      optimizer_->transferFullOptimization(); }
+    void transferFullOptimization() { optimizer_->transferFullOptimization(); }
     void setVerbosity(const string &v) {
       optimizer_->setVerbosity(v);
     }
     void  copyFrom(const Graph &g, const std::deque<VertexDesc> &vsrc);
     void  initializeFrom(const Graph &sg);
-    void  print(const std::string &pre = "") const;
-    std::string getStats() const;
+    void  print(const string &pre = "") const;
+    string getStats() const;
     //
     // methods related to optimization
     //
@@ -109,19 +108,18 @@ namespace tagslam {
     VertexDesc insertFactor(const VertexPtr &vp);
   
     // for debugging, compute error on graph
-    void printUnoptimized() const;
-    void printErrorMap(const std::string &prefix) const;
+    void   printUnoptimized() const;
+    void   printErrorMap(const string &prefix) const;
     double getError(const VertexDesc &v) const;
     double getError() { return (optimizer_->errorFull()); }
     double getMaxError() { return (optimizer_->getMaxError()); }
     void   plotDebug(const ros::Time &t, const string &tag);
     ErrorToVertexMap getErrorMap() const;
-    TimeToErrorMap getTimeToErrorMap() const;
+    TimeToErrorMap   getTimeToErrorMap() const;
     // static methods
     static string tag_name(int tagid);
     static string body_name(const string &body);
     static string cam_name(const string &cam);
-    static string dist_name(const string &dist);
     inline static bool is_valid(const VertexDesc &v) {
       return (v != ULONG_MAX);
     }

@@ -43,8 +43,8 @@ namespace tagslam {
   GTSAMOptimizer::~GTSAMOptimizer() {
   }
 
-  std::shared_ptr<Cal3DS3>
-  GTSAMOptimizer::getRadTanModel(const std::string &cname, const CameraIntrinsics2 &ci) {
+  std::shared_ptr<Cal3DS3> GTSAMOptimizer::getRadTanModel(
+    const string &cname, const CameraIntrinsics2 &ci) {
     // TODO: introduce camera ID and use lookup table!
     auto it = radTanModelMap_.find(cname);
     if (it == radTanModelMap_.end()) {
@@ -60,13 +60,14 @@ namespace tagslam {
       }
       it = radTanModelMap_.insert(
         RadTanModelMap::value_type(
-          cname, std::shared_ptr<Cal3DS3>(new Cal3DS3(K[0], K[1], K[2], K[3], p1, p2, dc)))).first;
+          cname, std::shared_ptr<Cal3DS3>(
+            new Cal3DS3(K[0], K[1], K[2], K[3], p1, p2, dc)))).first;
     }
     return (it->second);
   }
   
-  std::shared_ptr<Cal3FS2>
-  GTSAMOptimizer::getEquiModel(const std::string &cname, const CameraIntrinsics2 &ci) {
+  std::shared_ptr<Cal3FS2> GTSAMOptimizer::getEquiModel(
+    const string &cname, const CameraIntrinsics2 &ci) {
     // TODO: introduce camera ID and use lookup table!
     auto it = equiModelMap_.find(cname);
     if (it == equiModelMap_.end()) {
@@ -78,7 +79,9 @@ namespace tagslam {
       }
       it = equiModelMap_.insert(
         EquiModelMap::value_type(
-          cname, std::shared_ptr<Cal3FS2>(new Cal3FS2(K[0], K[1], K[2], K[3], dc[0], dc[1], dc[2], dc[3])))).first;
+          cname, std::shared_ptr<Cal3FS2>(
+            new Cal3FS2(K[0], K[1], K[2], K[3],
+                        dc[0], dc[1], dc[2], dc[3])))).first;
     }
     return (it->second);
   }
@@ -112,7 +115,6 @@ namespace tagslam {
   FactorKey
   GTSAMOptimizer::addRelativePosePrior(ValueKey key1, ValueKey key2,
                                        const PoseWithNoise &deltaPose) {
-    //ROS_DEBUG_STREAM("optimizer: adding relposeprior: " << key1 << " - " << key2);
     // key1 = key2 * deltaPose
     newGraph_.push_back(
       gtsam::BetweenFactor<gtsam::Pose3>(
@@ -123,7 +125,6 @@ namespace tagslam {
 
   FactorKey GTSAMOptimizer::addAbsolutePosePrior(ValueKey key,
                                                  const PoseWithNoise &pwn) {
-    //ROS_DEBUG_STREAM("optimizer: adding absposeprior: " << key);
     newGraph_.push_back(gtsam::PriorFactor<gtsam::Pose3>
                         (key, gtsam_utils::to_gtsam(pwn.getPose()),
                          gtsam_utils::to_gtsam(pwn.getNoise())));
@@ -140,12 +141,16 @@ namespace tagslam {
     gtsam::Expression<gtsam::Pose3>  T_w_b_2(T_w_b2);
     gtsam::Expression<gtsam::Pose3>  T_b_o_2(T_b2_o);
     gtsam::Expression<gtsam::Point3> X_o_1(corner1);
-    gtsam::Expression<gtsam::Point3> X_w_1 = gtsam::transform_from(T_w_b_1, gtsam::transform_from(T_b_o_1, X_o_1));
+    gtsam::Expression<gtsam::Point3> X_w_1 =
+      gtsam::transform_from(T_w_b_1, gtsam::transform_from(T_b_o_1, X_o_1));
     
     gtsam::Expression<gtsam::Point3> X_o_2(corner2);
-    gtsam::Expression<gtsam::Point3> X_w_2 = gtsam::transform_from(T_w_b_2, gtsam::transform_from(T_b_o_2, X_o_2));
-    gtsam::Expression<double> dist = gtsam::Expression<double>(&distance, X_w_1, X_w_2);
-    newGraph_.addExpressionFactor(dist, d, gtsam::noiseModel::Isotropic::Sigma(1, noise));
+    gtsam::Expression<gtsam::Point3> X_w_2 =
+      gtsam::transform_from(T_w_b_2, gtsam::transform_from(T_b_o_2, X_o_2));
+    gtsam::Expression<double> dist =
+      gtsam::Expression<double>(&distance, X_w_1, X_w_2);
+    newGraph_.addExpressionFactor(
+      dist, d, gtsam::noiseModel::Isotropic::Sigma(1, noise));
     return (fullGraph_.size() + newGraph_.size() - 1);
   }
 
@@ -157,11 +162,13 @@ namespace tagslam {
     gtsam::Expression<gtsam::Pose3>  T_w_b(T_w_b_key);
     gtsam::Expression<gtsam::Pose3>  T_b_o(T_b_o_key);
     gtsam::Expression<gtsam::Point3> X_o(corner);
-    gtsam::Expression<gtsam::Point3> X_w = gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
+    gtsam::Expression<gtsam::Point3> X_w =
+      gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
     gtsam::Expression<gtsam::Point3> n(direction);
     gtsam::Expression<double> coord = gtsam::Expression<double>(&proj, X_w, n);
     
-    newGraph_.addExpressionFactor(coord, len, gtsam::noiseModel::Isotropic::Sigma(1, noise));
+    newGraph_.addExpressionFactor(
+      coord, len, gtsam::noiseModel::Isotropic::Sigma(1, noise));
     return (fullGraph_.size() + newGraph_.size() - 1);
   }
 
@@ -169,7 +176,7 @@ namespace tagslam {
   GTSAMOptimizer::addTagProjectionFactor(
     const Eigen::Matrix<double, 4, 2> &imgCorners,
     const Eigen::Matrix<double, 4, 3> &objCorners,
-    const std::string &camName,
+    const string &camName,
     const CameraIntrinsics2 &ci,
     double pixelNoise,
     ValueKey T_r_c, ValueKey T_w_r, ValueKey T_w_b, ValueKey T_b_o) {
@@ -185,8 +192,8 @@ namespace tagslam {
     auto pnit = pixelNoiseMap_.find(pixelNoise);
     if (pnit == pixelNoiseMap_.end()) {
       pnit = pixelNoiseMap_.insert(
-        PixelNoiseMap::value_type(pixelNoise,
-                                  gtsam::noiseModel::Isotropic::Sigma(2, pixelNoise))).first;
+        PixelNoiseMap::value_type(
+          pixelNoise,gtsam::noiseModel::Isotropic::Sigma(2,pixelNoise))).first;
     }
     for (const auto i: irange(0, 4)) { // iterate over 4 corners
       const gtsam::Point2 imgPoint(imgCorners(i,0), imgCorners(i,1));
@@ -203,13 +210,13 @@ namespace tagslam {
       case RADTAN: {
         auto distModel = getRadTanModel(camName, ci);
         gtsam::Expression<Cal3DS3> cK(*distModel);
-        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS3::uncalibrate, xp);
+        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3DS3::uncalibrate,xp);
         newGraph_.addExpressionFactor(predict, imgPoint, pnit->second);
         break; }
       case EQUIDISTANT: {
         auto distModel = getEquiModel(camName, ci);
         gtsam::Expression<Cal3FS2> cK(*distModel);
-        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3FS2::uncalibrate, xp);
+        gtsam::Expression<gtsam::Point2> predict(cK, &Cal3FS2::uncalibrate,xp);
         newGraph_.addExpressionFactor(predict, imgPoint, pnit->second);
         break;  }
       default:
@@ -242,7 +249,8 @@ namespace tagslam {
       if (e > thresh) {
         ROS_DEBUG_STREAM("graph has large err: " << i->error(values_));
         std::cout << " factor: " << std::endl;
-        i->print();  std::cout <<  std::endl << "   values for it: " << std::endl;
+        i->print();  std::cout <<  std::endl << "   values for it: "
+                               << std::endl;
         for (const auto &k: i->keys()) {
           values_.at(k).print();
           std::cout << std::endl;
@@ -256,7 +264,8 @@ namespace tagslam {
 
   double GTSAMOptimizer::optimize(double deltaError) {
     ROS_DEBUG_STREAM("incremental optimize new values: " << newValues_.size()
-                     << " factors: " << newGraph_.size() << " delta: " << deltaError);
+                     << " factors: " << newGraph_.size()
+                     << " delta: " << deltaError);
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
       gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
@@ -266,12 +275,15 @@ namespace tagslam {
         // if either there is small improvement
         if (*res.errorAfter < lastError_ + deltaError
             || fabs(*res.errorAfter - prevErr) < 0.01) {
-          ROS_DEBUG_STREAM("stopped after iter  " << i << ", changed: " << lastError_ 
-                           << " -> " << *res.errorAfter  << " = " << *res.errorAfter - lastError_
+          ROS_DEBUG_STREAM("stopped after iter  " << i << ", changed: "
+                           << lastError_  << " -> " << *res.errorAfter
+                           << " = " << *res.errorAfter - lastError_
                            << " last iter: " <<  *res.errorAfter - prevErr);
           break;
         } else {
-          ROS_DEBUG_STREAM("it " << i << " new err: " << *res.errorAfter << " vs last: " << lastError_ << " +delta: " << lastError_ + deltaError);
+          ROS_DEBUG_STREAM("it " << i << " new err: " << *res.errorAfter
+                           << " vs last: " << lastError_ << " +delta: "
+                           << lastError_ + deltaError);
         }
         prevErr = *res.errorAfter;
       }
@@ -302,14 +314,15 @@ namespace tagslam {
   }
 
 #ifdef DEBUG
-  static void print_large_errors(const std::string &label,
+  static void print_large_errors(const string &label,
                                  const gtsam::ExpressionFactorGraph &g,
                                  const gtsam::Values &v, double thresh) {
     for (const auto i: g) {
       if (i->error(v) > thresh) {
         std::cout << label << " BIG ERROR: " << i->error(v) << std::endl;
         std::cout << label << " factor: " << std::endl;
-        i->print();  std::cout <<  std::endl << "   values for it: " << std::endl;
+        i->print();
+        std::cout <<  std::endl << "   values for it: " << std::endl;
         for (const auto &k: i->keys()) {
           v.at(k).print();
           std::cout << std::endl;
@@ -344,7 +357,6 @@ namespace tagslam {
     fullGraph_ += newGraph_;
     values_.insert(newValues_);
 
-    //print_large_errors("before full opt", fullGraph_, values_, 10.0);
     gtsam::LevenbergMarquardtParams lmp;
     lmp.setVerbosity(verbosity_);
     lmp.setMaxIterations(100);
@@ -411,7 +423,8 @@ namespace tagslam {
     double err = i->error(testValues);
     std::cout << " FACTOR ERROR: " << err << std::endl;
     std::cout << " factor: " << std::endl;
-    i->print();  std::cout <<  std::endl << "   corresponding values: " << std::endl;
+    i->print();  std::cout <<  std::endl
+                           << "   corresponding values: " << std::endl;
     for (const auto &fk: i->keys()) {
       testValues.at(fk).print();
       std::cout << std::endl;

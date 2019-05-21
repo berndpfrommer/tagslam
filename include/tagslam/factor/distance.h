@@ -10,8 +10,11 @@
 #include "tagslam/tag2.h"
 #include <ros/ros.h>
 
+#include <string>
+
 namespace tagslam {
   namespace factor {
+    using std::string;
     class Distance: public Factor {
     public:
       typedef std::shared_ptr<factor::Distance> DistanceFactorPtr;
@@ -22,9 +25,9 @@ namespace tagslam {
       Distance(double dist,  double noise,
                const int corn1, const Tag2ConstPtr &tag1,
                const int corn2, const Tag2ConstPtr &tag2,
-               const std::string  &name);
+               const string  &name);
       // ------ inherited methods -----
-      std::string getLabel() const override;
+      string getLabel() const override;
       VertexId    getId() const override { return (name_);}
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<Distance>(new Distance(*this))); }
@@ -56,7 +59,7 @@ namespace tagslam {
       static double getOptimized(const VertexDesc &v, const Graph &g);
 
     private:
-      static DistanceFactorPtr parse(const std::string &name,
+      static DistanceFactorPtr parse(const string &name,
                                      XmlRpc::XmlRpcValue meas,
                                      TagFactory *factory);
       double       distance_;

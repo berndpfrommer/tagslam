@@ -12,6 +12,7 @@
 namespace tagslam {
   class Optimizer {
   public:
+    using string = std::string;
     Optimizer() {}
     virtual ~Optimizer() {};
 
@@ -23,7 +24,7 @@ namespace tagslam {
     virtual void   printFactorError(FactorKey k) const = 0;
     virtual double getMaxError() const = 0;
     virtual void   setErrorThreshold(double th) = 0;
-    virtual void   setVerbosity(const std::string &v) = 0;
+    virtual void   setVerbosity(const string &v) = 0;
     // retrieves the optimized pose for a given key
     virtual Transform getPose(ValueKey key) = 0;
     // retrieves marginal for given key
@@ -45,7 +46,7 @@ namespace tagslam {
       const Eigen::Matrix<double, 4, 2> &u,
       // X = object points (3d, but in plane with z = 0)
       const Eigen::Matrix<double, 4, 3> &X,
-      const std::string &cameraName,
+      const string &cameraName,
       const CameraIntrinsics2 &ci,
       double pixelNoise,
       ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) = 0;

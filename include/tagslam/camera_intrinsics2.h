@@ -14,6 +14,7 @@
 
 namespace tagslam {
   class CameraIntrinsics2 {
+    using string = std::string;
   public:
     friend std::ostream &operator<<(std::ostream &os,
                                     const CameraIntrinsics2 &ci);
@@ -32,7 +33,7 @@ namespace tagslam {
     std::vector<double> K_; // K Matrix
     std::vector<int>    resolution_;
     DistortionModel     distortionModel_;
-    std::string         cameraModel_;
+    string              cameraModel_;
     cv::Mat cvK_; // precomputed for speed
     cv::Mat cvD_; // precomputed for speed
   };

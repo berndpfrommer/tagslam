@@ -19,7 +19,7 @@ namespace tagslam {
     return (n);
   }
   // static method
-  PoseWithNoise PoseWithNoise::parse(const std::string &name,
+  PoseWithNoise PoseWithNoise::parse(const string &name,
                                      const ros::NodeHandle &nh) {
     PoseWithNoise pwn;
     // ------- make transform -------------
@@ -35,7 +35,7 @@ namespace tagslam {
       BOMB_OUT("error with parameter: " << "rotvec");
     }
     const Eigen::Vector3d rvec = Eigen::Map<Eigen::Vector3d>(rvecd);
-    const Eigen::Vector3d pos = Eigen::Map<Eigen::Vector3d>(posd);
+    const Eigen::Vector3d pos  = Eigen::Map<Eigen::Vector3d>(posd);
     Transform tf = make_transform(rvec, pos);
 
     // --------- make noise --------------------
@@ -53,8 +53,9 @@ namespace tagslam {
   }
 
   std::ostream &operator<<(std::ostream &os, const PoseWithNoise &pe) {
-    os << "pose: valid: " << pe.isValid() << std::endl <<  pe.getPose() << std::endl << "noise: " << pe.getNoise();
-    //os << "pose: " << pe." noise: " << pe.getNoise().getDiagonal().transpose();
+    os << "pose: valid: " << pe.isValid() << std::endl <<
+      pe.getPose() << std::endl << "noise: " << pe.getNoise();
+    //os << "pose: " <<pe." noise: "<<pe.getNoise().getDiagonal().transpose();
     return (os);
   }
 }  // namespace

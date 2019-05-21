@@ -50,10 +50,16 @@ namespace tagslam {
       const Eigen::Vector3d dx = deltaPose.translation();
       Eigen::AngleAxisd aa;
       aa.fromRotationMatrix(deltaPose.rotation());
+      // da is the incremental rotation vector
       const Eigen::Vector3d da = aa.angle() * aa.axis();
+      // compute instantaneous velocity of the last update
       const Eigen::Vector3d v = dx * dtinv;
+      // compute instantaneous angular velocity of the last update
       const Eigen::Vector3d w = da * dtinv;
+      // compute error in position, i.e. how much the position change
+      // deviates from what was expected assuming constant velocity
       const double dpos = (dx - lastVelocity_ * dt).norm();
+      // same now for angle error
       const double dang = (da - lastOmega_ * dt).norm();
       lastOmega_    = w;
       lastVelocity_ = v;
@@ -61,6 +67,14 @@ namespace tagslam {
       // typical values, the noise will increase correspondingly,
       // thereby reducing the weight of the odometry measurement.
       // This addresses situations where the odometry jumps.
+      //
+      // The "acceleration" and "angularAcceleration" parameters
+      // are the minimum noise that is assumed, i.e. they should be
+      // set to what is expected to be a typical maximum acceleration.
+      // They set a floor on the uncertainty. Without such a floor,
+      // the noise could go to zero if the position update is zero,
+      // meaning the odometry measurements are trusted completely, causing
+      // the optimizer to bomb out.
       const PoseNoise2 pn =
         PoseNoise2::make(std::max(dang, angularAcceleration_ * dt2),
                          std::max(dpos, acceleration_ * dt2));

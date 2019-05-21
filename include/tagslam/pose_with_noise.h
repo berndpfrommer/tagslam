@@ -11,24 +11,24 @@
 namespace tagslam {
   class PoseWithNoise {
   public:
+    using string = std::string;
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     PoseWithNoise(const Transform &tf = Transform::Identity(),
                   const PoseNoise2 &n = PoseNoise2(),
                   bool isVal = false) :
-      pose(tf), noise(n), valid(isVal) {
+      pose_(tf), noise_(n), valid_(isVal) {
     };
-    const Transform  &getPose()  const { return (pose); }
-    const PoseNoise2 &getNoise() const { return (noise); }
-    bool              isValid()  const { return (valid); }
+    const Transform  &getPose()  const { return (pose_); }
+    const PoseNoise2 &getNoise() const { return (noise_); }
+    bool              isValid()  const { return (valid_); }
     
-    void  setNoise(const PoseNoise2 &pn) { noise = pn; }
-    
-    static PoseWithNoise parse(const std::string &name,
+    void  setNoise(const PoseNoise2 &pn) { noise_ = pn; }
+    static PoseWithNoise parse(const string &name,
                                const ros::NodeHandle &nh);
   private:
-    Transform  pose;
-    PoseNoise2 noise;
-    bool       valid{false};
+    Transform  pose_;
+    PoseNoise2 noise_;
+    bool       valid_{false};
   };
   std::ostream &operator<<(std::ostream &os, const PoseWithNoise &pe);
 }

@@ -17,10 +17,9 @@ namespace tagslam {
   namespace factor {
     using boost::irange;
     
-    Coordinate::Coordinate(double len,  double noise,
-                           const Eigen::Vector3d direction,
+    Coordinate::Coordinate(double len, double noise, const Point3d &direction,
                            const int corn, const Tag2ConstPtr &tag,
-                           const std::string  &name) :
+                           const string &name) :
       Factor(name, ros::Time(0)),
       length_(len), noise_(noise),
       direction_(direction), corner_(corn),
@@ -62,7 +61,7 @@ namespace tagslam {
     }
 
     CoordinateFactorPtr
-    Coordinate::parse(const std::string &name, XmlRpc::XmlRpcValue meas,
+    Coordinate::parse(const string &name, XmlRpc::XmlRpcValue meas,
                     TagFactory *tagFactory) {
       int tag(-1), c(-1);
       double len(-1e10), noise(-1);
@@ -117,7 +116,7 @@ namespace tagslam {
       return (fv);
     }
     
-    std::string Coordinate::getLabel() const {
+    string Coordinate::getLabel() const {
       std::stringstream ss;
       ss << name_;
       return (ss.str());

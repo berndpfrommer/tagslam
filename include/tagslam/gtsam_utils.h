@@ -18,6 +18,7 @@ namespace tagslam {
     inline Transform from_gtsam(const gtsam::Pose3 &p) {
       return (Transform(p.matrix()));
     }
-    boost::shared_ptr<gtsam::noiseModel::Gaussian> to_gtsam(const PoseNoise2 &pn);
+    boost::shared_ptr<gtsam::noiseModel::Gaussian>
+    to_gtsam(const PoseNoise2 &pn);
   }
 }

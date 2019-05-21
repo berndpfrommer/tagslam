@@ -7,12 +7,14 @@
 #include "tagslam/vertex.h"
 #include "tagslam/factor_key.h"
 #include <ros/ros.h>
+#include <string>
 
 namespace tagslam {
   namespace factor {
+    using std::string;
     class Factor: public Vertex {
     public:
-      Factor(const std::string &s = "", const ros::Time &t = ros::Time(0)):
+      Factor(const string &s = "", const ros::Time &t = ros::Time(0)):
         Vertex(s, "box", t) {}
       virtual ~Factor() {}
       virtual void addToOptimizer(Graph *g) const = 0;

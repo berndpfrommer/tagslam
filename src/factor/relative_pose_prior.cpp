@@ -34,7 +34,7 @@ namespace tagslam {
       g->markAsOptimized(v, fk);
     }
 
-    std::string RelativePosePrior::getLabel() const {
+    string RelativePosePrior::getLabel() const {
       std::stringstream ss;
       ss << "rpp:" << name_ << ",t:" << format_time(time_);
       return (ss.str());

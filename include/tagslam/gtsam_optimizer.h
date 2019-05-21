@@ -15,6 +15,7 @@
 namespace tagslam {
   class GTSAMOptimizer: public Optimizer {
   public:
+    using string = std::string;
     GTSAMOptimizer();
     ~GTSAMOptimizer();
     // ---- implement Optimizer interface
@@ -27,7 +28,7 @@ namespace tagslam {
 
     double    getMaxError() const override;
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
-    void      setVerbosity(const std::string &v) { verbosity_ = v;}
+    void      setVerbosity(const string &v) { verbosity_ = v;}
     Transform getPose(ValueKey key) override;
     PoseNoise2 getMarginal(const ValueKey k) override;
     ValueKey  addPose(const Transform &pose) override;
@@ -38,7 +39,7 @@ namespace tagslam {
     std::vector<FactorKey> addTagProjectionFactor(
       const Eigen::Matrix<double, 4, 2> &imgCorners,
       const Eigen::Matrix<double, 4, 3> &objCorners,
-      const std::string &cameraName,
+      const string &cameraName,
       const CameraIntrinsics2 &ci,
       double pixelNoise,
       ValueKey T_c_r, ValueKey T_r_w, ValueKey T_w_b, ValueKey T_b_o) override;
@@ -50,20 +51,24 @@ namespace tagslam {
       const double len, const double noise, const Eigen::Vector3d direction,
       const Eigen::Vector3d corner,
       ValueKey T_w_b_key, ValueKey T_b_o_key) override;
-    
+
     gtsam::ExpressionFactorGraph  &getGraph() { return (newGraph_); }
     void setPose(ValueKey k, const Transform &pose) override;
+
   private:
     inline ValueKey generateKey() { return (++key_); } // starts at 1!
-    typedef std::unordered_map<std::string, std::shared_ptr<Cal3FS2>> EquiModelMap;
-    typedef std::unordered_map<std::string, std::shared_ptr<Cal3DS3>> RadTanModelMap;
-    typedef std::unordered_map<double, gtsam::noiseModel::Isotropic::shared_ptr> PixelNoiseMap;
-    std::shared_ptr<Cal3FS2> getEquiModel(const std::string &cname, const CameraIntrinsics2 &ci);
-    std::shared_ptr<Cal3DS3> getRadTanModel(const std::string &cname, const CameraIntrinsics2 &ci);
+    typedef std::unordered_map<string,std::shared_ptr<Cal3FS2>> EquiModelMap;
+    typedef std::unordered_map<string,std::shared_ptr<Cal3DS3>> RadTanModelMap;
+    typedef std::unordered_map<
+      double, gtsam::noiseModel::Isotropic::shared_ptr> PixelNoiseMap;
+    std::shared_ptr<Cal3FS2> getEquiModel(
+      const string &cname, const CameraIntrinsics2 &ci);
+    std::shared_ptr<Cal3DS3> getRadTanModel(
+      const string &cname, const CameraIntrinsics2 &ci);
     double checkForLargeErrors(double thresh) const;
     // ------------ variables ------------
     ValueKey                      key_{0};
-    std::string                   verbosity_;
+    string                        verbosity_;
     gtsam::Values                 values_;
     gtsam::Values                 newValues_;
     std::shared_ptr<gtsam::ISAM2> isam2_;

@@ -20,7 +20,7 @@ namespace tagslam {
     Distance::Distance(double dist,  double noise,
                        const int corn1, const Tag2ConstPtr &tag1,
                        const int corn2, const Tag2ConstPtr &tag2,
-                       const std::string  &name) :
+                       const string  &name) :
       Factor(name, ros::Time(0)), distance_(dist), noise_(noise) {
       tag_[0] = tag1; tag_[1] = tag2;
       corner_[0] = corn1; corner_[1] = corn2;
@@ -70,7 +70,7 @@ namespace tagslam {
     }
 
     DistanceFactorPtr
-    Distance::parse(const std::string &name, XmlRpc::XmlRpcValue meas,
+    Distance::parse(const string &name, XmlRpc::XmlRpcValue meas,
                     TagFactory *tagFactory) {
       try {
         const int tag1  = xml::parse<int>(meas, "tag1");
@@ -115,7 +115,7 @@ namespace tagslam {
       return (dv);
     }
     
-    std::string Distance::getLabel() const {
+    string Distance::getLabel() const {
       std::stringstream ss;
       ss << name_;
       return (ss.str());

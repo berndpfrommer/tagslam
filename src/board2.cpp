@@ -39,13 +39,13 @@ namespace tagslam {
     return (true);
   }
 
-  bool Board2::write(std::ostream &os, const std::string &prefix) const {
+  bool Board2::write(std::ostream &os, const string &prefix) const {
     // write common section
     if (!Body::writeCommon(os, prefix)) {
       return (false);
     }
     os << prefix + "    " << type_ << ":" << std::endl;
-    const std::string ind = prefix + "      "; // indent
+    const string ind = prefix + "      "; // indent
     os << ind << "tag_start_id: "  << tagStartId_ << std::endl;
     os << ind << "tag_size: " << tagSize_ << std::endl;
     os << ind << "tag_bits: " << tagBits_ << std::endl;

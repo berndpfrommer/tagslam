@@ -11,6 +11,7 @@
 
 namespace tagslam {
   typedef  boost::adjacency_list<
-    boost::listS, boost::vecS, boost::undirectedS, GraphVertex, GraphEdge> BoostGraph;
+    boost::listS, boost::vecS, boost::undirectedS,
+    GraphVertex, GraphEdge> BoostGraph;
   typedef BoostGraph::vertex_descriptor BoostGraphVertex;
 }

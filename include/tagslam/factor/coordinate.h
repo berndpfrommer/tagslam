@@ -8,23 +8,26 @@
 #include "tagslam/tag_factory.h"
 #include "tagslam/geometry.h"
 #include "tagslam/tag2.h"
+
 #include <ros/ros.h>
+#include <memory>
 
 namespace tagslam {
   namespace factor {
+    using std::string;
     class Coordinate: public Factor {
     public:
       typedef std::shared_ptr<factor::Coordinate> CoordinateFactorPtr;
-      typedef std::shared_ptr<const factor::Coordinate> CoordinateFactorConstPtr;
+      typedef std::shared_ptr<const factor::Coordinate>
+      CoordinateFactorConstPtr;
       typedef std::vector<CoordinateFactorPtr> CoordinateFactorPtrVec;
 
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-      Coordinate(double len,  double noise,
-                 const Eigen::Vector3d direction,
+      Coordinate(double len,  double noise, const Point3d &direction,
                  const int corn, const Tag2ConstPtr &tag,
-                 const std::string  &name);
+                 const string  &name);
       // ------ inherited methods -----
-      std::string getLabel() const override;
+      string getLabel() const override;
       VertexId    getId() const override { return (name_);}
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<Coordinate>(new Coordinate(*this))); }
@@ -55,7 +58,7 @@ namespace tagslam {
       static double getOptimized(const VertexDesc &v, const Graph &g);
 
     private:
-      static CoordinateFactorPtr parse(const std::string &name,
+      static CoordinateFactorPtr parse(const string &name,
                                        XmlRpc::XmlRpcValue meas,
                                        TagFactory *factory);
       double          length_;

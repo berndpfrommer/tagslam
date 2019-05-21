@@ -14,6 +14,7 @@ namespace tagslam {
   class Tag2;
   class Camera2;
   namespace factor {
+    using std::string;
     class TagProjection: public Factor {
     public:
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -24,9 +25,9 @@ namespace tagslam {
                     std::shared_ptr<Tag2>(),
                     const geometry_msgs::Point *imgCorn = NULL,
                     double pixelNoise = 1.0,
-                    const std::string   &name = "");
+                    const string   &name = "");
       // ------ inherited methods -----
-      std::string getLabel() const override;
+      string getLabel() const override;
       VertexId    getId() const override { return (make_id(time_, name_));}
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<TagProjection>(new TagProjection(*this))); }

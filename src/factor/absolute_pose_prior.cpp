@@ -30,7 +30,7 @@ namespace tagslam {
       g->markAsOptimized(v, fk);
     }
 
-    std::string AbsolutePosePrior::getLabel() const {
+    string AbsolutePosePrior::getLabel() const {
       std::stringstream ss;
       ss << "app:" << name_ << ",t:" << format_time(time_);
       return (ss.str());

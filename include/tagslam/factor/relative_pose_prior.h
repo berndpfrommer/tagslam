@@ -10,15 +10,16 @@
 
 namespace tagslam {
   namespace factor {
+    using std::string;
     class RelativePosePrior: public Factor {
     public:
       RelativePosePrior(const ros::Time     &t    = ros::Time(0),
                         const ros::Time     &tm1  = ros::Time(0),
                         const PoseWithNoise &p  = PoseWithNoise(),
-                        const std::string   &name = "") :
+                        const string   &name = "") :
         Factor(name, t), prevTime_(tm1), poseWithNoise_(p) {}
       // ---------- inherited
-      std::string getLabel() const override;
+      string getLabel() const override;
       VertexId getId() const override { return (make_id(time_, "rpp_"+name_));}
       std::shared_ptr<Vertex> clone() const override {
         return (std::shared_ptr<RelativePosePrior>(
