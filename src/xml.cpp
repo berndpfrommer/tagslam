@@ -45,9 +45,18 @@ namespace tagslam {
         throw XmlRpc::XmlRpcException("key not found: " + key);
       }
       try {
-        const Point3d p = parse<Point3d>(xml[key], "position_noise");
-        const Point3d r = parse<Point3d>(xml[key], "rotation_noise");
-        return (PoseNoise2::make(r, p));
+        if (xml[key].hasMember("position_noise") &&
+            xml[key].hasMember("rotation_noise")) {
+          const Point3d p = parse<Point3d>(xml[key], "position_noise");
+          const Point3d r = parse<Point3d>(xml[key], "rotation_noise");
+          return (PoseNoise2::make(r, p));
+        } else if (xml[key].hasMember("R")) {
+          auto Rd = parse_container<std::vector<double>>(xml[key], "R");
+          const auto R = Eigen::Map<Eigen::Matrix<double, 6, 6> >(&Rd[0]);
+          return (PoseNoise2::makeFromR(R));
+        } else {
+          throw XmlRpc::XmlRpcException("no valid noise for: " + key);
+        }
       } catch (const XmlRpc::XmlRpcException &e) {
         ROS_ERROR_STREAM("error parsing: " << key);
         throw (e);

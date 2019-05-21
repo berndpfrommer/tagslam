@@ -20,26 +20,28 @@
 #	launch-prefix="gdb -ex run --args"
   <node pkg="tagslam" type="tagslam2_node" name="tagslam2" clear_params="true"
 	output="$(arg output)">
-        <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
-        <rosparam param="tagslam_config" command="load" file="$(arg tagslam_config_file)"/>
-	<rosparam command="load" file="$(arg camera_poses_file)"/>
-	<!--
-	    <param name="bag_start_time" value="190.0"/>
-	    <param name="bag_start_time" value="13.1"/>
-	    	<param name="bag_start_time" value="26.5"/>
-	-->
-	<param name="bag_start_time" value="$(arg start_time)"/>
-	<!--
-	    <param name="bag_file" value="$(arg bag)"/>
-	-->
-	<param name="bag_file" value=""/>
-	<param name="optimize_full_graph" value="false"/>
-	<param name="max_subgraph_error" value="50.0"/>
-	<param name="has_compressed_images" value="false"/>
-	<param name="playback_rate" value="10.0"/>
-	<param name="max_num_incremental_opt" value="200"/>
-	<param name="minimum_viewing_angle" value="12.0"/>
-	<param name="max_number_of_frames" value="$(arg max_number_of_frames)"/>
+    <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
+    <rosparam param="tagslam_config" command="load"
+	      file="$(arg tagslam_config_file)"/>
+    <rosparam param="camera_poses" command="load" file="$(arg
+							camera_poses_file)"/>
+    <!--
+	<param name="bag_start_time" value="190.0"/>
+	<param name="bag_start_time" value="13.1"/>
+	<param name="bag_start_time" value="26.5"/>
+    -->
+    <param name="bag_start_time" value="$(arg start_time)"/>
+    <!--
+	<param name="bag_file" value="$(arg bag)"/>
+    -->
+    <param name="bag_file" value="$(arg bag)"/>
+    <param name="optimize_full_graph" value="false"/>
+    <param name="max_subgraph_error" value="50.0"/>
+    <param name="has_compressed_images" value="false"/>
+    <param name="playback_rate" value="10.0"/>
+    <param name="max_num_incremental_opt" value="200"/>
+    <param name="minimum_viewing_angle" value="12.0"/>
+    <param name="max_number_of_frames" value="$(arg max_number_of_frames)"/>
   </node>
 
 </launch>

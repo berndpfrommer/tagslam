@@ -35,7 +35,8 @@ namespace tagslam {
       const int id    = xml::parse<int>(xmltags[i],    "id");
       const int bits  = xml::parse<int>(xmltags[i],    "bits", 6);
       const double sz = xml::parse<double>(xmltags[i], "size", size);
-      const PoseWithNoise pwn = xml::parse<PoseWithNoise>(xmltags[i], "pose", PoseWithNoise());
+      const PoseWithNoise pwn =
+        xml::parse<PoseWithNoise>(xmltags[i], "pose", PoseWithNoise());
       tags.push_back(make(id, bits, sz, pwn, body));
     }
     //std::cout << "-------tags: " << std::endl;

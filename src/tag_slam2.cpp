@@ -10,6 +10,7 @@
 #include "tagslam/body.h"
 #include "tagslam/odometry_processor.h"
 #include "tagslam/yaml_utils.h"
+#include "tagslam/xml.h"
 #include "tagslam/graph_utils.h"
 #include "tagslam/factor/distance.h"
 
@@ -120,17 +121,16 @@ namespace tagslam {
 
   bool TagSlam2::initialize() {
     readParams();
-    XmlRpc::XmlRpcValue config, camConfig;
+    XmlRpc::XmlRpcValue config, camConfig, camPoses;
     nh_.getParam("tagslam_config", config);
     readSquash(config);
     readRemap(config);
     readBodies(config);
     readDefaultBody(config);
-    if (nh_.getParam("cameras", camConfig)) {
-      readCameras(camConfig);
-    } else {
-      BOMB_OUT("no cameras config found!");
-    }
+    nh_.getParam("cameras", camConfig);
+    readCameras(camConfig);
+    nh_.getParam("camera_poses", camPoses);
+    readCameraPoses(camPoses);
     measurements_ = measurements::read_all(config, this);
     // apply measurements
     for (auto &m: measurements_) {
@@ -253,7 +253,31 @@ namespace tagslam {
     }
   }
 
+
+  void TagSlam2::readCameraPoses(XmlRpc::XmlRpcValue config) {
+    bool camHasKnownPose = false;
+    for (auto &cam: cameras_) {
+      PoseWithNoise pwn; // defaults to invalid pose
+      if (config.hasMember(cam->getName())) {
+        pwn = xml::parse<PoseWithNoise>(config[cam->getName()], "pose",
+                                        PoseWithNoise());
+        if (pwn.isValid()) {
+          camHasKnownPose = true;
+          ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
+        }
+      }
+      graph_utils::add_pose_maybe_with_prior(
+        graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
+    }
+    if (!camHasKnownPose) {
+      BOMB_OUT("at least one camera must have known pose!");
+    }
+  }
+
   void TagSlam2::readCameras(XmlRpc::XmlRpcValue config) {
+    if (config.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
+      BOMB_OUT("no camera configurations found!");
+    }
     cameras_ = Camera2::parse_cameras(config);
     ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
     bool camHasKnownPose(false);
@@ -266,16 +290,6 @@ namespace tagslam {
       if (!cam->getRig()) {
         BOMB_OUT("rig body not found: " << cam->getRigName());
       }
-      PoseWithNoise pwn = PoseWithNoise::parse(cam->getName(), nh_);
-      if (pwn.isValid()) {
-        camHasKnownPose = true;
-        ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
-      }
-      graph_utils::add_pose_maybe_with_prior(
-        graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
-    }
-    if (!camHasKnownPose) {
-      BOMB_OUT("at least one camera must have known pose!");
     }
   }
 

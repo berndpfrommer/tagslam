@@ -100,6 +100,7 @@ namespace tagslam {
     void readBodies(XmlRpc::XmlRpcValue config);
     void readDefaultBody(XmlRpc::XmlRpcValue config);
     void readCameras(XmlRpc::XmlRpcValue config);
+    void readCameraPoses(XmlRpc::XmlRpcValue config);
     void readDistanceMeasurements();
     void readRemap(XmlRpc::XmlRpcValue config);
     void readSquash(XmlRpc::XmlRpcValue config);

@@ -23,8 +23,7 @@ namespace tagslam {
     bool              isValid()  const { return (valid_); }
     
     void  setNoise(const PoseNoise2 &pn) { noise_ = pn; }
-    static PoseWithNoise parse(const string &name,
-                               const ros::NodeHandle &nh);
+
   private:
     Transform  pose_;
     PoseNoise2 noise_;
