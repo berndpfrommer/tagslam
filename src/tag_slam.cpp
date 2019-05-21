@@ -3,756 +3,825 @@
  */
 
 #include "tagslam/tag_slam.h"
-#include "tagslam/init_pose.h"
-#include "tagslam/pose_estimate.h"
-#include "tagslam/tag.h"
+#include "tagslam/logging.h"
+#include "tagslam/geometry.h"
+#include "tagslam/pose_with_noise.h"
+#include "tagslam/body_defaults.h"
+#include "tagslam/body.h"
+#include "tagslam/odometry_processor.h"
 #include "tagslam/yaml_utils.h"
-#include "tagslam/rigid_body.h"
-#include <flex_sync/sync.h>
-#include <XmlRpcException.h>
-#include <rosbag/bag.h>
-#include <rosbag/view.h>
-#include <cv_bridge/cv_bridge.h>
-#include <nav_msgs/Odometry.h>
-#include <tf_conversions/tf_eigen.h>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/core/eigen.hpp>
-#include <eigen_conversions/eigen_msg.h>
-#include <boost/range/irange.hpp>
-#include <math.h>
-#include <fstream>
-#include <iomanip>
-#include <functional>
-#include <rosgraph_msgs/Clock.h>
+#include "tagslam/xml.h"
+#include "tagslam/graph_utils.h"
+#include "tagslam/factor/distance.h"
 
-//#define DEBUG_POSE_ESTIMATE
-#define USE_NEW_INIT      
+#include <flex_sync/sync.h>
+
+#include <cv_bridge/cv_bridge.h>
+#include <rosbag/view.h>
+
+#include <rosgraph_msgs/Clock.h>
+#include <tf_conversions/tf_eigen.h>
+#include <eigen_conversions/eigen_msg.h>
+#include <geometry_msgs/Point.h>
+#include <XmlRpcException.h>
+
+#include <boost/range/irange.hpp>
+
+#include <sstream>
+#include <iomanip>
+#include <cmath>
+
+const int QSZ = 1000;
 
 namespace tagslam {
-    
+  using Odometry = nav_msgs::Odometry;
+  using OdometryConstPtr = nav_msgs::OdometryConstPtr;
+  using Image = sensor_msgs::Image;
+  using ImageConstPtr = sensor_msgs::ImageConstPtr;
+  using CompressedImage = sensor_msgs::CompressedImage;
+  using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
   using boost::irange;
-  using std::vector;
   using std::string;
-  struct PoseError {
-    PoseError(double r = 0, double t = 0) : rot(r), trans(t) {
+  using std::setw;
+  using std::fixed;
+  using std::setprecision;
+#define FMT(X, Y) fixed << setw(X) << setprecision(Y)
+
+  static tf::Transform to_tftf(const Transform &tf) {
+    tf::Transform ttf;
+    tf::transformEigenToTF(tf, ttf);
+    return (ttf);
+  }
+
+  static void write_time(std::ostream &o, const ros::Time &t) {
+    o << t.sec << "." << std::setfill('0') << setw(9) << t.nsec
+      << " " << std::setfill(' ');
+  }
+
+  static void write_vec(std::ostream &o, const Eigen::Vector3d &v) {
+    for (const auto &i: irange(0, 3)) {
+      o << " " << FMT(7, 3) << v(i);
     }
-    double rot{0};
-    double trans{0};
-  };
-
-  TagSlam::TagSlam(const ros::NodeHandle& pnh) :  nh_(pnh) {
+  }
+  
+  static double find_size_of_tag(const geometry_msgs::Point *imgCorn) {
+    Eigen::Matrix<double, 4, 2> x;
+    x << imgCorn[0].x, imgCorn[0].y, imgCorn[1].x, imgCorn[1].y,
+      imgCorn[2].x, imgCorn[2].y, imgCorn[3].x, imgCorn[3].y;
+    // shoelace formula
+    const double A =
+      fabs(x(0,0)*x(1,1) + x(1,0)*x(2,1) + x(2,0)*x(3,1) + x(3,0)*x(0,1)
+           -x(1,0)*x(0,1) - x(2,0)*x(1,1) - x(3,0)*x(2,1) - x(0,0)*x(3,1));
+    return (A);
+  }
+ 
+  TagSlam::TagSlam(const ros::NodeHandle &nh) : nh_(nh) {
+    graph_.reset(new Graph());
+    graph_->setVerbosity("SILENT");
+    graphUpdater_.setGraph(graph_);
   }
 
-  TagSlam::~TagSlam() {
+  void TagSlam::sleep(double dt) const {
+    ros::WallTime tw0 = ros::WallTime::now();
+    for (ros::WallTime t = ros::WallTime::now(); t-tw0 < ros::WallDuration(dt);
+         t = ros::WallTime::now()) {
+      ros::spinOnce();
+      ros::WallTime::sleepUntil(t + (t-tw0));
+    }
   }
 
-  bool TagSlam::initialize() {
-    double pixNoise;
-    nh_.param<double>("corner_measurement_error", pixNoise, 2.0);
-    nh_.param<double>("initial_maximum_relative_pixel_error", maxInitErr_, 0.02);
-    initialPoseGraph_.setInitialRelativePixelError(maxInitErr_);
+  void TagSlam::readParams() {
+    nh_.param<string>("outbag", outBagName_, "out.bag");
+    nh_.param<double>("playback_rate", playbackRate_, 5.0);
+    nh_.param<double>("pixel_noise", pixelNoise_, 1.0);
+    nh_.param<string>("camera_poses_out_file",
+                      camPoseFile_, "camera_poses.yaml");
+    nh_.param<string>("poses_out_file",
+                      poseFile_, "poses.yaml");
+    nh_.param<string>("bag_file", inBagFile_, "");
+    nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
-    nh_.param<string>("param_prefix", paramPrefix_, "tagslam_config");
-    nh_.param<string>("body_poses_out_file", bodyPosesOutFile_,
-                           "body_poses_out.yaml");
-    nh_.param<string>("tag_world_poses_out_file",
-                           tagWorldPosesOutFile_,
-                           "tag_world_poses_out.yaml");
-    nh_.param<string>("measurements_out_file",
-                           measurementsOutFile_,
-                           "measurements.yaml");
-    nh_.param<string>("camera_poses_out_file",
-                           cameraPosesOutFile_,
-                           "camera_poses.yaml");
-    bool useFullGraph;
-    nh_.param<bool>("use_full_graph", useFullGraph, false);
-    ROS_INFO_STREAM("setting pixel noise to: " << pixNoise);
-    tagGraph_.setPixelNoise(pixNoise);
-    tagGraph_.setUseFullGraph(useFullGraph);
-    cameras_ = Camera::parse_cameras(nh_);
-    if (cameras_.empty()) {
-      ROS_ERROR("no cameras found!");
-      return (false);
-    }
-    if (!subscribe()) {
-      return (false);
-    }
-    for (const auto &cam_idx: irange(0ul, cameras_.size())) {
-      camOdomPub_.push_back(
-        nh_.advertise<nav_msgs::Odometry>("odom/cam_" +
-                                          std::to_string(cam_idx), 1));
-    }
+    
+    // --- graph updater params ---
+    
+    bool   optFullGraph;
+    int    maxIncOpt;
+    double maxSubgraphError, angleLimit;
+    nh_.param<bool>("optimize_full_graph", optFullGraph, false);
+    nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
+    graphUpdater_.setMinimumViewingAngle(angleLimit);
+    nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
+    graphUpdater_.setMaxSubgraphError(maxSubgraphError);
+    nh_.param<int>("max_num_incremental_opt", maxIncOpt, 100);
+    graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
+    graphUpdater_.setOptimizeFullGraph(optFullGraph);
+  }
 
-    clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", 1);
-    readMeasurements("distance");
-    readMeasurements("position");
-    readRemap();
-
-    if (!readRigidBodies()) {
-      return (false);
+  bool TagSlam::initialize() {
+    readParams();
+    XmlRpc::XmlRpcValue config, camConfig, camPoses;
+    nh_.getParam("tagslam_config", config);
+    readSquash(config);
+    readRemap(config);
+    readBodies(config);
+    readDefaultBody(config);
+    nh_.getParam("cameras", camConfig);
+    readCameras(camConfig);
+    nh_.getParam("camera_poses", camPoses);
+    readCameraPoses(camPoses);
+    measurements_ = measurements::read_all(config, this);
+    // apply measurements
+    for (auto &m: measurements_) {
+      m->addToGraph(graph_);
+      m->tryAddToOptimizer();
     }
-    if (!attachCamerasToBodies()) {
-      return (false);
-    }
-    for (const auto &cam: cameras_) {
-      tagGraph_.addCamera(cam);
-    }
-    for (const auto &rb: dynamicBodies_) {
-      bodyOdomPub_.push_back(
-        nh_.advertise<nav_msgs::Odometry>("odom/body_" + rb->name, 1));
-    }
-    nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
-    double maxDegree;
-    nh_.param<double>("viewing_angle_threshold", maxDegree, 45.0);
-    viewingAngleThreshold_ = std::cos(maxDegree/180.0 * M_PI);
-    // play from bag file if file name is non-empty
-    string bagFile;
-    nh_.param<string>("bag_file", bagFile, "");
-    if (!bagFile.empty()) {
-      playFromBag(bagFile);
-      tagGraph_.printDistances();
-      ros::shutdown();
-    }
+    clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
+    service_ = nh_.advertiseService("replay", &TagSlam::replay, this);
+    // optimize the initial setup if necessary
+    graph_->optimize(0);
+    // open output files
+    outBag_.open(outBagName_, rosbag::bagmode::Write);
+    tagCornerFile_.open("tag_corners.txt");
     return (true);
   }
 
-  bool TagSlam::attachCamerasToBodies() {
-    std::set<RigidBodyPtr> cameraRigs;
+  void TagSlam::subscribe() {
+    std::vector<std::vector<std::string>> topics = makeTopics();
+    if (hasCompressedImages_) {
+      subSyncCompressed_.reset(
+        new flex_sync::SubscribingSync<TagArray, CompressedImage, Odometry>(
+          nh_, topics, std::bind(&TagSlam::syncCallbackCompressed, this,
+                                 std::placeholders::_1, std::placeholders::_2,
+                                 std::placeholders::_3), 5));
+    } else {
+      subSync_.reset(
+        new flex_sync::SubscribingSync<TagArray, Image, Odometry>(
+          nh_, topics, std::bind(&TagSlam::syncCallback, this,
+                                 std::placeholders::_1, std::placeholders::_2,
+                                 std::placeholders::_3), 5));
+    }
+    // subscribe to 
+  }
+
+  void TagSlam::run() {
+    sleep(1.0); // give rviz time to connect
+    // this plays back the data
+    playFromBag(inBagFile_);
+    std::cout.flush();
+  }
+
+  void TagSlam::finalize() {
+    graphUpdater_.printPerformance();
+    // do final optimization
+    profiler_.reset();
+    const double error = graph_->optimizeFull(true /*force*/);
+    profiler_.record("finalOptimization");
+    ROS_INFO_STREAM("final error: " << error);
+    graph_->printUnoptimized();
+    for (auto &m: measurements_) {
+      m->printUnused();
+    }
+    publishTransforms(times_.empty() ? ros::Time(0) :
+                      *(times_.rbegin()), true);
+    outBag_.close();
+    tagCornerFile_.close();
+    
+    writeCameraPoses(camPoseFile_);
+    profiler_.reset();
+    writePoses(poseFile_);
+    profiler_.record("writePoses");
+    writeErrorMap("error_map.txt");
+    profiler_.record("writeErrorMaps");
+    writeTagDiagnostics("tag_diagnostics.txt");
+    profiler_.record("writeTagDiagnostics");
+    writeTimeDiagnostics("time_diagnostics.txt");
+    profiler_.record("writeTimeDiagnostics");
+    for (auto &m: measurements_) {
+      m->writeDiagnostics();
+    }
+    profiler_.record("writeDiagnostics");
+    std::cout << profiler_ << std::endl;
+    std::cout.flush();
+  }
+
+  void TagSlam::readBodies(XmlRpc::XmlRpcValue config) {
+    // read body defaults first in case
+    // bodies do not provide all parameters
+    BodyDefaults::parse(config);
+
+    // now read bodies
+    bodies_ = Body::parse_bodies(config);
+    for (const auto &body: bodies_) {
+      graph_utils::add_body(graph_.get(), *body);
+      // add associated tags as vertices
+      for (const auto &tag: body->getTags()) {
+        tagMap_.insert(TagMap::value_type(tag->getId(), tag));
+      }
+      if (!body->isStatic()) {
+        if (body->getFakeOdomTranslationNoise() > 0 &&
+            body->getFakeOdomRotationNoise() > 0) {
+          useFakeOdom_ = true;
+          ROS_INFO_STREAM("using fake odom for " << body->getName());
+        }
+        nonstaticBodies_.push_back(body);
+        odomPub_.push_back(
+          nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(),QSZ));
+      }
+    }
+  }
+
+  void TagSlam::readDefaultBody(XmlRpc::XmlRpcValue config) {
+    try {
+      const string defbody = config["default_body"];
+      if (defbody.empty()) {
+        ROS_WARN_STREAM("no default body specified!");
+        return;
+      }
+      for (auto &body: bodies_) {
+        if (body->getName() == defbody) {
+          ROS_INFO_STREAM("default body: " << defbody);
+          defaultBody_ = body;
+        }
+      }
+      if (!defaultBody_) {
+        ROS_WARN_STREAM("cannot find default body: " << defbody);
+      }
+    } catch (const XmlRpc::XmlRpcException &e) {
+      ROS_WARN("no default body!");
+    }
+  }
+
+
+  void TagSlam::readCameraPoses(XmlRpc::XmlRpcValue config) {
+    bool camHasKnownPose = false;
     for (auto &cam: cameras_) {
-      for (const auto &rb: allBodies_) {
-        if (rb->name == cam->rig_body) {
-          ROS_INFO_STREAM("attaching camera " << cam->name << " to body: " << rb->name);
-          cam->rig = rb;
-          cameraRigs.insert(rb);
+      PoseWithNoise pwn; // defaults to invalid pose
+      if (config.hasMember(cam->getName())) {
+        pwn = xml::parse<PoseWithNoise>(config[cam->getName()], "pose",
+                                        PoseWithNoise());
+        if (pwn.isValid()) {
+          camHasKnownPose = true;
+          ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
         }
       }
-      if (!cam->rig) {
-        ROS_ERROR_STREAM("rig body " << cam->rig_body << " not found for " << cam->name);
-        return (false);
+      graph_utils::add_pose_maybe_with_prior(
+        graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
+    }
+    if (!camHasKnownPose) {
+      BOMB_OUT("at least one camera must have known pose!");
+    }
+  }
+
+  void TagSlam::readCameras(XmlRpc::XmlRpcValue config) {
+    if (config.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
+      BOMB_OUT("no camera configurations found!");
+    }
+    cameras_ = Camera::parse_cameras(config);
+    ROS_INFO_STREAM("found " << cameras_.size() << " cameras");
+    bool camHasKnownPose(false);
+    for (auto &cam: cameras_) {
+      for (const auto &body: bodies_) {
+        if (body->getName() == cam->getRigName()) {
+          cam->setRig(body);
+        }
+      }
+      if (!cam->getRig()) {
+        BOMB_OUT("rig body not found: " << cam->getRigName());
+      }
+    }
+  }
+
+  template <typename T>
+  static void process_images(const std::vector<T> &msgvec,
+                             std::vector<cv::Mat> *images) {
+    images->clear();
+    for (const auto i: irange(0ul, msgvec.size())) {
+      const auto &img = msgvec[i];
+      cv::Mat im =
+        cv_bridge::toCvCopy(img,sensor_msgs::image_encodings::BGR8)->image;
+      images->push_back(im);
+    }
+  }
+
+  void TagSlam::testIfInBag(
+    rosbag::Bag *bag, const std::vector<std::vector<string>> &topics) const {
+  }
+
+  std::vector<std::vector<std::string>>
+  TagSlam::makeTopics() const {
+    std::vector<std::vector<string>> topics(3);
+    for (const auto &body: bodies_) {
+      if (!body->getOdomTopic().empty()) {
+        topics[2].push_back(body->getOdomTopic());
       }
     }
     for (const auto &cam: cameras_) {
-      if (cam->poseEstimate.isValid()) {
-        cameraRigs.erase(cam->rig); // camera pose wrt rig is known, good!
+      if (cam->getTagTopic().empty()) {
+        BOMB_OUT("camera " << cam->getName() << " no tag topic!");
+      }
+      topics[0].push_back(cam->getTagTopic());
+      if (writeDebugImages_) {
+        if (cam->getImageTopic().empty()) {
+          BOMB_OUT("camera " << cam->getName() << " no image topic!");
+        }
+        topics[1].push_back(cam->getImageTopic());
       }
     }
-    // now check that all camera rigs that don't have a
-    // pose prior w.r.t to a camera, at least have a known
-    // world pose.
-    for (const auto &rig: cameraRigs) {
-      if (!rig->poseEstimate.isValid()) {
-        ROS_ERROR_STREAM("camera rig " << rig->name <<
-                         " has no cameras with known pose!");
-        return (false);
-      }
-    }
-    return (true);
-  }
-  
-  void TagSlam::readMeasurements(const string &type) {
-    // read distance measurements
-    XmlRpc::XmlRpcValue meas;
-    nh_.getParam(paramPrefix_ + "/" + type + "_measurements", meas);
-    if (meas.getType() == XmlRpc::XmlRpcValue::TypeArray) {
-      size_t nfound = 0;
-      if (type == "distance") {
-        distanceMeasurements_ = DistanceMeasurement::parse(meas);
-        unappliedDistanceMeasurements_ = distanceMeasurements_;
-        nfound = distanceMeasurements_.size();
-      } else if (type == "position") {
-        positionMeasurements_ = PositionMeasurement::parse(meas);
-        unappliedPositionMeasurements_ = positionMeasurements_;
-        nfound = positionMeasurements_.size();
-      }
-      ROS_INFO_STREAM("found " << nfound << " " << type <<
-                      " measurements!");
-    } else {
-      ROS_INFO_STREAM("no " << type << " measurements found!");
-    }
+    ROS_INFO_STREAM("number of tag   topics: " << topics[0].size());
+    ROS_INFO_STREAM("number of image topics: " << topics[1].size());
+    ROS_INFO_STREAM("number of odom  topics: " << topics[2].size());
+    return (topics);
   }
 
-
-  bool TagSlam::readRigidBodies() {
-    XmlRpc::XmlRpcValue bodies, body_defaults;
-    nh_.getParam(paramPrefix_ + "/bodies", bodies);
-    nh_.getParam(paramPrefix_ + "/body_defaults", body_defaults);
-    if (bodies.getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
-      ROS_ERROR("cannot find bodies in yaml file!");
-      return (false);
-    }
-    RigidBodyVec rbv = RigidBody::parse_bodies(body_defaults, bodies);
-    ROS_INFO_STREAM("configured bodies: " << rbv.size());
-    if (rbv.size() > tagGraph_.getMaxNumBodies()) {
-      ROS_ERROR_STREAM("too many bodies, max is: "
-                       << tagGraph_.getMaxNumBodies());
-      return (false);
-    }
-    if (rbv.empty()) {
-      ROS_ERROR("no rigid bodies found!");
-      return (false);
-    }
-    // find all tags and split bodies into static/dynamic
-    for (auto &rb: rbv) {
-      ROS_INFO_STREAM((rb->isStatic ? "static " : "dynamic ") <<
-                      "body " << rb->name
-                      << " type: " << rb->type << " has tags: " << rb->tags.size());
-      TagVec tvec;
-      for (auto &t: rb->tags) {
-        if (t.second->poseEstimate.isValid()) {
-          if (!rb->isStatic || rb->poseEstimate.isValid()) {
-            tvec.push_back(t.second);
-            allTags_.insert(t);
-          }
-        }
+  bool TagSlam::replay(std_srvs::Trigger::Request& req,
+                        std_srvs::Trigger::Response &res) {
+    ROS_INFO_STREAM("replaying!");
+    outBag_.open(outBagName_, rosbag::bagmode::Write);
+    ros::Time t0(0);
+    for (const auto &t: times_) {
+      publishAll(t);
+      if (t0 != ros::Time(0)) {
+        sleep((t - t0).toSec() / playbackRate_);
       }
-      tagGraph_.addTags(rb, tvec);
-      allBodies_.push_back(rb);
-      if (rb->isDefaultBody) {
-        defaultBody_ = rb;
-      }
-      if (rb->isCameraRig()) {
-        if (!rb->odomFrameId.empty()) {
-          frameIdToRig_[rb->odomFrameId] = Rig(rb, rb->odomNoise);
-        }
-      }
-      (rb->isStatic ? staticBodies_ : dynamicBodies_).push_back(rb);
+      t0 = t;
     }
+    publishTransforms(t0, true);
+    res.message = "replayed " + std::to_string(times_.size());
+    res.success = true;
+    ROS_INFO_STREAM("finished replaying " << times_.size());
+    outBag_.close();
     return (true);
   }
 
-  bool TagSlam::subscribe() {
-    if (cameras_.size() == 1) {
-      singleCamSub_ = nh_.subscribe(cameras_[0]->tagtopic, 1,
-                                    &TagSlam::callback1, this);
-    } else {
-      for (const auto &cam : cameras_) {
-        sub_.push_back(std::shared_ptr<TagSubscriber>(
-                         new TagSubscriber(nh_, cam->tagtopic, 1)));
-      }
-      switch (cameras_.size()) {
-      case 2:
-        approxSync2_.reset(new TimeSync2(SyncPolicy2(60/*q size*/),
-                                         *(sub_[0]), *(sub_[1])));
-        approxSync2_->registerCallback(&TagSlam::callback2, this);
-        break;
-      case 3:
-        approxSync3_.reset(
-          new TimeSync3(SyncPolicy3(60/*q size*/),
-                        *(sub_[0]), *(sub_[1]), *(sub_[2])));
-        approxSync3_->registerCallback(&TagSlam::callback3, this);
-        break;
-      case 4:
-        approxSync4_.reset(
-          new TimeSync4(SyncPolicy4(60/*q size*/),
-                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3])));
-        approxSync4_->registerCallback(&TagSlam::callback4, this);
-        break;
-      case 5:
-        approxSync5_.reset(
-          new TimeSync5(SyncPolicy5(60/*q size*/),
-                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3]),
-                        *(sub_[4])));
-        approxSync5_->registerCallback(&TagSlam::callback5, this);
-        break;
-      case 6:
-        approxSync6_.reset(
-          new TimeSync6(SyncPolicy6(60/*q size*/),
-                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3]),
-                        *(sub_[4]), *(sub_[5])));
-        approxSync6_->registerCallback(&TagSlam::callback6, this);
-        break;
-      case 7:
-        approxSync7_.reset(
-          new TimeSync7(SyncPolicy7(60/*q size*/),
-                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3]),
-                        *(sub_[4]), *(sub_[5]), *(sub_[6])));
-        approxSync7_->registerCallback(&TagSlam::callback7, this);
-        break;
-      case 8:
-        approxSync8_.reset(
-          new TimeSync8(SyncPolicy8(60/*q size*/),
-                        *(sub_[0]), *(sub_[1]), *(sub_[2]), *(sub_[3]),
-                        *(sub_[4]), *(sub_[5]), *(sub_[6]), *(sub_[7])));
-        approxSync8_->registerCallback(&TagSlam::callback8, this);
-        break;
-      default:
-        ROS_ERROR_STREAM("number of cameras too large: " << cameras_.size());
-        return (false);
-        break;
-      }
-    }
-    ROS_INFO_STREAM("subscribed to " << cameras_.size() << " cameras");
-    return (true);
-  }
-
-  static ros::Time get_latest_time(const std::vector<TagArrayConstPtr> &msgvec) {
-   ros::Time t(0);
-    for (const auto &m: msgvec) {
-      if (m->header.stamp > t) t = m->header.stamp;
-    }
-    return (t);
-  }
-
-#ifndef USE_NEW_INIT
-  static gtsam::Pose3
-  to_gtsam(const cv::Mat &rvec, const cv::Mat &tvec) {
-    gtsam::Vector tvec_gtsam = (gtsam::Vector(3) <<
-                                tvec.at<double>(0),
-                                tvec.at<double>(1),
-                                tvec.at<double>(2)).finished();
-    gtsam::Pose3 p(gtsam::Rot3::rodriguez(
-                     rvec.at<double>(0),
-                     rvec.at<double>(1),
-                     rvec.at<double>(2)), tvec_gtsam);
-    return (p);
-  }
-#endif
-
-  static void
-  from_gtsam(cv::Mat *rvec, cv::Mat *tvec, const gtsam::Pose3 &p) {
-    const gtsam::Point3 rv = gtsam::Rot3::Logmap(p.rotation());
-    const gtsam::Point3 tv = p.translation();
-    *rvec = (cv::Mat_<double>(3,1) << rv.x(), rv.y(), rv.z());
-    *tvec = (cv::Mat_<double>(3,1) << tv.x(), tv.y(), tv.z());
-  }
-
-  static void to_opencv(std::vector<cv::Point3d> *a,
-                       const std::vector<gtsam::Point3> b) {
-    for (const auto &p: b) {
-      a->emplace_back(p.x(), p.y(), p.z());
-    }
-  }
-  static void to_opencv(std::vector<cv::Point2d> *a,
-                       const std::vector<gtsam::Point2> b) {
-    for (const auto &p: b) {
-      a->emplace_back(p.x(), p.y());
-    }
-  }
-  static void to_opencv(std::vector<cv::Mat> *a,
-                       const std::vector<gtsam::Pose3> b) {
-    for (const auto &p: b) {
-      cv::Mat tf(4, 4, CV_64F);
-      cv::eigen2cv(p.matrix(), tf);
-      a->push_back(tf);
-    }
-  }
-
-  // returns T_world_cam
-  PoseEstimate
-  TagSlam::estimatePosePNP(int cam_idx,
-                           const std::vector<gtsam::Point3>&wpts,
-                           const std::vector<gtsam::Point2>&ipts,
-                           const std::vector<gtsam::Pose3>&T_w_o) const {
-    PoseEstimate pe;
-    if (!ipts.empty()) {
-      std::vector<cv::Point3d> wp;
-      std::vector<cv::Point2d> ip;
-      std::vector<cv::Mat>     t_w_o;
-      to_opencv(&wp, wpts);
-      to_opencv(&ip, ipts);
-      to_opencv(&t_w_o, T_w_o);
-      const auto   &ci  = cameras_[cam_idx]->intrinsics;
-#ifdef USE_NEW_INIT
-      pe = init_pose::pnp(wp, ip, t_w_o, ci.K, ci.distortion_model,
-                          ci.D);
-#else      
-      cv::Mat rvec, tvec;
-      bool rc = utils::get_init_pose_pnp(wp, ip, ci.K,
-                                         ci.distortion_model,
-                                         ci.D, &rvec, &tvec);
-      if (rc) {
-        //std::cout << "WP IN CAM COORDS: " << cameras_[cam_idx]->name << std::endl;
-     
-        const auto T_c_w = to_gtsam(rvec, tvec);
-        bool hasNegZ(false);
-        for (const auto i: irange(0ul, wpts.size())) {
-            const auto wt = T_c_w.transform_from(wpts[i]);
-            //std::cout << wpts[i] << " " << wt.x() << " " << wt.y() << " " << wt.z() << " " << ipts[i].x() << " " << ipts[i].y() << std::endl;
-            if (wt.z() <= 0) {
-              hasNegZ = true;
-            }
-        }
-        pe = T_c_w.inverse();
-#if 0
-        std::cout << "T_c_w: " << std::endl << T_c_w << std::endl;
-        std::cout << "T_w_c: " << std::endl << T_c_w.inverse() << std::endl;
-#endif        
-        if (hasNegZ) {
-          pe.setValid(false);
-        } else {
-          pe.setError(utils::reprojection_error(wp, ip, rvec, tvec, ci.K,
-                                                ci.distortion_model, ci.D));
-        }
-      }
-#endif    
-    }
-    return (pe);
-  }
-                              
-  void TagSlam::updatePosesFromGraph(unsigned int frame) {
+  void TagSlam::publishCameraTransforms(const ros::Time &t,
+                                         tf::tfMessage *tfMsg) {
     for (const auto &cam: cameras_) {
-      cam->poseEstimate = tagGraph_.getCameraPose(cam);
-    }
-    for (const auto &rb: allBodies_) {
-      PoseEstimate pe;
-      if (tagGraph_.getBodyPose(rb, &pe, frame)) {
-        //std::cout << "UPDATE: body " << rb->name << " from " << std::endl;
-        //std::cout << rb->poseEstimate.getPose() << std::endl << " to: " << std::endl;
-        //std::cout << pe << std::endl;
-        rb->poseEstimate = pe;
-      } else {
-        if (!rb->isStatic) {
-          // mark pose estimate of dynamic bodies as invalid
-          // because it will change from frame to frame
-          rb->poseEstimate.setValid(false);//invalid
-        }
-      }
-      if (rb->poseEstimate.isValid()) {
-        for (auto &t: rb->tags) {
-          TagPtr tag = t.second;
-          gtsam::Pose3 pose;
-          if (tagGraph_.getTagRelPose(rb, tag->id, &pose)) {
-            //std::cout << "UPDATE: tag id " << tag->id << " from: " << std::endl <<
-            //tag->poseEstimate.getPose()  << std::endl << " to: " << std::endl <<  pose << std::endl;
-            tag->poseEstimate = PoseEstimate(pose, 0.0, 0);
-          } else {
-            //std::cout << "UPDATE: setting tag " << tag->id << " pose INVALID!" << std::endl;
-            tag->poseEstimate = PoseEstimate(); // invalid
-          }
-        }
-      }
-      rb->updateAttachedTagPoses(allTags_);
-    }
-  }
-
-  void TagSlam::invalidateDynamicPoses() {
-    for (const auto &rb: dynamicBodies_) {
-      rb->poseEstimate.setValid(false);
-    }
-  }
-
-  unsigned int TagSlam::attachObservedTagsToBodies(
-    const std::vector<TagArrayConstPtr> &msgvec) {
-    unsigned int ntags(0);
-    for (const auto cam_idx: irange(0ul, msgvec.size())) {
-      const auto &tags = msgvec[cam_idx];
-      for (auto &body : allBodies_) {
-        ntags += body->attachObservedTags(cam_idx, tags);
-      }
-    }
-    return (ntags);
-  }
-
-  RigidBodyPtr
-  TagSlam::findBodyForTag(int tagId, int bits) const {
-    for (auto &body : allBodies_) {
-      if (body->hasTag(tagId, bits)) return (body);
-    }
-    return (NULL);
-  }
-
-  void TagSlam::discoverTags(const std::vector<TagArrayConstPtr> &msgvec) {
-    for (const auto cam_idx: irange(0ul, msgvec.size())) {
-      const auto &tags = msgvec[cam_idx];
-      for (const auto &t: tags->apriltags) {
-        if (allTags_.count(t.id) == 0) {
-          // found new tag
-          RigidBodyPtr body = findBodyForTag(t.id, t.bits);
-          if (!body) {
-            body = defaultBody_;
-          }
-          if (body) {
-            TagPtr tag = body->addDefaultTag(t.id, t.bits);
-            ROS_INFO_STREAM("found new tag: " << tag->id
-                            << " of size: " << tag->size
-                            << " for body: " << body->name);
-            allTags_.insert(IdToTagMap::value_type(tag->id, tag));
-          }
-        } else {
-          const auto &tag = allTags_[t.id];
-          ROS_INFO_STREAM(cameras_[cam_idx]->name << " sees tag: " <<
-                          tag->id << " pose valid: " << tag->poseEstimate.isValid());
-        }
+      Transform camTF;
+      geometry_msgs::TransformStamped tfm;
+      if (graph_utils::get_optimized_pose(*graph_, *cam, &camTF)) {
+        const string &rigFrameId = cam->getRig()->getFrameId();
+        auto ctf = tf::StampedTransform(
+          to_tftf(camTF), t, rigFrameId, cam->getFrameId());
+        tfBroadcaster_.sendTransform(ctf);
+        tf::transformStampedTFToMsg(ctf, tfm);
+        tfMsg->transforms.push_back(tfm);
+        //ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
       }
     }
   }
 
-  PoseEstimate TagSlam::guessCameraWorldPose(unsigned int cam_idx) const {
-    const auto &cam = cameras_[cam_idx];
-    // We completely ignore here if the pose estimates are valid
-    // The rig might not be valid, but have the previous frame's pose, so
-    // it's often better than a random guess.
-    //
-    // T_w_c = T_w_r * T_r_c
-    PoseEstimate pe(cam->rig->poseEstimate  * cam->poseEstimate, 0, 0);
-    return (pe);
-  }
-
-  // returns T_world_cam
-  PoseEstimate
-  TagSlam::poseFromPoints(int cam_idx,
-                          const std::vector<gtsam::Point3> &wp,
-                          const std::vector<gtsam::Point2> &ip,
-                          const std::vector<gtsam::Pose3>  &T_w_o) const {
-#ifdef DEBUG_POSE_ESTIMATE
-    std::cout << "------ points for pose estimate:------" << std::endl;
-    for (const auto i: irange(0ul, wp.size())) {
-      std::cout << cam_idx << " " << wp[i].x() << " " << wp[i].y() << " " << wp[i].z()
-                << " " << ip[i].x() << " " << ip[i].y() << std::endl;
-    }
-    std::cout << "------" << std::endl;
-#endif
-    // returns T_world_cam
-    PoseEstimate pe = estimatePosePNP(cam_idx, wp, ip, T_w_o);
-    double pixelRange = utils::get_pixel_range(ip);
-#ifdef DEBUG_POSE_ESTIMATE
-    std::cout << "pnp pose estimate: " << pe << std::endl;
-    std::cout << "pixel range: " << pixelRange << " max err: " << pixelRange * maxInitErr_ << std::endl;
-#endif
-    const auto &cam = cameras_[cam_idx];
-    if (!pe.isValid() || pe.getError() > pixelRange * maxInitErr_) {
-      // PNP failed, try with a local graph
-      
-      // if pnp didn't outright fail, but just has too large error,
-      // use that pose as starting guess, otherwise resort to the last
-      // known camera pose.
-      const PoseEstimate initPose = pe.isValid() ? pe : guessCameraWorldPose(cam_idx);
-#ifdef DEBUG_POSE_ESTIMATE
-      std::cout << "running mini graph for cam " << cam_idx << " init pose: " << std::endl << initPose << std::endl;
-#endif
-      double errorLimit;
-      pe = initialPoseGraph_.estimateCameraPose(cam, wp, ip,
-                                                initPose, &errorLimit);
-      if (pe.getError() >= errorLimit) {
-        ROS_WARN_STREAM("mini graph pose estimate failed for " << cam->name
-                        << " err: " << pe.getError());
-        pe.setValid(false);
-      } else {
-#ifdef DEBUG_POSE_ESTIMATE
-        std::cout << "mini graph initial pose estimate: " << pe << std::endl;
-#endif      
-      }
-    }
-    pe.setQuality(pixelRange / (std::sqrt(cam->intrinsics.resolution[0]*cam->intrinsics.resolution[1])));
-    //std::cout << "pose estimate quality: " << pe.getQuality() << std::endl;
-    return (pe);
-  }
-
-  PoseEstimate
-  TagSlam::findCameraPose(int cam_idx, const RigidBodyConstVec &rigidBodies,
-                          bool inWorldCoordinates) const {
-    std::vector<gtsam::Point3> wp;
-    std::vector<gtsam::Point2> ip;
-    std::vector<gtsam::Pose3>  T_w_o;
-    for (const auto &rb : rigidBodies) {
-      if (!inWorldCoordinates || rb->poseEstimate.isValid()) {
-        rb->getAttachedPoints(cam_idx, &wp, &ip, &T_w_o, inWorldCoordinates);
-      }
-    }
-    if (!wp.empty()) {
-#ifdef DEBUG_POSE_ESTIMATE
-      std::cout << "=============== estimating pose for camera: " << cam_idx << std::endl;
-#endif    
-
-      return (poseFromPoints(cam_idx, wp, ip, T_w_o));
-    }
-    return (PoseEstimate()); // invalid pose estimate
-  }
-
-  static gtsam::Pose3 to_pose(const OdometryConstPtr &odom) {
-    const geometry_msgs::Quaternion &q = odom->pose.pose.orientation;
-    const geometry_msgs::Point      &p = odom->pose.pose.position;
-    gtsam::Pose3 pg(gtsam::Rot3::quaternion(q.w, q.x, q.y, q.z),
-                    gtsam::Point3(p.x, p.y, p.z));
-    return (pg);
-  }
-
-  void TagSlam::addOdom(const std::vector<OdometryConstPtr> &odomVec) {
-    for (const auto &odom: odomVec) {
-      std::string frameId = odom->child_frame_id;
-      if (frameId.empty()) continue;
-      const auto it = frameIdToRig_.find(frameId);
-      if (it != frameIdToRig_.end()) {
-        gtsam::Pose3 newPose = to_pose(odom);
-        Rig &rig = it->second;
-        if (rig.poseEstimate.isValid()) {
-          const gtsam::Pose3 oldPose = rig.poseEstimate;
-          const gtsam::Pose3 B = rig.rigidBody->T_body_odom;
-          //std::cout << "T_body_odom: " << std::endl << B << std::endl;
-          const gtsam::Pose3 deltaPose = B * (oldPose.inverse() * newPose) * B.inverse();
-          
-          const PoseNoise noise = rig.poseEstimate.getNoise();
-          tagGraph_.addOdom(rig.rigidBody, deltaPose, noise,
-                            rig.frameNum, frameNum_);
-        }
-        rig.poseEstimate.setPose(newPose);
-        rig.poseEstimate.setError(0.0);
-        rig.frameNum = frameNum_;
-      }
-    }
-  }
-
-  void TagSlam::findInitialCameraAndRigPoses() {
-    std::vector<PoseEstimate> camPoses;
-    for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      const auto &cam = cameras_[cam_idx];
-      if (cam->hasPosePrior && cam->rig->isStatic && cam->rig->poseEstimate.isValid()) {
-        // already know camera world pose
-        camPoses.push_back(PoseEstimate(cam->rig->poseEstimate * cam->poseEstimate, 0, 0));
-      } else {
-        // compute camera-to-world transform from static bodies
-        //
-        // TODO: we often end up computing camera-to-static-body-point transforms
-        //       that end up being useless if the rig-to-camera pose is not yet known
-        PoseEstimate pe = findCameraPose(cam_idx, {staticBodies_.begin(),
-              staticBodies_.end()}, true /* in world coords */);
-        camPoses.push_back(pe);
-      }
-    }
-    double bestEstimateQuality(0);
-    for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      const auto &cam = cameras_[cam_idx];
-      if (camPoses[cam_idx].isValid()) {
-        bool foundRigPose(false);
-        if (cam->poseEstimate.isValid()) {
-          // if we know both the camera world pose and its pose
-          // relative to the rig, we can determine the rig pose.
-          // T_w_r  = T_w_c * T_c_r
-          const gtsam::Pose3 T_w_r = camPoses[cam_idx].getPose() * cam->poseEstimate.getPose().inverse();
-          gtsam::Pose3 diff = (T_w_r.inverse() * cam->rig->poseEstimate);
-          double d = diff.translation().norm();
-          if (d > 0.5 && !cam->rig->poseEstimate.equals(gtsam::Pose3(), 1e-8)) {
-            ROS_WARN_STREAM("camera " << cam_idx << " has large jump in rig position: " << d);
-            ROS_WARN_STREAM("pose difference to previous frame: " << std::endl << diff);
-          }
-          // if either the rig pose is unknown, or it is dynamic,
-          // initialize it here
-          if ((!cam->rig->poseEstimate.isValid() || !cam->rig->isStatic) &&
-              camPoses[cam_idx].getQuality() > bestEstimateQuality) {
-            const auto oldRigPose = cam->rig->poseEstimate.getPose();
-            bestEstimateQuality = camPoses[cam_idx].getQuality();
-            cam->rig->poseEstimate = PoseEstimate(T_w_r, 0.0, 0);
-#ifdef DEBUG_POSE_ESTIMATE
-            std::cout << "+++++ init rig pose based on cam: " << cam->name << " to be: " << std::endl;
-            std::cout << cam->rig->poseEstimate << std::endl;
-            std::cout << "DIFF to prev: " << std::endl << diff << std::endl;
-#endif
-            foundRigPose = true;
-          }
-        }
-        // if the rig world pose is known and the camera world pose
-        // as well, we can deduce the camera-to-rig pose.
-        // If we just discovered the rig pose, then we can try this
-        // for all cameras up to and including this one.
-        for (int cam2_idx = foundRigPose ? 0 : cam_idx; cam2_idx <= (int)cam_idx; cam2_idx++) {
-          const auto &cam2 = cameras_[cam2_idx];
-          const PoseEstimate &cam2WorldPose = camPoses[cam2_idx];
-          if (!cam2->poseEstimate.isValid() && cam2->rig->poseEstimate.isValid()
-              && cam2WorldPose.isValid() && cam2WorldPose.getQuality() > 0.06) {
-            // T_r_c = T_r_w * T_w_c
-            const gtsam::Pose3 T_r_c = cam2->rig->poseEstimate.inverse() * cam2WorldPose.getPose();
-            cam2->poseEstimate = PoseEstimate(T_r_c, 0.0, 0);
-#ifdef DEBUG_POSE_ESTIMATE            
-            std::cout << "INITIALIZED CAM-TO-RIG FOR CAM " << cam2->name << std::endl << cam2->poseEstimate << std::endl;
-            std::cout << "QUALITY: " << cam2WorldPose.getQuality() << std::endl;
-#endif
+  void TagSlam::publishTagAndBodyTransforms(const ros::Time &t,
+                                             tf::tfMessage *tfMsg) {
+    geometry_msgs::TransformStamped tfm;
+    for (const auto &body: bodies_) {
+      Transform bodyTF;
+      const string &bodyFrameId = body->getFrameId();
+      const ros::Time ts = body->isStatic() ? ros::Time(0) : t;
+      if (graph_utils::get_optimized_pose(*graph_, ts, *body, &bodyTF)) {
+        tf::StampedTransform btf = tf::StampedTransform(
+          to_tftf(bodyTF), t, fixedFrame_, bodyFrameId);
+        tf::transformStampedTFToMsg(btf, tfm);
+        tfMsg->transforms.push_back(tfm);
+        tfBroadcaster_.sendTransform(btf);
+        for (const auto &tag: body->getTags()) {
+          Transform tagTF;
+          if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
+            const std::string frameId = "tag_" + std::to_string(tag->getId());
+            auto ttf = tf::StampedTransform(
+              to_tftf(tagTF), t, bodyFrameId, frameId);
+            tfBroadcaster_.sendTransform(ttf);
+            tf::transformStampedTFToMsg(ttf, tfm);
+            tfMsg->transforms.push_back(tfm);
           }
         }
       }
     }
   }
 
-  bool TagSlam::isBadViewingAngle(const gtsam::Pose3 &p) const {
-    // viewing angle is given by the position of the camera
-    // in the tag coordinates! TODO: ignore tags at the image
-    // boundaries because they often are distorted.
-    double costheta = p.translation().normalize().z();
-    return (costheta < viewingAngleThreshold_);
+  void TagSlam::publishOriginalTagTransforms(const ros::Time &t,
+                                              tf::tfMessage *tfMsg) {
+    geometry_msgs::TransformStamped tfm;
+    for (const auto &body: bodies_) {
+      if (!body->getPoseWithNoise().isValid()) {
+        continue;
+      }
+      const string &bodyFrameId = body->getFrameId();
+      for (const auto &tag: body->getTags()) {
+        if (tag->getPoseWithNoise().isValid()) {
+          const Transform tagTF = tag->getPoseWithNoise().getPose();
+          const std::string frameId = "o_tag_" + std::to_string(tag->getId());
+          auto ttf =
+            tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId);
+          tfBroadcaster_.sendTransform(ttf);
+          tf::transformStampedTFToMsg(ttf, tfm);
+          tfMsg->transforms.push_back(tfm);
+        }
+      }
+    }
+  }
+
+  void TagSlam::publishTransforms(const ros::Time &t, bool orig) {
+    tf::tfMessage tfMsg;
+    publishTagAndBodyTransforms(t, &tfMsg);
+    if (orig) {
+      publishOriginalTagTransforms(t, &tfMsg);
+    }
+    publishCameraTransforms(t, &tfMsg);
+    outBag_.write<tf::tfMessage>("/tf", t, tfMsg);
+  }
+
+  void TagSlam::playFromBag(const string &fname) {
+    rosbag::Bag bag;
+    ROS_INFO_STREAM("reading from bag: " << fname);
+    bag.open(fname, rosbag::bagmode::Read);
+    std::vector<std::vector<string>> topics = makeTopics();
+    testIfInBag(&bag, topics);
+    std::vector<string> flatTopics;
+    for (const auto &v: topics) {
+      flatTopics.insert(flatTopics.begin(), v.begin(), v.end());
+    }
+    double deltaStartTime{0};
+    nh_.param<double>("bag_start_time", deltaStartTime, 0.0);
+    rosbag::View dummyView(bag);
+    const ros::Time startTime =
+      dummyView.getBeginTime() + ros::Duration(deltaStartTime);
+    publishTransforms(startTime, false);
+
+    rosbag::View view(bag, rosbag::TopicQuery(flatTopics), startTime);
+    ros::Time tFinal;
+    if (hasCompressedImages_) {
+      flex_sync::Sync<TagArray, CompressedImage, Odometry>
+        sync3c(topics, std::bind(&TagSlam::syncCallbackCompressed, this,
+                             std::placeholders::_1, std::placeholders::_2,
+                             std::placeholders::_3));
+      processBag(&sync3c, &view);
+      bag.close();
+    } else {
+      flex_sync::Sync<TagArray, Image, Odometry>
+        sync3(topics, std::bind(&TagSlam::syncCallback, this,
+                            std::placeholders::_1, std::placeholders::_2,
+                            std::placeholders::_3));
+      processBag(&sync3, &view);
+      bag.close();
+    }
+    ROS_INFO_STREAM("done processing bag!");
+  }
+
+  void TagSlam::syncCallback(
+    const std::vector<TagArrayConstPtr> &msgvec1,
+    const std::vector<ImageConstPtr> &msgvec2,
+    const std::vector<OdometryConstPtr> &msgvec3) {
+    process_images<ImageConstPtr>(msgvec2, &images_);
+    processTagsAndOdom(msgvec1, msgvec3);
   }
   
-  bool
-  TagSlam::estimateTagPose(int cam_idx,
-                           const gtsam::Pose3 &T_w_b,
-                           const TagPtr &tag) const {
-#ifdef DEBUG_POSE_ESTIMATE
-    std::cout << "&&&&&&&&&&&& estimating pose for tag: " << tag->id << std::endl;
-#endif    
-    const auto &wp = tag->getObjectCorners();
-    const auto ip = tag->getImageCorners();
-    // get T_o_c, the transform from camera to object coordinates
-    std::vector<gtsam::Pose3> T_w_o;
-    T_w_o.push_back(gtsam::Pose3());
-    PoseEstimate pe = poseFromPoints(cam_idx, wp, ip, T_w_o);
-    const CameraPtr &cam = cameras_[cam_idx];
-    if (pe.isValid() && cam->rig->poseEstimate.isValid()) {
-      if (isBadViewingAngle(pe.getPose())) {
-        ROS_INFO_STREAM("IGNORING tag " << tag->id << " (bad viewing angle)");
-        tag->poseEstimate = PoseEstimate(); // mark invalid
-        return (false);
-      }
-      // pe pose estimate has T_o_c
-      // body pose has T_w_b
-      // camera pose has T_r_c
-      // rig pose has T_w_r
-      // tag pose should have T_b_o
-      // T_b_o = T_b_w * T_w_r * T_r_c  * T_c_o
-      gtsam::Pose3 pose = T_w_b.inverse() *
-        cam->rig->poseEstimate * cam->poseEstimate * pe.inverse();
-      tag->poseEstimate = PoseEstimate(pose, 0.0, 0);
-      //std::cout << "init tag pose est: " << tag->id << std::endl << " T_c_o: " << pe.inverse() << std::endl;
-      //std::cout << "T_w_c: " << cam->poseEstimate.getPose() << std::endl;
-      //std::cout << "T_b_w: " << T_w_b.inverse() <<  std::endl;
-      //std::cout << "T_b_o: " << tag->poseEstimate.getPose() <<  std::endl;
-    }
-    //std::cout << "pose estimate for tag " << tag->id << ": " << pe << std::endl;
-    return (true);
+  void TagSlam::syncCallbackCompressed(
+    const std::vector<TagArrayConstPtr> &msgvec1,
+    const std::vector<CompressedImageConstPtr> &msgvec2,
+    const std::vector<OdometryConstPtr> &msgvec3) {
+    process_images<CompressedImageConstPtr>(msgvec2, &images_);
+    processTagsAndOdom(msgvec1, msgvec3);
   }
-                                
-  void TagSlam::findInitialDiscoveredTagPoses() {
-    for (auto &rb: allBodies_) {
-      if (rb->poseEstimate.isValid()) {
-        //std::cout << "RIGID BODY " << rb->name << " has pose: " << rb->poseEstimate << std::endl;
-        // body has valid pose, let's see what
-        // observed tags it has
-        for (auto &tagMap: rb->observedTags) {
-          const CameraPtr &cam = cameras_[tagMap.first];
-          if (cam->poseEstimate.isValid() && cam->rig->poseEstimate.isValid()) {
-            for (const auto &tag: tagMap.second) {
-              auto gTagIt = allTags_.find(tag->id);
-              if (gTagIt == allTags_.end()) {
-                ROS_ERROR_STREAM("ERROR: invalid tag id: " << tag->id);
-                continue;
-              }
-              TagPtr globalTag = gTagIt->second;
-              if (!globalTag->poseEstimate.isValid()) {
-                //std::cout << "tag: " << globalTag << " id " << globalTag->id << " has no valid pose!" << std::endl;
-                if (estimateTagPose(tagMap.first, rb->poseEstimate.getPose(), tag)) {
-                  TagVec tvec = {tag};
-                  tagGraph_.addTags(rb, tvec);
-                  globalTag->poseEstimate = tag->poseEstimate;
-                }
-              } else {
-                tag->poseEstimate = globalTag->poseEstimate;
-              }
-            }
-          }
+
+  static nav_msgs::Odometry make_odom(const ros::Time &t,
+                                      const std::string &fixed_frame,
+                                      const std::string &child_frame,
+                                      const Transform &pose) {
+    nav_msgs::Odometry odom;
+    odom.header.stamp = t;
+    odom.header.frame_id = fixed_frame;
+    odom.child_frame_id = child_frame;
+    tf::poseEigenToMsg(pose, odom.pose.pose);
+    return (odom);
+  }
+
+  void TagSlam::publishBodyOdom(const ros::Time &t) {
+    for (const auto body_idx: irange(0ul, nonstaticBodies_.size())) {
+      const auto body = nonstaticBodies_[body_idx];
+      Transform pose;
+      if (graph_utils::get_optimized_pose(*graph_, t, *body, &pose)) {
+        auto msg = make_odom(t, fixedFrame_, body->getOdomFrameId(), pose);
+        odomPub_[body_idx].publish(msg);
+        outBag_.write<nav_msgs::Odometry>(
+          "odom/body_" + body->getName(), t, msg);
+      }
+    }
+  }
+
+  bool TagSlam::anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs) {
+    for (const auto &msg: tagmsgs) {
+      if (!findTags(msg->apriltags).empty()) {
+        return (true);
+      }
+    }
+    return (false);
+  }
+
+  void TagSlam::processTagsAndOdom(
+    const std::vector<TagArrayConstPtr> &origtagmsgs,
+    const std::vector<OdometryConstPtr> &odommsgs) {
+    std::vector<TagArrayConstPtr> tagmsgs;
+    remapAndSquash(&tagmsgs, origtagmsgs);
+    if (tagmsgs.empty() && odommsgs.empty()) {
+      ROS_WARN_STREAM("neither tags nor odom!");
+      return;
+    }
+
+    const ros::Time t = tagmsgs.empty() ?
+      odommsgs[0]->header.stamp : tagmsgs[0]->header.stamp;
+    const bool hasOdom = !odommsgs.empty() || useFakeOdom_;
+    if (anyTagsVisible(tagmsgs) || hasOdom) {
+      // if we have any new valid observations,
+      // add unknown poses for all non-static bodies
+      for (const auto &body: nonstaticBodies_) {
+        graph_->addPose(t, Graph::body_name(body->getName()), false);
+      }
+    }
+    std::vector<VertexDesc> factors;
+    profiler_.reset();
+    if (odommsgs.size() != 0) {
+      processOdom(odommsgs, &factors);
+    } else if (useFakeOdom_) {
+      fakeOdom(t, &factors);
+    }
+    profiler_.record("processOdom");
+    processTags(tagmsgs, &factors);
+    profiler_.record("processTags");
+    graphUpdater_.processNewFactors(t, factors);
+    profiler_.record("processNewFactors");
+
+    times_.push_back(t);
+    publishAll(t);
+    profiler_.record("publishAll");
+    frameNum_++;
+  }
+
+  void TagSlam::publishAll(const ros::Time &t) {
+    publishBodyOdom(t);
+    rosgraph_msgs::Clock clockMsg;
+    clockMsg.clock = t;
+    clockPub_.publish(clockMsg);
+    publishTransforms(t, false);
+  }
+
+  void TagSlam::fakeOdom(const ros::Time &tCurr,
+                          std::vector<VertexDesc> *factors) {
+    if (!times_.empty()) {
+      const auto &tPrev = times_.back();
+      for (const auto &body: bodies_) {
+        if (!body->isStatic()) {
+          const PoseNoise pn =
+            PoseNoise::make(body->getFakeOdomRotationNoise(),
+                             body->getFakeOdomTranslationNoise());
+          const PoseWithNoise pwn(Transform::Identity(), pn, true);
+          factors->push_back(OdometryProcessor::add_body_pose_delta(
+                               graph_.get(), tPrev, tCurr, body, pwn));
         }
       }
     }
   }
 
-  void TagSlam::remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
-                               const std::vector<TagArrayConstPtr> &orig) {
+  
+  void TagSlam::setupOdom(const std::vector<OdometryConstPtr> &odomMsgs) {
+    std::set<BodyConstPtr> bodySet;
+    for (const auto odomIdx: irange(0ul, odomMsgs.size())) {
+      const auto &frameId = odomMsgs[odomIdx]->child_frame_id;
+      BodyConstPtr bpt;
+      for (const auto &body: bodies_) {
+        if (body->getOdomFrameId() == frameId) {
+          bpt = body;
+        }
+      }
+      if (!bpt) {
+        BOMB_OUT("no body found for odom frame id: " << frameId);
+      }
+      if (bodySet.count(bpt) != 0) {
+        ROS_WARN_STREAM("multiple bodies with frame id: " << frameId);
+        ROS_WARN_STREAM("This will screw up the odom!");
+      }
+      ROS_INFO_STREAM("have odom from " << bpt->getName() << " " << frameId);
+      odomProcessors_.push_back(OdometryProcessor(nh_, graph_, bpt));
+    }
+  }
+
+  void
+  TagSlam::processOdom(const std::vector<OdometryConstPtr> &odomMsgs,
+                        std::vector<VertexDesc> *factors) {
+    if (odomProcessors_.empty()) {
+      setupOdom(odomMsgs);
+    }
+    // from odom child frame id, deduce bodies
+    for (const auto odomIdx: irange(0ul, odomMsgs.size())) {
+      const auto &msg = odomMsgs[odomIdx];
+      odomProcessors_[odomIdx].process(msg, factors);
+      //graph_.test();
+    }
+  }
+
+  TagConstPtr TagSlam::findTag(int tagId) {
+    TagMap::iterator it = tagMap_.find(tagId);
+    TagPtr p;
+    if (it == tagMap_.end()) {
+      if (!defaultBody_) {
+        ROS_WARN_STREAM("no default body, ignoring tag: " << tagId);
+        return (p);
+      } else {
+        if (defaultBody_->ignoreTag(tagId)) {
+          return (p);
+        }
+        p = Tag::make(tagId, 6 /*num bits = tag family */,
+                       defaultBody_->getDefaultTagSize(),
+                       PoseWithNoise() /* invalid pose */, defaultBody_);
+        defaultBody_->addTag(p);
+        ROS_INFO_STREAM("new tag " << tagId << " attached to " <<
+                        defaultBody_->getName());
+        graph_utils::add_tag(graph_.get(), *p);
+        auto iit = tagMap_.insert(TagMap::value_type(tagId, p));
+        it = iit.first;
+      }
+    }
+    return (it->second);
+  }
+  
+  void TagSlam::writeCameraPoses(const string &fname) const {
+    std::ofstream f(fname);
+    for (const auto &cam : cameras_) {
+      f << cam->getName() << ":" << std::endl;
+      PoseWithNoise pwn = graph_utils::get_optimized_camera_pose(*graph_,*cam);
+      if (pwn.isValid()) {
+        yaml_utils::write_pose_with_covariance(f, "  ", pwn.getPose(),
+                                               pwn.getNoise());
+      }
+    }
+  }
+
+  void TagSlam::writePoses(const string &fname) const {
+    std::ofstream f(fname);
+    const ros::Time t = times_.empty() ? ros::Time(0):*(times_.rbegin());
+    f << "bodies:" << std::endl;
+    const std::string idn = "       ";
+    for (const auto &body: bodies_) {
+      Transform bodyTF;
+      const ros::Time tbody = body->isStatic() ? ros::Time(0) : t;
+      f << " - " << body->getName() << ":" << std::endl;
+      if (graph_utils::get_optimized_pose(*graph_, tbody, *body, &bodyTF)) {
+        f << "    pose:" << std::endl;
+        yaml_utils::write_pose(f, "       ",
+                               bodyTF, PoseNoise::make(0,0), true);
+      }
+      for (const auto &tag: body->getTags()) {
+        Transform tagTF;
+        if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
+          f << idn << "- id: "   << tag->getId() << std::endl;
+          f << idn << "  size: " << tag->getSize() << std::endl;
+          f << idn << "  pose:" << std::endl;
+          const auto &pwn = tag->getPoseWithNoise();
+          yaml_utils::write_pose(f, idn + "    ", tagTF, pwn.getNoise(), true);
+        }
+      }
+    }
+  }
+
+  void TagSlam::writeTimeDiagnostics(const string &fname) const {
+    std::ofstream f(fname);
+    const Graph::TimeToErrorMap m = graph_->getTimeToErrorMap();
+    for (const auto &te: m) {
+      write_time(f, te.first);
+      double err(0);
+      for (const auto fe: te.second) {
+        err += fe.second;
+      }
+      f << err;
+      for (const auto fe: te.second) {
+        f << " " << (*fe.first) << ":err=" << fe.second;
+      }
+      f << std::endl;
+    }
+  }
+
+  void TagSlam::writeErrorMap(const string &fname) const {
+    std::ofstream f(fname);
+    const auto errMap = graph_->getErrorMap();
+    for (const auto &v: errMap) {
+      const auto &vp = graph_->getVertex(v.second);
+      f << FMT(8,3) << v.first << " ";
+      write_time(f, vp->getTime());
+      f << " " <<  *vp << std::endl;
+    }
+  }
+
+  void TagSlam::writeTagDiagnostics(const string &fname) const {
+    std::ofstream f(fname);
+    const std::string idn = "       ";
+    for (const auto &body: bodies_) {
+      for (const auto &tag: body->getTags()) {
+        Transform tagTF;
+        if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
+          const auto &pwn = tag->getPoseWithNoise();
+          if (pwn.isValid()) {
+            const Transform poseDiff = tagTF * pwn.getPose().inverse();
+            const auto x = poseDiff.translation();
+            Eigen::AngleAxisd aa;
+            aa.fromRotationMatrix(poseDiff.rotation());
+            f << setw(3) << tag->getId() << " " << FMT(6,3) << x.norm();
+            write_vec(f, x);
+            const auto w = aa.angle() * aa.axis();
+            f << "   ang: " << aa.angle() * 180 / M_PI;
+            write_vec(f, w);
+            f << std::endl;
+          }
+        }
+      }
+    }
+  }
+  
+  std::vector<TagConstPtr>
+  TagSlam::findTags(const std::vector<Apriltag> &ta) {
+    std::vector<TagConstPtr> tpv;
+    for (const auto &tag: ta) {
+      TagConstPtr tagPtr = findTag(tag.id);
+      if (tagPtr) {
+        tpv.push_back(tagPtr);
+      } else {
+        ROS_INFO_STREAM("ignoring tag as requested in config: " << tag.id);
+      }
+    }
+    return (tpv);
+  }
+
+  void TagSlam::processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
+                             std::vector<VertexDesc> *factors) {
+    if (tagMsgs.size() != cameras_.size()) {
+      BOMB_OUT("tag msgs size mismatch: " << tagMsgs.size()
+               << " " << cameras_.size());
+    }
+    typedef std::multimap<double, VertexDesc> MMap;
+    MMap sortedFactors;
+
+    for (const auto i: irange(0ul, cameras_.size())) {
+      const ros::Time &t = tagMsgs[i]->header.stamp;
+      const auto &cam = cameras_[i];
+      const auto tags = findTags(tagMsgs[i]->apriltags);
+      if (!tags.empty()) {
+        // insert time-dependent camera pose
+        graph_->addPose(t, Graph::cam_name(cam->getName()),
+                        true /*camPose*/);
+        // and tie it to the time-independent camera pose
+        // with a relative prior
+        const PoseWithNoise pn(Transform::Identity(), cam->getWiggle(), true);
+        string  name = Graph::cam_name(cam->getName());
+        RelativePosePriorFactorPtr
+          fac(new factor::RelativePosePrior(t, ros::Time(0), pn, name));
+        VertexDesc v = fac->addToGraph(fac, graph_.get());
+        sortedFactors.insert(MMap::value_type(1e10, v));
+      }
+      for (const auto &tag: tagMsgs[i]->apriltags) {
+        TagConstPtr tagPtr = findTag(tag.id);
+        if (tagPtr) {
+          const geometry_msgs::Point *corners = &(tag.corners[0]);
+          TagProjectionFactorPtr fp(
+            new factor::TagProjection(t, cam, tagPtr, corners, pixelNoise_,
+                                      cam->getName() + "-" +
+                                      Graph::tag_name(tagPtr->getId())));
+          auto fac = fp->addToGraph(fp, graph_.get());
+          double sz = find_size_of_tag(corners);
+          sortedFactors.insert(MMap::value_type(sz, fac));
+          writeTagCorners(t, cam->getIndex(), tagPtr, corners);
+        }
+      }
+      std::stringstream ss;
+      for (const auto &tag: tagMsgs[i]->apriltags) {
+        ss << " " << tag.id;
+      }
+      ROS_INFO_STREAM("frame " << frameNum_ << " " << cam->getName()
+                      << " sees tags: " << ss.str());
+    }
+    for (auto it = sortedFactors.rbegin(); it != sortedFactors.rend(); ++it) {
+      factors->push_back(it->second);
+    }
+  }
+
+  void TagSlam::remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
+                                const std::vector<TagArrayConstPtr> &orig) {
     //
     // Sometimes there are tags with duplicate ids in the data set.
     // In this case, remap the tag ids of the detected tags dependent
     // on time stamp, to something else so they become unique.
     for (const auto &o: orig) {
-      TagArrayPtr p(new TagArray(*o)); // make deep copy
-      const ros::Time t = p->header.stamp;
+      const ros::Time t = o->header.stamp;
+      TagArrayPtr p(new TagArray());
+      p->header = o->header;
+      const auto sq = squash_.find(t);
+      ROS_INFO_STREAM("time match: " << t << " " << (sq != squash_.end()));
+      for (const auto &tag: o->apriltags) {
+        if (sq != squash_.end() && sq->second.count(tag.id) != 0) {
+          ROS_INFO_STREAM("squashed tag: " << tag.id);
+        } else{
+          p->apriltags.push_back(tag);
+        }
+      }
       for (auto &tag: p->apriltags) {
         auto it = tagRemap_.find(tag.id);
         if (it != tagRemap_.end()) {
@@ -767,716 +836,12 @@ namespace tagslam {
     }
   }
 
-  void TagSlam::processTagsAndOdom(const std::vector<TagArrayConstPtr> &origMsgVec,
-                                   const std::vector<OdometryConstPtr> &odomVec) {
-    profiler_.reset();
-    std::vector<TagArrayConstPtr> msgvec;
-    remapBadTagIds(&msgvec, origMsgVec);
-    // check if any of the tags are new, and associate them
-    // with a rigid body
-    discoverTags(msgvec);
-    profiler_.record("discoverTags");
-    // Sort the tags according to which bodies they
-    // belong to. The observed tags are then hanging
-    // off of the bodies, to be used subsequently
-    const auto nobs = attachObservedTagsToBodies(msgvec);
-    profiler_.record("attachObservedTagsToBodies");
-    addOdom(odomVec);
-    profiler_.record("addOdom");
-    // Go over all bodies and use tags with
-    // established positions to determine camera poses.
-    findInitialCameraAndRigPoses();
-    profiler_.record("findInitialCameraPoses");
-    // For dynamic and pose-free static bodies, find their
-    // initial poses if any of their tags are observed
-    findInitialBodyPoses();
-    profiler_.record("findInitialBodyPoses");
-    // Any newly discovered tags can now be given
-    // an initial pose, too.
-    findInitialDiscoveredTagPoses();
-    profiler_.record("findInitialDiscoveredTagPoses");
-
-    runOptimizer();
-    profiler_.record("runOptimizer");
-    updatePosesFromGraph(frameNum_);
-    profiler_.record("updatePosesFromGraph");
-    const auto distances = getDistances();
-    printDistanceErrors(distances);
-    profiler_.record("printDistanceErrors");
-    const auto positions = getPositions();
-    printPositionErrors(positions);
-    profiler_.record("printPositionErrors");
-    computeProjectionError();
-    profiler_.record("computeProjectionError");
-    detachObservedTagsFromBodies();
-    profiler_.record("detachObservedTagsFromBodies");
-    ros::Time t = get_latest_time(msgvec);
-    rosgraph_msgs::Clock clockMsg;
-    clockMsg.clock = t;
-    clockPub_.publish(clockMsg);
-    
-    broadcastCameraPoses(t);
-    broadcastBodyPoses(t);
-    broadcastTagPoses(t);
-    writeBodyPoses(bodyPosesOutFile_);
-    writeTagWorldPoses(tagWorldPosesOutFile_, frameNum_);
-    writeMeasurements(measurementsOutFile_, distances, positions);
-    ROS_INFO_STREAM("frame " << frameNum_ << " total tags: " << allTags_.size()
-                    << " obs: " << nobs << " err: " << tagGraph_.getError()
-                    << " iter: " << tagGraph_.getIterations());
-    invalidateDynamicPoses();
-    frameNum_++;
-    profiler_.record("writing");
-    std::cout << std::flush;
-  }
-
-  struct Stat {
-    Stat(double s = 0, unsigned int c =0) :sum(s), cnt(c) {}
-    Stat &operator+=(const Stat &b) {
-      sum += b.sum;
-      cnt += b.cnt;
-      return (*this);
-    }
-    double sum{0};
-    unsigned int cnt{0};
-    double avg() const {
-      return (cnt > 0 ? sqrt(sum/cnt) : 0.0);
-    }
-  };
-
-  Stat operator+(const Stat &a, const Stat &b) {
-    return (Stat(a.sum + b.sum, a.cnt + b.cnt));
-  }
-
-
-  void TagSlam::computeProjectionError() {
-    std::vector<Stat> camStats(cameras_.size());
-    std::vector<Stat> bodyStats(allBodies_.size());
-    std::map<int, Stat> tagStats;
-    std::map<double, std::pair<int, int>> sortedTagErrors;
-    for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      const auto &cam = cameras_[cam_idx];
-      if (!(cam->poseEstimate.isValid() & cam->rig->poseEstimate.isValid())) {
-        continue;
-      }
-      cv::Mat img;
-      if (cam_idx < images_.size()) img = images_[cam_idx];
-      cv::Mat rvec, tvec;
-      // T_c_w = T_c_r * T_r_w
-      const gtsam::Pose3 T_c_w = cam->poseEstimate.inverse() * cam->rig->poseEstimate.inverse();
-      from_gtsam(&rvec, &tvec, T_c_w);
-      std::vector<Stat> bodyCamStats(allBodies_.size()); // per cam stat
-      for (const auto body_idx: irange(0ul, allBodies_.size())) {
-        const auto &rb = allBodies_[body_idx];
-        if (!rb->poseEstimate.isValid()) {
-          continue;
-        }
-        std::vector<gtsam::Point3> wpts;     // world points
-        std::vector<gtsam::Point2> ipts;
-        std::vector<gtsam::Pose3>  T_w_o;
-        std::vector<int> tagids;
-        rb->getAttachedPoints(cam_idx, &wpts, &ipts, &T_w_o,
-                              true /* in world coords */, &tagids);
-        std::vector<cv::Point3d> wp;
-        std::vector<cv::Point2d> ip, ipp;
-        to_opencv(&wp, wpts);
-        to_opencv(&ip, ipts);
-        const auto &ci = cam->intrinsics;
-        utils::project_points(wp, rvec, tvec, ci.K,
-                              ci.distortion_model, ci.D, &ipp);
-        if (img.rows > 0) {
-          const cv::Scalar origColor(0,255,0), projColor(255,0,255);
-          const cv::Size rsz(4,4);
-          for (const auto i: irange(0ul, wp.size())) {
-            cv::rectangle(img, cv::Rect(ip[i], rsz),  origColor, 2, 8, 0);
-            cv::rectangle(img, cv::Rect(ipp[i], rsz), projColor, 2, 8, 0);
-          }
-        }
-
-        for (const auto tag_idx: irange(0ul, tagids.size())) {
-          Stat s(0, 4);
-          for (const auto i: irange(0, 4)) {
-            const cv::Point diff = ipp[tag_idx * 4 + i] - ip[tag_idx * 4 + i];
-            s.sum += diff.x * diff.x + diff.y * diff.y;
-#ifdef DEBUG_SLM_VS_GRAPH
-            std::cout << "SLMPROJ: " << tagids[tag_idx] << " " << ipts[tag_idx * 4 + i]  << " " << T_c_w.transform_from(wpts[tag_idx * 4 + i])   << " X_w: " << wpts[tag_idx * 4 + i] << std::endl;
-#endif            
-          }
-          // XXX will overwrite entry if error is identical!
-          sortedTagErrors[s.avg()] = std::pair<int, int>(cam_idx, tagids[tag_idx]);
-          tagStats[tagids[tag_idx]] += s;
-          bodyCamStats[body_idx]    += s;
-          bodyStats[body_idx]       += s;
-          camStats[cam_idx]         += s;
-        }
-        if (!tagids.empty()) {
-          ROS_INFO_STREAM("cam " << cam->name << " body: " << rb->name << " err: " << bodyCamStats[body_idx].avg());
-        }
-      }
-      if (img.rows > 0 && writeDebugImages_) {
-        std::stringstream ss;
-        ss << std::setfill('0') << std::setw(4) << frameNum_;
-        string fbase = "image_" + ss.str() + "_";
-        cv::imwrite(fbase + std::to_string(cam_idx) + ".jpg", img);
-      }
-
-    }
-    for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      const auto &cam = cameras_[cam_idx];
-      if (camStats[cam_idx].cnt > 0) {
-        ROS_INFO_STREAM("error for cam " << cam->name << ": " << camStats[cam_idx].avg());
-      }
-    }
-    for (const auto body_idx: irange(0ul, allBodies_.size())) {
-      const auto &rb = allBodies_[body_idx];
-      if (bodyStats[body_idx].cnt > 0) {
-        ROS_INFO_STREAM("error for body " << rb->name << ": " << bodyStats[body_idx].avg());
-      }
-    }
-    for (const auto &ts: tagStats) {
-      if (ts.second.cnt > 0) {
-        ROS_INFO_STREAM("error for tag: " << ts.first << ": " << ts.second.avg());
-      }
-    }
-    for (const auto &se: sortedTagErrors) {
-      ROS_INFO_STREAM("error for cam: " << se.second.first << " tag: "
-                      << se.second.second << " is: " << se.first);
-    }
-  }
-
-  void TagSlam::detachObservedTagsFromBodies() {
-    for (const auto &rb: allBodies_) {
-      rb->detachObservedTags();
-    }
-  }
-
-  void TagSlam::runOptimizer() {
-    for (const auto &rb: allBodies_) {
-      for (const auto &camToTag: rb->observedTags) {
-        const auto &cam = cameras_[camToTag.first];
-        if (!cam->poseEstimate.isValid() || !cam->rig->poseEstimate.isValid()) {
-          ROS_WARN_STREAM("cam " << cam->name <<
-                          " has no pose for frame: " << frameNum_);
-        } else {
-          ROS_INFO_STREAM("cam " << cam->name << 
-                          " has valid pose for frame: " << frameNum_);
-        }
-        tagGraph_.observedTags(cameras_[camToTag.first],
-                               rb, camToTag.second, frameNum_);
-      }
-    }
-    tagGraph_.optimize();
-#ifdef DEBUG_SLM_VS_GRAPH
-    for (const auto &rb: allBodies_) {
-      for (const auto &camToTag: rb->observedTags) {
-        const auto &cam = cameras_[camToTag.first];
-        tagGraph_.testProjection(cam, rb, camToTag.second, frameNum_);
-      }
-    }
-#endif    
-  }
-
-  std::vector<int> TagSlam::findCamerasWithKnownWorldPose() const {
-    std::vector<int> cams;
-    for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      const auto &cam = cameras_[cam_idx];
-      if (cam->poseEstimate.isValid() && cam->rig->poseEstimate.isValid()) {
-        cams.push_back(cam_idx);
-      }
-    }
-    return (cams);
-  }
-
-  // have: T_r_c,   T_r_b, T_b_w, T_b_o
-  //
-  // loop through all bodies
-  // 
-
-  PoseEstimate
-  TagSlam::estimateBodyPose(const RigidBodyConstPtr &rb) const {
-    //std::cout << "&&&& estimating body pose for " << rb->name << std::endl;
-    PoseEstimate bodyPose; // defaults to invalid pose estimate
-    int best_cam_idx = rb->bestCamera(findCamerasWithKnownWorldPose());
-    if (best_cam_idx < 0) {
-      // don't see any tags of the body in this frame!
-      //std::cout << "no best camera index found!" << std::endl;
-      return (bodyPose);
-    }
-    RigidBodyConstVec rbv = {rb};
-    PoseEstimate pe  = findCameraPose(best_cam_idx, rbv, false /* in body coords */);
-    // pose estimate pe has T_b_c
-    // T_w_b = T_w_r * T_r_c * T_c_b
-    const auto &bestCam = cameras_[best_cam_idx];
-    const auto &T_r_c = bestCam->poseEstimate;
-    const auto &T_w_r = bestCam->rig->poseEstimate; // should be valid!
-    gtsam::Pose3 T_w_b = T_w_r * T_r_c * pe.inverse();
-    //std::cout << "body pose from single camera " << best_cam_idx << std::endl;
-    //std::cout << T_w_b << std::endl;
-    double errorLimit;
-    bodyPose = initialPoseGraph_.estimateBodyPose(cameras_, images_, frameNum_, rb, T_w_b,
-                                                  &errorLimit);
-    //std::cout << "body pose from body graph: " << std::endl << T_w_b << std::endl;
-    if (bodyPose.getError() > errorLimit) {
-      ROS_WARN_STREAM("no body pose for " << rb->name << " due to high error!");
-      bodyPose.setValid(false);
-    }
-    return (bodyPose);
-  }
-
-  void TagSlam::findInitialBodyPoses() {
-    for (auto &rb: allBodies_) {
-      if (rb->poseEstimate.isValid()) {
-        continue;
-      }
-      PoseEstimate pe = estimateBodyPose(rb);
-      if (pe.isValid()) {
-        rb->poseEstimate = pe;
-        if (!rb->isStatic) {
-          //std::cout << "updated dynamic body pose for " << rb->name << " to " << rb->poseEstimate << std::endl;
-        }
-        if (rb->isStatic) {
-          ROS_INFO_STREAM("static body pose discovered for: " << rb->name);
-          // We encountered tags on a static body for the first time.
-          // Any of these tags that have a known pose estimate can
-          // be added to the graph and the global set of known tags.
-          TagVec tvec;
-          for (auto &t: rb->tags) {
-            if (t.second->poseEstimate.isValid()) {
-              tvec.push_back(t.second);
-              allTags_[t.second->id] = t.second;
-            }
-          }
-          tagGraph_.addTags(rb, tvec);
-        }
-      }
-    }
-    // Add new distance measurements if possible
-    applyDistanceMeasurements();
-    applyPositionMeasurements();
-  }
-
-
-  void TagSlam::applyDistanceMeasurements() {
-    if (unappliedDistanceMeasurements_.empty()) {
+  void TagSlam::readRemap(XmlRpc::XmlRpcValue config) {
+    if (!config.hasMember("tag_id_remap")) {
       return;
     }
-    DistanceMeasurementVec dmv;
-    for (const auto &dm: unappliedDistanceMeasurements_) {
-      bool used(false);
-      if (allTags_.count(dm->tag1) > 0 &&
-          allTags_.count(dm->tag2) > 0) {
-        const auto tag1 = allTags_[dm->tag1];
-        const auto tag2 = allTags_[dm->tag2];
-        const auto rb1 = findBodyForTag(dm->tag1, tag1->bits);
-        const auto rb2 = findBodyForTag(dm->tag2, tag2->bits);
-        if (rb1 && rb2 && rb1->poseEstimate.isValid() &&
-            rb2->poseEstimate.isValid() &&
-            tag1->poseEstimate.isValid() && tag2->poseEstimate.isValid()) {
-          used = tagGraph_.addDistanceMeasurement(rb1, rb2, tag1, tag2, *dm);
-        }
-      }
-      if (!used) {
-        dmv.push_back(dm);
-      }
-    }
-    unappliedDistanceMeasurements_ = dmv;
-  }
-  
-  void TagSlam::applyPositionMeasurements() {
-    if (unappliedPositionMeasurements_.empty()) {
-      return;
-    }
-    PositionMeasurementVec mv;
-    for (const auto &m: unappliedPositionMeasurements_) {
-      bool used(false);
-      if (allTags_.count(m->tag) > 0) {
-        const auto tag = allTags_[m->tag];
-        const auto rb = findBodyForTag(m->tag, tag->bits);
-        if (rb && rb->poseEstimate.isValid()) {
-          used = tagGraph_.addPositionMeasurement(rb, tag, *m);
-        }
-      }
-      if (!used) {
-        mv.push_back(m);
-      }
-    }
-    unappliedPositionMeasurements_ = mv;
-  }
-
-  static tf::Transform gtsam_pose_to_tf(const gtsam::Pose3 &p) {
-    tf::Transform tf;
-    const gtsam::Vector rpy = p.rotation().rpy();
-    tf.setOrigin(tf::Vector3(p.x(), p.y(), p.z()));
-    tf::Quaternion q;
-    q.setRPY(rpy(0), rpy(1), rpy(2));
-    tf.setRotation(q);
-    return (tf);
-  }
-
-  static nav_msgs::Odometry
-  make_odom(const ros::Time &t,
-            const string &fixed_frame,
-            const string &child_frame,
-            const gtsam::Pose3 &pose) {
-    nav_msgs::Odometry odom;
-    odom.header.stamp = t;
-    odom.header.frame_id = fixed_frame;
-    odom.child_frame_id = child_frame;
-    const auto TF = pose.matrix();
-    Eigen::Affine3d TFa(TF);
-    tf::poseEigenToMsg(TFa, odom.pose.pose);
-    return (odom);
-  }
-
-  static string body_frame_id(const string &name) {
-    return (string("body_" + name));
-  }
-
-  void TagSlam::broadcastCameraPoses(const ros::Time &t) {
-    std::vector<PoseInfo> camPoseInfo;
-    for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      const auto &cam = cameras_[cam_idx];
-      PoseEstimate pe = tagGraph_.getCameraPose(cam);
-      if (pe.isValid()) {
-        camPoseInfo.push_back(PoseInfo(pe, t,body_frame_id(cam->rig->name), cam->frame_id));
-        camOdomPub_[cam_idx].publish(make_odom(t, body_frame_id(cam->rig->name),
-                                               cam->frame_id, pe.getPose()));
-      }
-    }
-    broadcastTransforms(camPoseInfo);
-  }
-
-  
-  void TagSlam::broadcastBodyPoses(const ros::Time &t) {
-    std::vector<PoseInfo> bodyPoseInfo;
-    for (const auto &rb: allBodies_) {
-      const PoseEstimate &pe = rb->poseEstimate;
-      if (pe.isValid()) {
-        const string frame_id = body_frame_id(rb->name);
-        bodyPoseInfo.push_back(PoseInfo(pe, t, fixedFrame_, frame_id));
-      }
-    }
-    broadcastTransforms(bodyPoseInfo);
-    // publish odom for dynamic bodies
-    for (const auto body_idx : irange(0ul, dynamicBodies_.size())) {
-      const auto rb = dynamicBodies_[body_idx];
-      const PoseEstimate &pe = rb->poseEstimate;
-      if (pe.isValid()) {
-        const string frame_id = body_frame_id(rb->name);
-        bodyOdomPub_[body_idx].publish(
-          make_odom(t, fixedFrame_, frame_id, pe.getPose()));
-      }
-    }
-  }
-
-  void TagSlam::broadcastTagPoses(const ros::Time &t) {
-    for (const auto &rb: allBodies_) {
-      if (rb->poseEstimate.isValid()) {
-        std::vector<PoseInfo> tagPoseInfo;
-        for (auto &tg: rb->tags) {
-          TagPtr tag = tg.second;
-          if (tag->poseEstimate.isValid()) {
-            const string frame_id = "tag_" + std::to_string(tag->id);
-            tagPoseInfo.push_back(PoseInfo(tag->poseEstimate, t,
-                                           body_frame_id(rb->name), frame_id));
-          }
-        }
-        broadcastTransforms(tagPoseInfo);
-      }
-    }
-  }
-
-  void TagSlam::broadcastTransforms(const std::vector<PoseInfo> &poses) {
-    for (const auto &p: poses) {
-      const auto &tf = gtsam_pose_to_tf(p.pose);
-      tfBroadcaster_.sendTransform(tf::StampedTransform(tf, p.time,
-                                                        p.parent_frame_id, p.frame_id));
-    }
-  }
-
-  
-  void TagSlam::writeBodyPoses(const string &poseFile) const {
-    std::ofstream pf(poseFile);
-    pf << "bodies:" << std::endl;
-    for (const auto &rb : allBodies_) {
-      rb->write(pf, " ");
-    }
-  }
-
-  void TagSlam::writeTagWorldPoses(const string &poseFile, unsigned int frameNum) const {
-    std::ofstream pf(poseFile);
-    for (const auto &rb : allBodies_) {
-      for (const auto &tm: rb->tags) {
-        const auto &tag = tm.second;
-        const PoseEstimate pe = tagGraph_.getTagWorldPose(rb, tag->id, frameNum);
-        if (pe.isValid()) {
-          pf << "- id: "   << tag->id << std::endl;
-          pf << "  size: " << tag->size << std::endl;
-          yaml_utils::write_pose(pf, "  ", pe.getPose(), pe.getNoise(), true);
-        }
-      }
-    }
-  }
-
-  
-  void TagSlam::writeMeasurements(const string &fname,
-                                  const PointVector &dist,
-                                  const PointVector &pos) const {
-    std::ofstream f(fname);
-    writeDistanceMeasurements(f, dist);
-    writePositionMeasurements(f, pos);
-  }
-
-
-  TagSlam::PointVector TagSlam::getDistances() const {
-    PointVector pv;
-    for (const auto &dm: distanceMeasurements_) {
-      std::pair<gtsam::Point3, bool> p(gtsam::Point3(), false);
-      if (allTags_.count(dm->tag1) > 0 &&
-          allTags_.count(dm->tag2) > 0) {
-        const auto tag1 = allTags_.find(dm->tag1)->second;
-        const auto tag2 = allTags_.find(dm->tag2)->second;
-        const auto rb1 = findBodyForTag(dm->tag1, tag1->bits);
-        const auto rb2 = findBodyForTag(dm->tag2, tag2->bits);
-        if (rb1 && rb2) {
-          p = tagGraph_.getDifference(rb1, rb2, tag1, dm->corner1,
-                                      tag2, dm->corner2);
-        }
-      }
-      pv.push_back(p);
-    }
-    return (pv);
-  }
-
-  void TagSlam::writeDistanceMeasurements(std::ostream &f, const PointVector &dist) const {
-    f << "distance_measurements:" << std::endl;
-    for (const auto i: irange(0ul, distanceMeasurements_.size())) {
-      const auto &dm = distanceMeasurements_[i];
-      const auto &d  = dist[i];
-      if (d.second) {
-        double len = d.first.norm();
-        f << "  - " << dm->name << ":" << std::endl;
-        f << "      tag1: " << dm->tag1 << std::endl;
-        f << "      tag2: " << dm->tag2 << std::endl;
-        f << "      corner1: " << dm->corner1 << std::endl;
-        f << "      corner2: " << dm->corner2 << std::endl;
-        f << "      distance: " << dm->distance << std::endl;
-        f << "      optimized: " << len << std::endl;
-        f << "      error: " << len - dm->distance << std::endl;
-        f << "      noise:  " << dm->noise << std::endl;
-      }
-    }
-  }
-
-  static std::pair<int, int> find_min_max_diff(const std::vector<double> &meas,
-                                               const std::vector<double> &opt) {
-    double minError(1e10), maxError(0);
-    std::pair<int, int> minMaxIdx(-1, -1);
-    for (const auto i: irange(0ul, meas.size())) {
-      if (meas[i] > -1e10 && opt[i] > -1e10) {
-        double err = std::abs(meas[i] - opt[i]);
-        if (err < minError) {
-          minError = err;
-          minMaxIdx.first = i;
-        }
-        if (err > maxError) {
-          maxError = err;
-          minMaxIdx.second = i;
-        }
-      }
-    }
-    return (minMaxIdx);
-  }
-
-  static void print_error(const string &name, const DistanceMeasurementConstPtr &dm,
-                          double meas) {
-    const double err     = dm->distance - meas;
-    ROS_INFO_STREAM(name << " err: " << dm->name << " meas: " << dm->distance << " optim: " << meas <<
-                    " error: " << err << " noise: " << dm->noise);
-  }
-
-  void TagSlam::printDistanceErrors(const PointVector &dist) const {
-    std::vector<double> dmeas, dopt;
-    for (const auto i: irange(0ul, distanceMeasurements_.size())) {
-      dmeas.push_back(distanceMeasurements_[i]->distance);
-      dopt.push_back(dist[i].second ? dist[i].first.norm() : -1e10);
-    }
-    std::pair<int,int> minMax = find_min_max_diff(dmeas, dopt);
-    if (minMax.first > 0) {
-      print_error("minimum", distanceMeasurements_[minMax.first], dopt[minMax.first]);
-      print_error("maximum", distanceMeasurements_[minMax.second], dopt[minMax.second]);
-    } 
-  }
-
-  TagSlam::PointVector TagSlam::getPositions() const {
-    PointVector pv;
-    for (const auto &m: positionMeasurements_) {
-      std::pair<gtsam::Point3, bool> p(gtsam::Point3(), false);
-      if (allTags_.count(m->tag) > 0) {
-        const auto tag = allTags_.find(m->tag)->second;
-        const auto rb = findBodyForTag(m->tag, tag->bits);
-        if (rb) {
-          p = tagGraph_.getPosition(rb, tag, m->corner);
-        }
-      }
-      pv.push_back(p);
-    }
-    return (pv);
-  }
-
-  static void print_error(const string &name, const PositionMeasurementConstPtr &pm,
-                          double meas) {
-    const double err     = pm->length - meas;
-    ROS_INFO_STREAM(name << " err: " << pm->name << " meas: " << pm->length << " optim: " << meas <<
-                    " error: " << err << " noise: " << pm->noise);
-  }
-
-  void TagSlam::printPositionErrors(const PointVector &pos) const {
-    std::vector<double> pmeas, popt;
-    for (const auto i: irange(0ul, positionMeasurements_.size())) {
-      const auto &pm = positionMeasurements_[i];
-      pmeas.push_back(pm->length);
-      popt.push_back(pos[i].second ? pos[i].first.dot(pm->dir) : -1e10);
-    }
-    std::pair<int,int> minMax = find_min_max_diff(pmeas, popt);
-    if (minMax.first > 0) {
-      print_error("minimum", positionMeasurements_[minMax.first], popt[minMax.first]);
-      print_error("maximum", positionMeasurements_[minMax.second], popt[minMax.second]);
-    } 
-  }
-
-
-  void TagSlam::writePositionMeasurements(std::ostream &f, const PointVector &pos) const {
-    f << "position_measurements:" << std::endl;
-    for (const auto i: irange(0ul, positionMeasurements_.size())) {
-      const auto &m = positionMeasurements_[i];
-      const auto &p = pos[i];
-      if (p.second) {
-        double len = p.first.dot(m->dir);
-        f << "  - " << m->name << ":" << std::endl;
-        f << "      tag: " << m->tag << std::endl;
-        f << "      corner: " << m->corner << std::endl;
-        f << "      length: " << m->length << std::endl;
-        f << "      measured: " << len << std::endl;
-        f << "      error: " << len - m->length << std::endl;
-        f << "      noise: " << m->noise << std::endl;
-        f << "      direction: [ " << m->dir.x() << ", " << m->dir.y() << ", " << m->dir.z() << "]" << std::endl;
-      }
-    }
-  }
-
-  void TagSlam::writeCameraPoses(const string &fname) const {
-    std::ofstream f(fname);
-    for (const auto &cam : cameras_) {
-      f << cam->name << ":" << std::endl;
-      PoseEstimate pe = tagGraph_.getCameraPose(cam);
-      if (pe.isValid()) {
-        yaml_utils::write_pose_with_covariance(f, "  ", pe.getPose(), pe.getNoise());
-      }
-    }
-  }
-    
-
-  void TagSlam::callback1(TagArrayConstPtr const &tag0) {
-    std::vector<TagArrayConstPtr> msg_vec = {tag0};
-    processTagsAndOdom(msg_vec);
-  }
-
-  void TagSlam::callback2(TagArrayConstPtr const &tag0,
-                          TagArrayConstPtr const &tag1) {
-    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1};
-    processTagsAndOdom(msg_vec);
-  }
-  void TagSlam::callback3(TagArrayConstPtr const &tag0,
-                          TagArrayConstPtr const &tag1,
-                          TagArrayConstPtr const &tag2) {
-    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2};
-    processTagsAndOdom(msg_vec);
-  }
-  void TagSlam::callback4(TagArrayConstPtr const &tag0,
-                          TagArrayConstPtr const &tag1,
-                          TagArrayConstPtr const &tag2,
-                          TagArrayConstPtr const &tag3) {
-    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3};
-    processTagsAndOdom(msg_vec);
-  }
-  void TagSlam::callback5(TagArrayConstPtr const &tag0,
-                          TagArrayConstPtr const &tag1,
-                          TagArrayConstPtr const &tag2,
-                          TagArrayConstPtr const &tag3,
-                          TagArrayConstPtr const &tag4) {
-    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4};
-    processTagsAndOdom(msg_vec);
-  }
-  void TagSlam::callback6(TagArrayConstPtr const &tag0,
-                          TagArrayConstPtr const &tag1,
-                          TagArrayConstPtr const &tag2,
-                          TagArrayConstPtr const &tag3,
-                          TagArrayConstPtr const &tag4,
-                          TagArrayConstPtr const &tag5) {
-    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5};
-    processTagsAndOdom(msg_vec);
-  }
-  void TagSlam::callback7(TagArrayConstPtr const &tag0,
-                          TagArrayConstPtr const &tag1,
-                          TagArrayConstPtr const &tag2,
-                          TagArrayConstPtr const &tag3,
-                          TagArrayConstPtr const &tag4,
-                          TagArrayConstPtr const &tag5,
-                          TagArrayConstPtr const &tag6) {
-    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5, tag6};
-    processTagsAndOdom(msg_vec);
-  }
-  void TagSlam::callback8(TagArrayConstPtr const &tag0,
-                          TagArrayConstPtr const &tag1,
-                          TagArrayConstPtr const &tag2,
-                          TagArrayConstPtr const &tag3,
-                          TagArrayConstPtr const &tag4,
-                          TagArrayConstPtr const &tag5,
-                          TagArrayConstPtr const &tag6,
-                          TagArrayConstPtr const &tag7) {
-    std::vector<TagArrayConstPtr> msg_vec = {tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7};
-    processTagsAndOdom(msg_vec);
-  }
-
-  template <typename T>
-  static void process_images(const std::vector<T> &msgvec, std::vector<cv::Mat> *images) {
-    images->clear();
-    for (const auto i: irange(0ul, msgvec.size())) {
-      const auto &img = msgvec[i];
-      cv::Mat im = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8)->image;
-      images->push_back(im);
-    }
-  }
-
-  void TagSlam::processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
-                                     const std::vector<ImageConstPtr> &msgvec2,
-                                     const std::vector<OdometryConstPtr> &msgvec3) {
-    process_images<ImageConstPtr>(msgvec2, &images_);
-    processTagsAndOdom(msgvec1, msgvec3);
-  }
-
-  void TagSlam::processTagsAndCompressedImages(const std::vector<TagArrayConstPtr> &msgvec1,
-                                               const std::vector<CompressedImageConstPtr> &msgvec2,
-                                               const std::vector<OdometryConstPtr> &msgvec3) {
-    process_images<CompressedImageConstPtr>(msgvec2, &images_);
-    processTagsAndOdom(msgvec1, msgvec3);
-  }
-
-  void TagSlam::finalize() {
-    unsigned int frameNum = (unsigned int)std::max(0, (int)frameNum_ - 1);
-    tagGraph_.computeMarginals();
-    updatePosesFromGraph(frameNum);
-    writeBodyPoses(bodyPosesOutFile_);
-    writeTagWorldPoses(tagWorldPosesOutFile_, frameNum);
-    writeMeasurements(measurementsOutFile_, getDistances(), getPositions());
-    writeCameraPoses(cameraPosesOutFile_);
-  }
-
-  void TagSlam::readRemap() {
-    XmlRpc::XmlRpcValue remap;
-    if (nh_.getParam(paramPrefix_ + "/tag_id_remap", remap) &&
-        remap.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+    XmlRpc::XmlRpcValue remap = config["tag_id_remap"];
+    if (remap.getType() == XmlRpc::XmlRpcValue::TypeArray) {
       ROS_INFO_STREAM("found remap map!");
       for (const auto i: irange(0, remap.size())) {
         if (remap[i].getType() !=
@@ -1510,75 +875,66 @@ namespace tagslam {
       }
     }
   }
-  void TagSlam::playFromBag(const string &fname) {
-    rosbag::Bag bag;
-    bag.open(fname, rosbag::bagmode::Read);
 
-    vector<string> tagTopics, imageTopics, topics, odomTopics;
-    nh_.param<std::vector<std::string>>(paramPrefix_ + "/odometry/topics",
-                                        odomTopics, vector<string>());
-    
-    for (const auto cam_idx: irange(0ul, cameras_.size())) {
-      const auto &cam = cameras_[cam_idx];
-      tagTopics.push_back(cam->tagtopic);
-      topics.push_back(tagTopics.back());
-      if (writeDebugImages_) {
-        imageTopics.push_back(cam->rostopic);
-        topics.push_back(imageTopics.back());
+  static ros::Time parse_time(XmlRpc::XmlRpcValue v) {
+    const std::string s = static_cast<std::string>(v);
+    size_t pos = s.find(".", 0);
+    if (pos == std::string::npos) {
+      BOMB_OUT("bad ros time value: " << s);
+    }
+    const std::string nsec = s.substr(pos + 1, std::string::npos);
+    const std::string sec  = s.substr(0, pos);
+    if (nsec.size() != 9) {
+      BOMB_OUT("ros nsec length is not 9 but: " << nsec.size());
+    }
+    ros::Time t(std::stoi(sec), std::stoi(nsec));
+    return (t);
+  }
+ 
+  void TagSlam::readSquash(XmlRpc::XmlRpcValue config) {
+    if (!config.hasMember("squash")) {
+      return;
+    }
+    XmlRpc::XmlRpcValue squash = config["squash"];
+    if (squash.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+      for (const auto i: irange(0, squash.size())) {
+        if (squash[i].getType() !=
+            XmlRpc::XmlRpcValue::TypeStruct) continue;
+        ros::Time t(0);
+        std::set<int> tags;
+        for (XmlRpc::XmlRpcValue::iterator it = squash[i].begin();
+             it != squash[i].end(); ++it) {
+          if (it->first == "time") {
+            t = parse_time(it->second);
+          }
+          if (it->first == "tags") {
+            auto vtags = it->second;
+            if (vtags.getType() == XmlRpc::XmlRpcValue::TypeArray) {
+              for (const auto tag: irange(0, vtags.size())) {
+                tags.insert(static_cast<int>(vtags[tag]));
+              }
+            }
+          }
+        }
+        if (t != ros::Time(0) && !tags.empty()) {
+          ROS_INFO_STREAM("squashing " << tags.size() << " tags for " << t);
+          squash_[t] = tags;
+        }
       }
     }
-    topics.insert(topics.begin(), odomTopics.begin(), odomTopics.end());
-    string all_topics;
-    for (const auto &topic: topics) {
-      all_topics += " " + topic;
-      rosbag::View cv(bag, rosbag::TopicQuery({topic}));
-      if (cv.begin() == cv.end()) {
-        ROS_WARN_STREAM("cannot find topic: " << topic << " in bag, sync will fail!");
-      }
-    }
-    ROS_INFO_STREAM("using topics: " << all_topics);
-    ROS_INFO_STREAM("playing from file: " << fname);
-    double deltaStartTime{0};
-    nh_.param<double>("bag_start_time", deltaStartTime, 0.0);
-    rosbag::View dummyView(bag, rosbag::TopicQuery(topics));
-    const ros::Time startTime =
-      dummyView.getBeginTime() + ros::Duration(deltaStartTime);
-    
-    rosbag::View view(bag, rosbag::TopicQuery(topics), startTime);
-    std::vector<std::vector<string>> tv;
-    tv.push_back(tagTopics);
-    tv.push_back(imageTopics);
-    tv.push_back(odomTopics);
-    
-    flex_sync::Sync<TagArray, Image, Odometry>
-      sync3(tv, std::bind(&TagSlam::processTagsAndImages, this,
-                          std::placeholders::_1, std::placeholders::_2,
-                          std::placeholders::_3));
-    flex_sync::Sync<TagArray, CompressedImage, Odometry>
-      sync3c(tv, std::bind(&TagSlam::processTagsAndCompressedImages, this,
-                           std::placeholders::_1, std::placeholders::_2,
-                           std::placeholders::_3));
-    for (const rosbag::MessageInstance &m: view) {
-      TagArrayConstPtr        tags = m.instantiate<TagArray>();
-      OdometryConstPtr        odom = m.instantiate<Odometry>();
-      ImageConstPtr           img  = m.instantiate<Image>();
-      CompressedImageConstPtr cimg = m.instantiate<CompressedImage>();
-      if (hasCompressedImages_) {
-        if (tags) sync3c.process(m.getTopic(), tags);
-        if (odom) sync3c.process(m.getTopic(), odom);
-        if (cimg) sync3c.process(m.getTopic(), cimg);
-      } else {
-        if (tags) sync3.process(m.getTopic(), tags);
-        if (odom) sync3.process(m.getTopic(), odom);
-        if (img)  sync3.process(m.getTopic(), img);
-      }
-      if (frameNum_ > (unsigned int)maxFrameNum_ || !ros::ok()) {
-        break;
-      }
-    }
-    bag.close();
-    finalize();
-    std::cout << profiler_ << std::endl;
   }
   
-}  // namespace
+  void
+  TagSlam::writeTagCorners(const ros::Time &t, int camIdx,
+                            const TagConstPtr &tag,
+                            const geometry_msgs::Point *img_corners) {
+    for (const auto i: irange(0, 4)) {
+      tagCornerFile_ << t << " " << tag->getId() << " " << camIdx << " "
+                     << i << " " << img_corners[i].x << " "
+                     << img_corners[i].y << std::endl;
+    }
+  }
+
+
+}  // end of namespace
+

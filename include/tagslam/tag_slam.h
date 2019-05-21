@@ -2,113 +2,91 @@
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#ifndef TAGSLAM_TAGSLAM_H
-#define TAGSLAM_TAGSLAM_H
+#pragma once
 
+#include "tagslam/tag_factory.h"
+#include "tagslam/graph_updater.h"
+#include "tagslam/graph.h"
 #include "tagslam/camera.h"
-#include "tagslam/tag_graph.h"
-#include "tagslam/rigid_body.h"
-#include "tagslam/distance_measurement.h"
-#include "tagslam/position_measurement.h"
-#include "tagslam/initial_pose_graph.h"
 #include "tagslam/profiler.h"
-#include <ros/ros.h>
+#include "tagslam/odometry_processor.h"
+#include "tagslam/measurements/measurements.h"
+
+#include <flex_sync/subscribing_sync.h>
+
+
 #include <tf/transform_broadcaster.h>
+#include <ros/ros.h>
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <nav_msgs/Odometry.h>
-#include <apriltag_msgs/ApriltagArrayStamped.h>
-#include <message_filters/time_synchronizer.h>
-#include <message_filters/subscriber.h>
-#include <message_filters/sync_policies/approximate_time.h>
-#include <vector>
-#include <memory>
-#include <map>
-#include <set>
+#include <std_srvs/Trigger.h>
+
+
 #include <string>
 #include <unordered_map>
+#include <map>
+#include <set>
+
 
 namespace tagslam {
-  using TagArray = apriltag_msgs::ApriltagArrayStamped;
-  using TagArrayPtr = TagArray::Ptr;
-  using TagArrayConstPtr = TagArray::ConstPtr;
-  using Odometry = nav_msgs::Odometry;
-  using OdometryConstPtr = nav_msgs::OdometryConstPtr;
-  using Image = sensor_msgs::Image;
-  using ImageConstPtr = sensor_msgs::ImageConstPtr;
-  using CompressedImage = sensor_msgs::CompressedImage;
-  using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
-  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray> SyncPolicy2;
-  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray> SyncPolicy3;
-  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray> SyncPolicy4;
-  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray, TagArray> SyncPolicy5;
-  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray, TagArray, TagArray> SyncPolicy6;
-  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray, TagArray, TagArray, TagArray> SyncPolicy7;
-  typedef message_filters::sync_policies::ApproximateTime<TagArray, TagArray, TagArray, TagArray, TagArray, TagArray, TagArray, TagArray> SyncPolicy8;
-  typedef message_filters::Synchronizer<SyncPolicy2> TimeSync2;
-  typedef message_filters::Synchronizer<SyncPolicy3> TimeSync3;
-  typedef message_filters::Synchronizer<SyncPolicy4> TimeSync4;
-  typedef message_filters::Synchronizer<SyncPolicy5> TimeSync5;
-  typedef message_filters::Synchronizer<SyncPolicy6> TimeSync6;
-  typedef message_filters::Synchronizer<SyncPolicy7> TimeSync7;
-  typedef message_filters::Synchronizer<SyncPolicy8> TimeSync8;
-  class TagSlam {
-  public:
-    TagSlam(const ros::NodeHandle &pnh);
-    ~TagSlam();
+  class TagSlam: public TagFactory {
+    using Apriltag = apriltag_msgs::Apriltag;
+    using TagArray = apriltag_msgs::ApriltagArrayStamped;
+    using TagArrayPtr = TagArray::Ptr;
+    using TagArrayConstPtr = TagArray::ConstPtr;
+    using Odometry = nav_msgs::Odometry;
+    using OdometryConstPtr = nav_msgs::OdometryConstPtr;
+    using Image = sensor_msgs::Image;
+    using ImageConstPtr = sensor_msgs::ImageConstPtr;
+    using CompressedImage = sensor_msgs::CompressedImage;
+    using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
+    using string = std::string;
+    typedef flex_sync::SubscribingSync<TagArray, CompressedImage, Odometry>
+    SubSyncCompressed;
+    typedef flex_sync::SubscribingSync<TagArray, Image, Odometry> SubSync;
 
+  public:
+    TagSlam(const ros::NodeHandle &nh);
     TagSlam(const TagSlam&) = delete;
     TagSlam& operator=(const TagSlam&) = delete;
 
+    // inherited from TagFactory
+    TagConstPtr findTag(int tagId) override;
+    // ------ own methods
     bool initialize();
-    void callback1(TagArrayConstPtr const &tag0);
-    void callback2(TagArrayConstPtr const &tag0,
-                   TagArrayConstPtr const &tag1);
-    void callback3(TagArrayConstPtr const &tag0,
-                   TagArrayConstPtr const &tag1,
-                   TagArrayConstPtr const &tag2);
-    void callback4(TagArrayConstPtr const &tag0,
-                   TagArrayConstPtr const &tag1,
-                   TagArrayConstPtr const &tag2,
-                   TagArrayConstPtr const &tag3);
-    void callback5(TagArrayConstPtr const &tag0,
-                   TagArrayConstPtr const &tag1,
-                   TagArrayConstPtr const &tag2,
-                   TagArrayConstPtr const &tag3,
-                   TagArrayConstPtr const &tag4);
-    void callback6(TagArrayConstPtr const &tag0,
-                   TagArrayConstPtr const &tag1,
-                   TagArrayConstPtr const &tag2,
-                   TagArrayConstPtr const &tag3,
-                   TagArrayConstPtr const &tag4,
-                   TagArrayConstPtr const &tag5);
-    void callback7(TagArrayConstPtr const &tag0,
-                   TagArrayConstPtr const &tag1,
-                   TagArrayConstPtr const &tag2,
-                   TagArrayConstPtr const &tag3,
-                   TagArrayConstPtr const &tag4,
-                   TagArrayConstPtr const &tag5,
-                   TagArrayConstPtr const &tag6);
-    void callback8(TagArrayConstPtr const &tag0,
-                   TagArrayConstPtr const &tag1,
-                   TagArrayConstPtr const &tag2,
-                   TagArrayConstPtr const &tag3,
-                   TagArrayConstPtr const &tag4,
-                   TagArrayConstPtr const &tag5,
-                   TagArrayConstPtr const &tag6,
-                   TagArrayConstPtr const &tag7);
+    void run();
+    void finalize();
+    void subscribe();
+    bool runOnline() const { return (inBagFile_.empty()); }
+
+    template<typename S>
+    void processBag(S *sync, rosbag::View *view) {
+      for (const rosbag::MessageInstance &m: *view) {
+         typename S::Type1::ConstPtr t1 = m.instantiate<typename S::Type1>();
+        if (t1) {    sync->process(m.getTopic(), t1); } else {
+          typename S::Type2::ConstPtr t2 = m.instantiate<typename S::Type2>();
+          if (t2) {  sync->process(m.getTopic(), t2); } else {
+            typename S::Type3::ConstPtr t3 =m.instantiate<typename S::Type3>();
+            if (t3) { sync->process(m.getTopic(), t3); }
+          }
+        }
+        if (frameNum_ > maxFrameNum_ || !ros::ok()) {
+          break;
+        }
+      }
+    }
+    void syncCallback(const std::vector<TagArrayConstPtr> &msgvec1,
+                      const std::vector<ImageConstPtr> &msgvec2,
+                      const std::vector<OdometryConstPtr> &msgvec3);
+    void syncCallbackCompressed(
+      const std::vector<TagArrayConstPtr> &msgvec1,
+      const std::vector<CompressedImageConstPtr> &msgvec2,
+      const std::vector<OdometryConstPtr> &msgvec3);
   private:
-    typedef std::vector<std::pair<gtsam::Point3, bool> > PointVector;
-    struct PoseInfo {
-      PoseInfo(const gtsam::Pose3 &p = gtsam::Pose3(), const ros::Time &t = ros::Time(0),
-               const std::string &pfrid = "",
-               const std::string &frid  = "") :
-        pose(p), time(t), parent_frame_id(pfrid), frame_id(frid) {}
-      gtsam::Pose3 pose;
-      ros::Time    time;
-      std::string  parent_frame_id;
-      std::string  frame_id;
-    };
+    void readParams();
     struct ReMap {
       ReMap(int i, ros::Time ts, ros::Time te) :
         remappedId(i), startTime(ts), endTime(te) {
@@ -117,137 +95,92 @@ namespace tagslam {
       ros::Time startTime;
       ros::Time endTime;
     };
+    typedef std::unordered_map<int, TagConstPtr> TagMap;
 
-    struct Rig {
-      Rig(const RigidBodyPtr &rb = RigidBodyPtr(),
-          const PoseNoise &pn = PoseNoise()) :
-        rigidBody(rb), poseEstimate(gtsam::Pose3(), 1e10, 1000, pn) {}
-      RigidBodyPtr rigidBody;
-      PoseEstimate poseEstimate;
-      unsigned int frameNum{0};
-    };
-    void remapBadTagIds(std::vector<TagArrayConstPtr> *remapped,
-                        const std::vector<TagArrayConstPtr> &orig);
-
-    void processTagsAndOdom(const std::vector<TagArrayConstPtr> &msgvec,
-                            const std::vector<OdometryConstPtr> &odomvec =
-                            std::vector<OdometryConstPtr>());
-    void processTagsAndImages(const std::vector<TagArrayConstPtr> &msgvec1,
-                              const std::vector<ImageConstPtr> &msgvec2,
-                              const std::vector<OdometryConstPtr> &msgvec3);
-    void processTagsAndCompressedImages(const std::vector<TagArrayConstPtr> &msgvec1,
-                                        const std::vector<CompressedImageConstPtr> &msgvec2,
-                                        const std::vector<OdometryConstPtr> &msgvec3);
-
-    bool subscribe();
-    void broadcastTransforms(const std::vector<PoseInfo> &poses);
-    void broadcastBodyPoses(const ros::Time &t);
-    void broadcastCameraPoses(const ros::Time &t);
-    void broadcastTagPoses(const ros::Time &t);
-    bool estimateInitialTagPose(int cam_idx, const gtsam::Pose3 &T_w_c,
-                                const gtsam::Point2 *corners,
-                                gtsam::Pose3 *pose) const;
-    RigidBodyPtr findBodyForTag(int tagId, int bits) const;
-
-    void discoverTags(const std::vector<TagArrayConstPtr> &msgvec);
-    unsigned int attachObservedTagsToBodies(const std::vector<TagArrayConstPtr> &msgvec);
-    void detachObservedTagsFromBodies();
-
-    bool estimateInitialTagPose(int cam_idx, const Tag &tag, gtsam::Pose3 *pose) const;
-
-    PoseEstimate estimatePosePNP(int cam_idx,
-                                 const std::vector<gtsam::Point3>&wpts,
-                                 const std::vector<gtsam::Point2>&ipts,
-                                 const std::vector<gtsam::Pose3> &T_w_o) const;
-    PoseEstimate poseFromPoints(int cam_idx,
-                                const std::vector<gtsam::Point3> &wp,
-                                const std::vector<gtsam::Point2> &ip,
-                                const std::vector<gtsam::Pose3> &T_w_o) const;
-    bool estimateTagPose(int cam_idx,
-                         const gtsam::Pose3 &bodyPose,
-                         const TagPtr &tag) const;
-    PoseEstimate estimateBodyPose(const RigidBodyConstPtr &rb) const;
-    void computeProjectionError();
-    void runOptimizer();
-    void finalize();
-    PoseEstimate findCameraPose(int cam_idx, const RigidBodyConstVec &rigidBodies,
-                                bool inWorldFrame) const;
-    PoseEstimate guessCameraWorldPose(unsigned int cam_idx) const;
-    void findInitialCameraAndRigPoses();
-    void findInitialBodyPoses();
-    void addOdom(const std::vector<OdometryConstPtr> &odomVec);
-    void findInitialDiscoveredTagPoses();
-    std::vector<int> findCamerasWithKnownWorldPose() const;
-    void updatePosesFromGraph(unsigned int frame_num);
-    void writeBodyPoses(const std::string &poseFile) const;
-    void writeTagWorldPoses(const std::string &poseFile, unsigned int frameNum) const;
-    void writeCameraPoses(const std::string &fname) const;
+    void readBodies(XmlRpc::XmlRpcValue config);
+    void readDefaultBody(XmlRpc::XmlRpcValue config);
+    void readCameras(XmlRpc::XmlRpcValue config);
+    void readCameraPoses(XmlRpc::XmlRpcValue config);
+    void readDistanceMeasurements();
+    void readRemap(XmlRpc::XmlRpcValue config);
+    void readSquash(XmlRpc::XmlRpcValue config);
+ 
     void playFromBag(const std::string &fname);
-    bool readRigidBodies();
-    void readMeasurements(const std::string &type);
-    void readRemap();
-    bool attachCamerasToBodies();
-    void invalidateDynamicPoses();
+    void fakeOdom(const ros::Time &tCurr, std::vector<VertexDesc> *factors);
+
+    void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
+                     std::vector<VertexDesc> *factors);
+    std::vector<std::vector<std::string>> makeTopics() const;
+    void
+    testIfInBag(rosbag::Bag *bag,
+                const std::vector<std::vector<std::string>> &topics) const;
+
+    void setupOdom(const std::vector<OdometryConstPtr> &odomMsgs);
+    void processTagsAndOdom(const std::vector<TagArrayConstPtr> &tagmsgs,
+                            const std::vector<OdometryConstPtr> &odommsgs);
+    void publishTagAndBodyTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
+    void publishOriginalTagTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
+    void publishCameraTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
+
+    void publishTransforms(const ros::Time &t, bool orig = false);
+    void publishBodyOdom(const ros::Time &t);
+    void sleep(double dt) const;
+    void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
+                     std::vector<VertexDesc> *factors);
+    std::vector<TagConstPtr> findTags(const std::vector<Apriltag> &ta);
+    bool anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs);
+    void publishAll(const ros::Time &t);
+    bool replay(std_srvs::Trigger::Request& req,
+                std_srvs::Trigger::Response &res);
+    void writeCameraPoses(const string &fname) const;
+    void writePoses(const string &fname) const;
+    void writeTagDiagnostics(const string &fname) const;
+    void writeTimeDiagnostics(const string &fname) const;
+    void writeDistanceDiagnostics(const string &fname) const;
+    void writeErrorMap(const string &fname) const;
+    void writeTagCorners(const ros::Time &t, int camIdx, const TagConstPtr &tag,
+                         const geometry_msgs::Point *img_corners);
+
+    void remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
+                        const std::vector<TagArrayConstPtr> &orig);
     void applyDistanceMeasurements();
-    void applyPositionMeasurements();
-    bool isBadViewingAngle(const gtsam::Pose3 &p) const;
-    void writeMeasurements(const std::string &fname,
-                           const PointVector &dist, const PointVector &pos) const;
-    void writeDistanceMeasurements(std::ostream &f, const PointVector &dist) const;
-    void writePositionMeasurements(std::ostream &f, const PointVector &pos) const;
-    void printDistanceErrors(const PointVector &dist) const;
-    void printPositionErrors(const PointVector &pos) const;
-    PointVector getPositions() const;
-    PointVector getDistances() const;
-    // ----------------------------------------------------------
-    typedef message_filters::Subscriber<TagArray> TagSubscriber;
-    typedef std::unordered_map<int, TagPtr>       IdToTagMap;
-    ros::Subscriber                               singleCamSub_;
-    ros::Publisher                                clockPub_;
-    std::vector<ros::Publisher>                   camOdomPub_;
-    std::vector<ros::Publisher>                   bodyOdomPub_;
-    std::vector<std::shared_ptr<TagSubscriber>>   sub_;
-    std::unique_ptr<TimeSync2>                    approxSync2_;
-    std::unique_ptr<TimeSync3>                    approxSync3_;
-    std::unique_ptr<TimeSync4>                    approxSync4_;
-    std::unique_ptr<TimeSync5>                    approxSync5_;
-    std::unique_ptr<TimeSync6>                    approxSync6_;
-    std::unique_ptr<TimeSync7>                    approxSync7_;
-    std::unique_ptr<TimeSync8>                    approxSync8_;
+
+    // ------ variables --------
+    ros::NodeHandle      nh_;
+    GraphPtr             graph_;
+    GraphUpdater         graphUpdater_;
+    CameraVec            cameras_;
+    BodyVec              bodies_;
+    BodyVec              nonstaticBodies_;
+    BodyPtr              defaultBody_;
+    ros::Publisher       clockPub_;
+    std::vector<ros::Publisher> odomPub_;
+    string               fixedFrame_;
+    bool                 writeDebugImages_;
+    bool                 hasCompressedImages_;
+    bool                 useFakeOdom_{false};
+    int                  frameNum_{0};
+    int                  maxFrameNum_{1000000};
+    double               playbackRate_{1.0};
+    double               pixelNoise_{1.0};
+    std::vector<cv::Mat> images_;
+    std::vector<OdometryProcessor> odomProcessors_;
+    tf::TransformBroadcaster tfBroadcaster_;
+    ros::ServiceServer   service_;
+    TagMap               tagMap_;
+    Profiler             profiler_;
+    std::list<ros::Time> times_;
+    rosbag::Bag          outBag_;
+    std::ofstream        tagCornerFile_;
+    std::string          outBagName_;
+    std::string          poseFile_;
+    std::string          camPoseFile_;
+    std::string          inBagFile_;
+    std::shared_ptr<SubSyncCompressed> subSyncCompressed_;
+    std::shared_ptr<SubSync> subSync_;
     
-    ros::NodeHandle                               nh_;
-    CameraVec                                     cameras_;
-    std::vector<cv::Mat>                          images_;
-    TagGraph                                      tagGraph_;
-    InitialPoseGraph                              initialPoseGraph_;
-    IdToTagMap                                    allTags_;
-    RigidBodyVec                                  staticBodies_;
-    RigidBodyVec                                  dynamicBodies_;
-    RigidBodyVec                                  allBodies_;
-    RigidBodyPtr                                  defaultBody_;
-    DistanceMeasurementVec                        distanceMeasurements_;
-    DistanceMeasurementVec                        unappliedDistanceMeasurements_;
-    PositionMeasurementVec                        positionMeasurements_;
-    PositionMeasurementVec                        unappliedPositionMeasurements_;
-    unsigned int                                  frameNum_{0};
-    int                                           maxFrameNum_{1000000};
-    bool                                          writeDebugImages_{false};
-    bool                                          hasCompressedImages_{false};
-    tf::TransformBroadcaster                      tfBroadcaster_;
-    std::string                                   paramPrefix_;
-    std::string                                   bodyPosesOutFile_;
-    std::string                                   tagWorldPosesOutFile_;
-    std::string                                   cameraPosesOutFile_;
-    std::string                                   measurementsOutFile_;
-    std::string                                   fixedFrame_;
-    double                                        viewingAngleThreshold_;
-    double                                        initBodyPoseMaxError_;
-    double                                        maxInitErr_{0.02};
-    std::unordered_map<int, std::vector<ReMap>>   tagRemap_;
-    std::unordered_map<std::string, Rig>          frameIdToRig_;
-    Profiler                                      profiler_;
+    std::unordered_map<int, std::vector<ReMap>>  tagRemap_;
+    std::map<ros::Time, std::set<int>> squash_;
+    std::vector<MeasurementsPtr> measurements_;
   };
-
 }
-
-#endif

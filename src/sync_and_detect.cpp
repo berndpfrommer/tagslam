@@ -3,6 +3,8 @@
  */
 
 #include "tagslam/sync_and_detect.h"
+#include "tagslam/logging.h"
+
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <cv_bridge/cv_bridge.h>
@@ -28,19 +30,16 @@ namespace tagslam {
   bool SyncAndDetect::initialize() {
     nh_.getParam("odometry_topics", odometryTopics_);
     if (!nh_.getParam("image_topics", imageTopics_)) {
-      ROS_ERROR("must specify image_topics parameter!");
-      return (false);
+      BOMB_OUT("must specify image_topics parameter!");
     }
     if (!nh_.getParam("image_output_topics", imageOutputTopics_)) {
       imageOutputTopics_ = imageTopics_;
     }
     if (!nh_.getParam("tag_topics", tagTopics_)) {
-      ROS_ERROR("must specify tagTopics parameter!");
-      return (false);
+      BOMB_OUT("must specify tagTopics parameter!");
     }
     if (tagTopics_.size() != imageTopics_.size()) {
-      ROS_ERROR("must have same number of tag_topics and image_topics!");
-      return (false);
+      BOMB_OUT("must have same number of tag_topics and image_topics!");
     }
     nh_.param<std::string>("detector_type", detectorType_, "Mit");
     if (detectorType_ == "Mit") {
@@ -50,7 +49,7 @@ namespace tagslam {
       detector_ = apriltag_ros::ApriltagDetector::Create(
         apriltag_ros::DetectorType::Umich, apriltag_ros::TagFamily::tf36h11);
     } else {
-      ROS_ERROR_STREAM("INVALID DETECTOR TYPE: " << detectorType_);
+      BOMB_OUT("INVALID DETECTOR TYPE: " << detectorType_);
     }
     int borderWidth;
     nh_.param<int>("black_border_width", borderWidth, 1);
@@ -68,17 +67,16 @@ namespace tagslam {
     if (!bagFile.empty()) {
       processBag(bagFile);
     } else {
-      ROS_ERROR("must specify bag_file parameter!");
-      outbag_.close();
-      return (false);
+      BOMB_OUT("must specify bag_file parameter!");
     }
     outbag_.close();
     return (true);
   }
 
-  void SyncAndDetect::processCVMat(const std::vector<std_msgs::Header> &headers,
-                                   const std::vector<cv::Mat> &grey,
-                                   const std::vector<cv::Mat> &imgs) {
+  void
+  SyncAndDetect::processCVMat(const std::vector<std_msgs::Header> &headers,
+                              const std::vector<cv::Mat> &grey,
+                              const std::vector<cv::Mat> &imgs) {
     int totTags(0);
     typedef std::vector<apriltag_msgs::Apriltag> TagVec;
     std::vector<TagVec> allTags(grey.size());
@@ -108,7 +106,8 @@ namespace tagslam {
         tagMsg.apriltags.push_back(tag);
       }
       if(headers[i].stamp.toSec() != 0)
-        outbag_.write<apriltag_msgs::ApriltagArrayStamped>(tagTopics_[i], headers[i].stamp, tagMsg);
+        outbag_.write<apriltag_msgs::ApriltagArrayStamped>(
+          tagTopics_[i], headers[i].stamp, tagMsg);
       if (annotateImages_) {
         cv::Mat colorImg = imgs[i].clone();
         if (!tags.empty()) {
@@ -119,18 +118,21 @@ namespace tagslam {
         cv::imencode(".jpg", colorImg, msg.data, param);
 
         if(headers[i].stamp.toSec() != 0)
-          outbag_.write<sensor_msgs::CompressedImage>(imageOutputTopics_[i], headers[i].stamp, msg);
+          outbag_.write<sensor_msgs::CompressedImage>(
+            imageOutputTopics_[i], headers[i].stamp, msg);
       }
     }
-    ROS_INFO_STREAM("frame " << fnum_ << " " << headers[0].stamp << " detected "
-                    << totTags << " tags with " << grey.size() << " cameras");
+    ROS_INFO_STREAM("frame " << fnum_ << " " << headers[0].stamp
+                    << " detected " << totTags << " tags with "
+                    << grey.size() << " cameras");
     fnum_++;
   }
 
-  void SyncAndDetect::processCompressedImages(const std::vector<CompressedImageConstPtr> &msgvec,
-                                              const std::vector<OdometryConstPtr> &odom) {
+  void SyncAndDetect::processCompressedImages(
+    const std::vector<CompressedImageConstPtr> &msgvec,
+    const std::vector<OdometryConstPtr> &odom) {
     if (msgvec.empty()) {
-      ROS_ERROR("got empty image vector!");
+      ROS_WARN("got empty image vector!");
       return;
     }
     if (fnum_ % skip_ != 0) {
@@ -142,7 +144,8 @@ namespace tagslam {
     std::vector<std_msgs::Header> headers;
     for (const auto i: irange(0ul, msgvec.size())) {
       const auto &img = msgvec[i];
-      cv::Mat im1 = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8)->image;
+      cv::Mat im1 = cv_bridge::toCvCopy(
+        img, sensor_msgs::image_encodings::MONO8)->image;
       cv::Mat im;
       cv::cvtColor(im1, im, cv::COLOR_BayerBG2BGR);
       images.push_back(im);
@@ -162,7 +165,7 @@ namespace tagslam {
   SyncAndDetect::processImages(const std::vector<ImageConstPtr> &msgvec,
                                const std::vector<OdometryConstPtr> &odom) {
     if (msgvec.empty()) {
-      ROS_ERROR("got empty image vector!");
+      ROS_WARN("got empty image vector!");
       return;
     }
     if (fnum_ % skip_ != 0) {
@@ -174,9 +177,11 @@ namespace tagslam {
     std::vector<std_msgs::Header> headers;
     for (const auto i: irange(0ul, msgvec.size())) {
       const auto &img = msgvec[i];
-      cv::Mat im = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8)->image;
+      cv::Mat im = cv_bridge::toCvCopy(
+        img, sensor_msgs::image_encodings::BGR8)->image;
       images.push_back(im);
-      cv::Mat im_grey = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8)->image;
+      cv::Mat im_grey = cv_bridge::toCvCopy(
+        img, sensor_msgs::image_encodings::MONO8)->image;
       grey_images.push_back(im_grey);
       headers.push_back(img->header);
     }
@@ -194,27 +199,29 @@ namespace tagslam {
     double start_time(0), duration(-1);
     nh_.param<double>("start_time", start_time, 0);
     nh_.param<double>("duration", duration, -1);
-    ros::Time t_start = rosbag::View(bag).getBeginTime() + ros::Duration(start_time);
-    ros::Time t_end   = duration >= 0 ? t_start + ros::Duration(duration) : ros::TIME_MAX;
+    ros::Time t_start =
+      rosbag::View(bag).getBeginTime() + ros::Duration(start_time);
+    ros::Time t_end =
+      duration >= 0 ? t_start + ros::Duration(duration) : ros::TIME_MAX;
     std::vector<std::string> allTopics = imageTopics_;
-    allTopics.insert(allTopics.end(),odometryTopics_.begin(), odometryTopics_.end());
+    allTopics.insert(allTopics.end(),odometryTopics_.begin(),
+                     odometryTopics_.end());
     rosbag::View view(bag, rosbag::TopicQuery(allTopics), t_start, t_end);
     for (const auto i: irange(0ul, tagTopics_.size())) {
-      ROS_INFO_STREAM("image topic: "  << imageTopics_[i] << " maps to: " << tagTopics_[i]);
+      ROS_INFO_STREAM("image topic: "  << imageTopics_[i]
+                      << " maps to: " << tagTopics_[i]);
     }
 
     if (imagesAreCompressed_) {
-      iterate_through_bag<CompressedImage>(imageTopics_, odometryTopics_,
-                                           &view, &outbag_,
-                                           std::bind(&SyncAndDetect::processCompressedImages,
-                                                     this, std::placeholders::_1,
-                                                     std::placeholders::_2));
+      iterate_through_bag<CompressedImage>(
+        imageTopics_, odometryTopics_, &view, &outbag_,
+        std::bind(&SyncAndDetect::processCompressedImages,
+                  this, std::placeholders::_1, std::placeholders::_2));
     } else {
-      iterate_through_bag<sensor_msgs::Image>(imageTopics_, odometryTopics_,
-                                              &view, &outbag_,
-                                              std::bind(&SyncAndDetect::processImages,
-                                                     this, std::placeholders::_1,
-                                                        std::placeholders::_2));
+      iterate_through_bag<sensor_msgs::Image>(
+        imageTopics_, odometryTopics_, &view, &outbag_,
+        std::bind(&SyncAndDetect::processImages,
+                  this, std::placeholders::_1, std::placeholders::_2));
     }
     bag.close();
     ros::shutdown();

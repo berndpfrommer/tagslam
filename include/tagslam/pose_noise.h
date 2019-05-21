@@ -1,18 +1,32 @@
 /* -*-c++-*--------------------------------------------------------------------
- * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
+ * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
-#ifndef TAGSLAM_POSE_NOISE_H
-#define TAGSLAM_POSE_NOISE_H
 
-#include <gtsam/linear/NoiseModel.h>
-#include <Eigen/Dense>
+#pragma once
+
+#include "tagslam/geometry.h"
 
 namespace tagslam {
-  //using PoseNoise = gtsam::noiseModel::Diagonal::shared_ptr;
-  using PoseNoise = gtsam::noiseModel::Gaussian::shared_ptr;
-  PoseNoise makePoseNoise(const Eigen::Vector3d &a,
-                                 const Eigen::Vector3d &p);
-  PoseNoise makePoseNoise(double angle, double position);
-}
+  typedef Eigen::Matrix<double, 6, 6> Matrix6d;
+  class PoseNoise {
+  public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    PoseNoise(const Matrix6d &n = Matrix6d::Identity(),
+               bool isDiag = false) :
+      noise(n), isDiagonal(isDiag) {
+    };
+    Eigen::Matrix<double,6,1>  getDiagonal() const;
+    const Matrix6d            &getSigmaMatrix() const { return (noise); }
+    bool                       getIsDiagonal() const { return (isDiagonal); }
+    Matrix6d                   convertToR() const;
+    static PoseNoise make(const Point3d &angle,  const Point3d &pos);
+    static PoseNoise make(double a, double p);
+    static PoseNoise makeFromR(const Matrix6d &r);
+    friend std::ostream &operator<<(std::ostream &os, const PoseNoise &pn);
 
-#endif
+  private:
+    Matrix6d noise;
+    bool     isDiagonal = {false};
+  };
+  std::ostream &operator<<(std::ostream &os, const PoseNoise &pn);
+}

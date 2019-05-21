@@ -15,9 +15,9 @@ public:
   Cal3DS2U(const gtsam::Cal3DS2 &cal) : Cal3DS2(cal) {
   }
 
-  gtsam::Point2 uncalibrate(const gtsam::Point2& p,
-                            gtsam::OptionalJacobian<2,9> Dcal = boost::none,
-                            gtsam::OptionalJacobian<2,2> Dp = boost::none) const {
+  gtsam::Point2 uncalibrate(
+    const gtsam::Point2& p, gtsam::OptionalJacobian<2,9> Dcal = boost::none,
+    gtsam::OptionalJacobian<2,2> Dp = boost::none) const {
     return (gtsam::Cal3DS2_Base::uncalibrate(p, Dcal, Dp));
   }
 };

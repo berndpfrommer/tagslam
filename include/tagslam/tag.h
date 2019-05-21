@@ -1,62 +1,55 @@
 /* -*-c++-*--------------------------------------------------------------------
- * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
+ * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
-#ifndef TAGSLAM_TAG_H
-#define TAGSLAM_TAG_H
 
-#include "tagslam/pose_estimate.h"
-#include "tagslam/pose_noise.h"
+#pragma once
 
-#include <gtsam/geometry/Point3.h>
-#include <gtsam/linear/NoiseModel.h>
-#include <gtsam/geometry/Pose3.h>
-#include <gtsam/geometry/Point2.h>
-#include <gtsam/geometry/Point3.h>
-#include <geometry_msgs/Point.h>
-#include <ros/ros.h>
+#include "tagslam/pose_with_noise.h"
+#include "tagslam/geometry.h"
+
 #include <vector>
 #include <map>
 #include <memory>
 #include <iostream>
+#include <ros/ros.h>
 
 namespace tagslam {
-  struct Tag {
-    gtsam::Point3 getObjectCorner(int i) const;
-    const std::vector<gtsam::Point3> &getObjectCorners() const {
-      return objectCorners;
-    };
-    const std::vector<gtsam::Point2> &getImageCorners() const {
-      return imageCorners;
-    }
-    gtsam::Point3 getWorldCorner(int i) const;
-    bool hasValidImageCorners() const;
-    void setImageCorners(const geometry_msgs::Point *corners);
-
-    // ------- variables --------------
-    int            id;
-    int            type;     // distinguishes different size tags!
-    int            bits{6};  // determines tag family
-    double         size;     // tag size in meters
-    PoseEstimate   poseEstimate; // tag pose relative body: T_b_o
-    bool           hasKnownPose; // tag pose is known from the start
+  class Body;
+  class Tag {
+  public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     //
     typedef std::shared_ptr<Tag>        TagPtr;
     typedef std::shared_ptr<const Tag>  TagConstPtr;
     typedef std::vector<TagPtr>         TagVec;
-    // ----------- static methods
-    static std::vector<gtsam::Point3> make_object_corners(double size);
-    static TagVec parseTags(XmlRpc::XmlRpcValue xmltags, double sz);
+
+    int    getId()   const { return (id_); }
+    int    getBits() const { return (bits_); }
+    double getSize() const { return (size_); }
+    const std::shared_ptr<Body> getBody() const { return (body_); }
+    const PoseWithNoise &getPoseWithNoise() const { return (poseWithNoise_); }
+    const Eigen::Matrix<double, 4, 3> &getObjectCorners()
+      const { return (objectCorners_); }
+    const Point3d getObjectCorner(int idx)
+      const { return (idx >= 0 ? objectCorners_.row(idx) : Point3d(0,0,0)); }
+
     friend std::ostream &operator<<(std::ostream &os, const Tag &tag);
-    static TagPtr
-    makeTag(int ida, int bits, double sz, const PoseEstimate &pe = PoseEstimate(),
-            bool hasKPose = false);
-
+    // ----------- static methods
+    static TagVec parseTags(XmlRpc::XmlRpcValue xmltags, double sz,
+                             const std::shared_ptr<Body> &body);
+    static TagPtr make(int ida, int bits, double sz, const PoseWithNoise &pe,
+                        const std::shared_ptr<Body> &body);
   private:
-    Tag(int ida, int tp, int bits, double sz, 
-        const PoseEstimate &pe, bool hasKPose);
+    Tag(int ida, int bits, double sz, const PoseWithNoise &pe,
+         const std::shared_ptr<Body> &body);
 
-    std::vector<gtsam::Point3>  objectCorners;  // 3d object coordinates
-    std::vector<gtsam::Point2>  imageCorners;   // u,v of last observed corner points
+    // ------- variables --------------
+    int            id_;            // tag id
+    int            bits_{6};       // determines tag family
+    double         size_;          // tag size in meters
+    PoseWithNoise  poseWithNoise_; // tag pose relative body: T_b_o
+    std::shared_ptr<Body> body_;   // body to which this tag belongs
+    Eigen::Matrix<double, 4, 3> objectCorners_;
   };
   typedef Tag::TagPtr TagPtr;
   typedef Tag::TagConstPtr TagConstPtr;
@@ -64,5 +57,3 @@ namespace tagslam {
   typedef std::map<int, TagPtr> TagMap;
   std::ostream &operator<<(std::ostream &os, const Tag &tag);
 }
-
-#endif

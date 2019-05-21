@@ -1,0 +1,76 @@
+body_defaults:
+  position_noise: 0.05
+  rotation_noise: 0.01
+default_body: top_floor
+bodies:
+ - top_floor:
+     is_static: true
+     ignore_tags: [166, 213, 223, 237, 367, 381, 392, 354, 405, 585]
+     default_tag_size: 0.150
+     max_hamming_distance: 2
+     pose:
+       position:
+         x: 0
+         y: 0
+         z: 0
+       rotation:
+         x: 0
+         y: 0
+         z: 0
+       position_noise:
+         x: 0.0001
+         y: 0.0001
+         z: 0.0001
+       rotation_noise:
+         x: 1.0e-05
+         y: 1.0e-05
+         z: 1.0e-05
+     type: simple
+     tags:
+       - id: 6
+         size: 0.15000000
+         pose:
+           position:
+             x: 1.92018
+             y: 0.5987
+             z: 2.2390
+           rotation:
+             x: 0.0
+             y: -1.570796327
+             z: 0.0
+           position_noise:
+             x: 0.0001
+             y: 0.0001
+             z: 0.0001
+           rotation_noise:
+             x: 1.0e-5
+             y: 1.0e-5
+             z: 1.0e-5
+ - rig:
+     ignore_tags: [381]
+     is_static: false
+     type: camera_rig
+     odom_topic: "/fla/vio/odom"
+     odom_frame_id: odom
+     odom_acceleration: 1.0
+     odom_angular_acceleration: 1.0
+     T_body_odom:
+       position:
+         x:  0.02568531
+         y:  0.0238219
+         z:  0.026066910
+       rotation:
+         x:  -7.66219656e-04
+         y:  2.84301166e-02
+         z:  3.14080874
+tag_id_remap:
+  - id: 20
+    remaps:
+      - remap_id: 420
+        start_time: 1541686885.999522770
+        end_time:   1541686936.513937363
+      - remap_id: 520
+        start_time: 1541687179.947268789
+        end_time:   1541687229.942551085
+odometry:
+  topics: ["/fla/vio/odom"]

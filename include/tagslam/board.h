@@ -2,36 +2,35 @@
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#ifndef TAGSLAM_BOARD_H
-#define TAGSLAM_BOARD_H
+#pragma once
 
-#include "tagslam/rigid_body.h"
+#include "tagslam/body.h"
 #include <iostream>
+#include <memory>
 
 namespace tagslam {
-  struct Board: public RigidBody {
-    Board(const std::string &n  = std::string(""),
-          bool iS = false) : RigidBody(n, iS) {
-      type = "board";
-    }
-    bool parse(XmlRpc::XmlRpcValue body_defaults,
-               XmlRpc::XmlRpcValue body) override;
-    bool write(std::ostream &os, const std::string &prefix) const override;
-    int     tagStartId{-1};
-    double  tagSize{-1.0};
-    int     tagBits{6};
-    double  tagSpacing{0.25};
-    int     tagRows{-1};
-    int     tagColumns{-1};
-    double  tagRotationNoise;
-    double  tagPositionNoise;
+  class Board: public Body {
+  public:
+    using string = std::string;
     typedef std::shared_ptr<Board> BoardPtr;
     typedef std::shared_ptr<const Board> BoardConstPtr;
 
-
+    Board(const string &n  = string(""), bool iS = false) :
+      Body(n, iS) {
+      type_ = "board";
+    }
+    bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) override;
+    bool write(std::ostream &os, const string &prefix) const override;
+  private:
+    int     tagStartId_{-1};
+    double  tagSize_{-1.0};
+    int     tagBits_{6};
+    double  tagSpacing_{0.25};
+    int     tagRows_{-1};
+    int     tagColumns_{-1};
+    double  tagRotationNoise_;
+    double  tagPositionNoise_;
   };
   using BoardPtr      = Board::BoardPtr;
   using BoardConstPtr = Board::BoardConstPtr;
 }
-
-#endif

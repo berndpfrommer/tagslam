@@ -39,8 +39,8 @@ namespace tagslam {
       float stddev = sqrt((double) sqdn);
       int64_t dmin = (pt.count > 0) ? pt.min.count() : -1;
       int64_t dmax = (pt.count > 0) ? pt.max.count() : -1;
-      os << std::setw(maxlen + 1) << std::left << it->first << "= "
-         << dn << "+-" << (int)stddev << "(" << dmin << "-" << dmax << ")" << "[" << pt.count << "] " << std::endl;
+      os << std::setw(maxlen + 1) << std::left << it->first << "= tot: " << pt.duration << " per: "
+         << dn << "+-" << (int)stddev << "(" << dmin << "-" << dmax << ")" << " count: " << pt.count << " " << std::endl;
     }
     return os;
   }

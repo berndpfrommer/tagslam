@@ -7,5 +7,4 @@
 - Source bag: ``2018-11-08-08-57-25_mapping_pg.bag``
 - detector: MIT
 - frames: 3579
-- Remark: this was a mapping run.
-
+- Remark: this was a mapping run with a high-res camera

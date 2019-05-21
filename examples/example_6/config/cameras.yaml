@@ -8,6 +8,8 @@ cam0:
   rostopic: /quadruple/bottom_left/image_raw/compressed
   tagtopic: /quadruple/bottom_left/tags
   rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01
 cam1:
   camera_model: pinhole
   intrinsics: [467.815, 467.971, 641.13, 511.084]
@@ -18,6 +20,8 @@ cam1:
   rostopic: /quadruple/bottom_right/image_raw/compressed
   tagtopic: /quadruple/bottom_right/tags
   rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01
 cam2:
   camera_model: pinhole
   intrinsics: [472.938, 472.862, 638.667, 514.481]
@@ -28,6 +32,8 @@ cam2:
   rostopic: /quadruple/top_left/image_raw/compressed
   tagtopic: /quadruple/top_left/tags
   rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01
 cam3:
   camera_model: pinhole
   intrinsics: [471.777, 471.863, 629.462, 515.161]
@@ -38,3 +44,5 @@ cam3:
   rostopic: /quadruple/top_right/image_raw/compressed
   tagtopic: /quadruple/top_right/tags
   rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01

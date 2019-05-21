@@ -1,9 +1,10 @@
 /* -*-c++-*--------------------------------------------------------------------
- * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
+ * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#include "tagslam/yaml_utils.h"
 #include "tagslam/tag.h"
+#include "tagslam/body.h"
+#include "tagslam/xml.h"
 #include <ros/ros.h>
 #include <map>
 
@@ -11,100 +12,49 @@ using std::cout;
 using std::endl;
 
 namespace tagslam {
-  typedef std::map<double, int> SizeMap;
-  static SizeMap tag_size_map;
-  
-  static int find_tag_type(double size) {
-    // check if this tag is of unknown size. If yes,
-    // declare it a new type.
-    if (tag_size_map.count(size) == 0) {
-      tag_size_map.insert(SizeMap::value_type(size, tag_size_map.size()));
-    }
-    return (tag_size_map.find(size)->second);
-  }
-
-  Tag::Tag(int ida, int tp, int bts, double s, const PoseEstimate &pe,
-           bool hasKPose) :
-    id(ida), type(tp), bits(bts), size(s), poseEstimate(pe), hasKnownPose(hasKPose) {
-    objectCorners = make_object_corners(size);
-    imageCorners.resize(4);
-  }
-
-  gtsam::Point3 Tag::getObjectCorner(int i) const {
-    return objectCorners[i];
-  }
-
-  bool Tag::hasValidImageCorners() const {
-    for (int i = 0; i < 4; i++) {
-      if (imageCorners[i].x() != 0 || imageCorners[i].y() != 0) {
-        return (true);
-      }
-    }
-    return (false);
-  }
-
-  void Tag::setImageCorners(const geometry_msgs::Point *corn) {
-    for (int i = 0; i < 4; i++) {
-      imageCorners[i] = gtsam::Point2(corn[i].x, corn[i].y);
+  Tag::Tag(int ida, int bts, double s, const PoseWithNoise &pn,
+             const std::shared_ptr<Body> &body) :
+    id_(ida), bits_(bts), size_(s), poseWithNoise_(pn), body_(body)  {
+    objectCorners_ <<
+      -s/2, -s/2, 0,
+       s/2, -s/2, 0,
+       s/2,  s/2, 0,
+      -s/2,  s/2, 0;
+    if (poseWithNoise_.isValid() && body->overrides()) {
+      poseWithNoise_.setNoise(
+        PoseNoise::make(body->getOverrideTagRotationNoise(),
+                         body->getOverrideTagPositionNoise()));
     }
   }
-  
-  gtsam::Point3 Tag::getWorldCorner(int i) const {
-    return (poseEstimate.transform_from(getObjectCorner(i)));
-  }
 
-  TagVec Tag::parseTags(XmlRpc::XmlRpcValue xmltags, double size) {
+  TagVec Tag::parseTags(XmlRpc::XmlRpcValue xmltags, double size,
+                          const std::shared_ptr<Body> &body) {
     std::vector<TagPtr> tags;
     for (uint32_t i = 0; i < (unsigned int) xmltags.size(); i++) {
       if (xmltags[i].getType() != XmlRpc::XmlRpcValue::TypeStruct) continue;
-      int id(0), bits(6);
-      double sz(size);
-      for (XmlRpc::XmlRpcValue::iterator it = xmltags[i].begin();
-           it != xmltags[i].end(); ++it) {
-        std::string field = it->first;
-        if (field == "id") {           id   = static_cast<int>(it->second);
-        } else  if (field == "bits") { bits = static_cast<int>(it->second);
-        } else  if (field == "size") { sz   = static_cast<double>(it->second);
-        }
-      }
-      gtsam::Pose3 pose;
-      PoseNoise noise;
-      if (yaml_utils::get_pose_and_noise(xmltags[i], &pose, &noise)) {
-        PoseEstimate pe(pose, 0.0, 0, noise);
-        tags.push_back(makeTag(id, bits, sz, pe, true));
-      } else {
-        tags.push_back(makeTag(id, bits, sz, PoseEstimate(), false));
-      }
+      const int id    = xml::parse<int>(xmltags[i],    "id");
+      const int bits  = xml::parse<int>(xmltags[i],    "bits", 6);
+      const double sz = xml::parse<double>(xmltags[i], "size", size);
+      const PoseWithNoise pwn =
+        xml::parse<PoseWithNoise>(xmltags[i], "pose", PoseWithNoise());
+      tags.push_back(make(id, bits, sz, pwn, body));
     }
-    /*
-      std::cout << "-------tags: " << std::endl;
-      for (const auto &tag:tags) {
-      std::cout << *tag << std::endl;
-      }
-    */
+    //std::cout << "-------tags: " << std::endl;
+    //for (const auto &tag:tags) {
+    //std::cout << *tag << std::endl;
+    //}
     return (tags);
   }
 
-  TagPtr Tag::makeTag(int tagId, int bits, double size, const PoseEstimate &pe,
-                      bool hasKnownPose) {
-    TagPtr tagPtr(new Tag(tagId, find_tag_type(size), bits,
-                       size, pe, hasKnownPose));
+  TagPtr Tag::make(int tagId, int bits, double size, const PoseWithNoise &pn,
+                     const std::shared_ptr<Body> &body) {
+    TagPtr tagPtr(new Tag(tagId, bits, size, pn, body));
     return (tagPtr);
   }
   
-  std::vector<gtsam::Point3> Tag::make_object_corners(double size) {
-    const double s = size;
-    const std::vector<gtsam::Point3> c =
-      {gtsam::Point3(-s/2,-s/2, 0),
-       gtsam::Point3( s/2,-s/2, 0),
-       gtsam::Point3( s/2, s/2, 0),
-       gtsam::Point3(-s/2, s/2, 0)};
-    return (c);
-  }
   std::ostream &operator<<(std::ostream &os, const Tag &tag) {
-    os << tag.id << " sz: " << tag.size << " ty: " << tag.type << " " << tag.poseEstimate;
-    os << " corners: " << tag.imageCorners[0] << " " << tag.imageCorners[1] << " "
-       << tag.imageCorners[2] << " " << tag.imageCorners[3] << std::endl;
+    os << tag.id_ << " sz: " << tag.size_ << " " << tag.body_->getName()
+       << " " << tag.poseWithNoise_;
     return (os);
   }
 }  // namespace

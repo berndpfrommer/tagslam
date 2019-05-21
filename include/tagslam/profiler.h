@@ -2,8 +2,7 @@
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#ifndef TAGSLAM_PROFILER_H
-#define TAGSLAM_PROFILER_H
+#pragma once
 
 #include <iostream>
 #include <boost/chrono.hpp>
@@ -50,6 +49,3 @@ namespace tagslam {
   };
   std::ostream &operator<<(std::ostream& os, const Profiler &p);
 }
-
-
-#endif

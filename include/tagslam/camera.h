@@ -1,49 +1,58 @@
 /* -*-c++-*--------------------------------------------------------------------
- * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
+ * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
-#ifndef TAGSLAM_CAMERA_H
-#define TAGSLAM_CAMERA_H
+
+#pragma once
 
 #include "tagslam/camera_intrinsics.h"
-#include "tagslam/camera_extrinsics.h"
-#include "tagslam/pose_estimate.h"
-#include "gtsam_distortion/Cal3FS2.h"
-#include "gtsam_distortion/Cal3DS3.h"
-#include <gtsam/geometry/Pose3.h>
-#include <Eigen/Dense>
+#include "tagslam/pose_with_noise.h"
 #include <ros/ros.h>
 #include <memory>
 #include <map>
 #include <set>
+#include <string>
 
 namespace tagslam {
-  struct RigidBody;
-  struct Camera {
+  class Body; // need forward declaration here
+  class Camera {
+    using string = std::string;
+  public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    std::string       name;
-    int               index{-1};
-    CameraIntrinsics  intrinsics;
-    CameraExtrinsics  T_cam_body;
-    CameraExtrinsics  T_cn_cnm1;
-    std::string       rostopic;
-    std::string       tagtopic;
-    std::string       frame_id;
-    bool              hasPosePrior{false};
-    PoseEstimate      poseEstimate; // T_r_c
-    gtsam::Pose3      optimizedPose;
-    int               lastFrameNumber{-1};
-    std::string       rig_body; // string with name
-    std::shared_ptr<RigidBody>        rig;
-    boost::shared_ptr<Cal3FS2>        equidistantModel;
-    boost::shared_ptr<Cal3DS3>        radtanModel;
-    typedef std::shared_ptr<Camera> CameraPtr;
+    // --------- typedefs -------
+    typedef std::shared_ptr<Camera>       CameraPtr;
     typedef std::shared_ptr<const Camera> CameraConstPtr;
-    typedef std::vector<CameraPtr> CameraVec;
-    static CameraVec parse_cameras(const ros::NodeHandle &nh);
-  };
-  using CameraPtr = Camera::CameraPtr;
-  using CameraConstPtr = Camera::CameraConstPtr;
-  using CameraVec = Camera::CameraVec;
-}
+    typedef std::vector<CameraPtr>        CameraVec;
+    // --- getters/setters
+    const string &getName()       const { return (name_); }
+    const string &getImageTopic() const { return (imageTopic_); }
+    const string &getTagTopic()   const { return (tagTopic_); }
+    const string &getFrameId()    const { return (frameId_); }
+    const string &getRigName()    const { return (rigName_); }
+    const std::shared_ptr<Body> getRig() const { return (rig_); }
+    const PoseNoise &getWiggle() const { return (wiggle_); }
+    const CameraIntrinsics& getIntrinsics() const { return (intrinsics_); }
+    int  getIndex() const { return (index_); }
+    void setRig(const std::shared_ptr<Body> &rig) { rig_ = rig; }
+    
+    // --- static methods
+    static CameraPtr parse_camera(const string &name,
+                                   XmlRpc::XmlRpcValue config);
+    static CameraVec parse_cameras(XmlRpc::XmlRpcValue config);
 
-#endif
+  private:
+    // -------- variables -------
+    string                name_;
+    int                   index_{-1};
+    string                imageTopic_; // topic for images
+    string                tagTopic_;   // topic for tags
+    string                frameId_;    // ros frame id of camera
+    string                rigName_;    // name of rig body
+    std::shared_ptr<Body> rig_;        // pointer to rig body
+    CameraIntrinsics      intrinsics_; // intrinsic calibration
+    PoseNoise             wiggle_;     // how rigid the ext calib is
+  };
+
+  using CameraPtr      = Camera::CameraPtr;
+  using CameraConstPtr = Camera::CameraConstPtr;
+  using CameraVec      = Camera::CameraVec;
+}

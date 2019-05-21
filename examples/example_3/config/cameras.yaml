@@ -8,6 +8,8 @@ cam0:
   rostopic: /stereo/left/image_raw/compressed
   tagtopic: /stereo/left/tags
   rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01
 cam1:
   camera_model: pinhole
   intrinsics: [471.126, 471.106, 629.016, 516.566]
@@ -18,3 +20,5 @@ cam1:
   rostopic: /stereo/right/image_raw/compressed
   tagtopic: /stereo/right/tags
   rig_body: rig
+  wiggle_rotation: 0.01
+  wiggle_translation: 0.01

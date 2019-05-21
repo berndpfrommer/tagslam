@@ -1,24 +1,22 @@
 /* -*-c++-*--------------------------------------------------------------------
- * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
+ * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
-#ifndef TAGSLAM_INIT_POSE_H
-#define TAGSLAM_INIT_POSE_H
 
+#pragma once
 
-#include "tagslam/pose_estimate.h"
-
+#include "tagslam/geometry.h"
+#include "tagslam/distortion_model.h"
 #include <opencv2/core/core.hpp>
-#include <vector>
+#include <Eigen/Dense>
+#include <string>
+#include <utility>
 
 namespace tagslam {
   namespace init_pose {
-    PoseEstimate pnp(const std::vector<cv::Point3d> &world_points,
-                     const std::vector<cv::Point2d> &image_points,
-                     const std::vector<cv::Mat>     &T_w_o,
-                     const cv::Mat &K,
-                     const std::string &distModel,
-                     const cv::Mat &D);
+    std::pair<Transform, bool> pose_from_4(
+      const Eigen::Matrix<double, 4,2> & imgPoints,
+      const Eigen::Matrix<double, 4,3> & objPoints,
+      const cv::Mat &K, DistortionModel distModel,
+      const cv::Mat &D);
   }
 }
-
-#endif

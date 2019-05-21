@@ -2,8 +2,7 @@
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#ifndef TAGSLAM_SYNC_AND_DETECT_H
-#define TAGSLAM_SYNC_AND_DETECT_H
+#pragma once
 
 #include <flex_sync/sync.h>
 #include <ros/ros.h>
@@ -90,5 +89,3 @@ namespace tagslam {
     std::string                         detectorType_;
   };
 }
-
-#endif

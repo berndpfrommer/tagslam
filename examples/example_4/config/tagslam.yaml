@@ -3,16 +3,14 @@ body_defaults:
   rotation_noise: 0.01
 bodies:
  - aviary:
-     is_default_body: false
      is_static: true
      default_tag_size: 0.12
-     type: simple
      pose:
-       center:
+       position:
          x: 0.0
          y: 0.0
          z: 0.0
-       rotvec:
+       rotation:
          x: 0.0
          y: 0.0
          z: 0.0
@@ -24,104 +22,109 @@ bodies:
          x: 0.00000010
          y: 0.00000010
          z: 0.00000010
+     type: simple
  - wand:
-     is_default_body: false
      is_static: false
      default_tag_size: 0.11986
      type: simple
      tags:
-     - id: 0
-       bits: 6
-       size: 0.11986
-       center:
-         x: 0.0
-         y: -0.0889
-         z: -0.0968
-       rotvec:
-         x: 1.5707963268
-         y: 0.0
-         z: 0.0
-       position_noise:
-         x: 0.00002
-         y: 0.00002
-         z: 0.00002
-       rotation_noise:
-         x: 0.00002
-         y: 0.00002
-         z: 0.00002
-     - id: 1
-       bits: 6
-       size: 0.11986
-       center:
-         x:  0.0889
-         y:  0.0
-         z: -0.09525
-       rotvec:
-         x: 1.20919958
-         y: 1.20919958
-         z: 1.20919958
-       position_noise:
-         x: 0.00002
-         y: 0.00002
-         z: 0.00002
-       rotation_noise:
-         x: 0.00002
-         y: 0.00002
-         z: 0.00002
-     - id: 2
-       bits: 6
-       size: 0.11986
-       center:
-         x:  0.0
-         y:  0.0889
-         z: -0.0968
-       rotvec:
-         x: 0.0
-         y: -2.22144146907918
-         z: -2.22144146907918
-       position_noise:
-         x: 0.00002
-         y: 0.00002
-         z: 0.00002
-       rotation_noise:
-         x: 0.00002
-         y: 0.00002
-         z: 0.00002
-     - id: 3
-       bits: 6
-       size: 0.11986
-       center:
-         x: -0.0889
-         y:  0.0
-         z: -0.0968
-       rotvec:
-         x:  1.20919958
-         y: -1.20919958
-         z: -1.20919958
-       position_noise:
-         x: 0.00002
-         y: 0.00002
-         z: 0.00002
-       rotation_noise:
-         x: 0.00002
-         y: 0.00002
-         z: 0.00002
-     - id: 4
-       bits: 6
-       size: 0.11986
-       center:
-         x:  0.1651
-         y:  0.0
-         z:  0.03175
-       rotvec:
-         x: 0
-         y: 0
-         z: 0
-       position_noise:
-         x: 0.001
-         y: 0.001
-         z: 0.001
-       rotation_noise:
-         x: 0.001
-         y: 0.001
-         z: 0.001
+       - id: 0
+         bits: 6
+         size: 0.11986
+         pose:
+           position:
+             x: 0.0
+             y: -0.0889
+             z: -0.0968
+           rotation:
+             x: 1.5707963268
+             y: 0.0
+             z: 0.0
+           position_noise:
+             x: 0.00002
+             y: 0.00002
+             z: 0.00002
+           rotation_noise:
+             x: 0.00002
+             y: 0.00002
+             z: 0.00002
+       - id: 1
+         bits: 6
+         size: 0.11986
+         pose:
+           position:
+             x:  0.0889
+             y:  0.0
+             z: -0.09525
+           rotation:
+             x: 1.20919958
+             y: 1.20919958
+             z: 1.20919958
+           position_noise:
+             x: 0.00002
+             y: 0.00002
+             z: 0.00002
+           rotation_noise:
+             x: 0.00002
+             y: 0.00002
+             z: 0.00002
+       - id: 2
+         bits: 6
+         size: 0.11986
+         pose:
+           position:
+             x:  0.0
+             y:  0.0889
+             z: -0.0968
+           rotation:
+             x: 0.0
+             y: -2.22144146907918
+             z: -2.22144146907918
+           position_noise:
+             x: 0.00002
+             y: 0.00002
+             z: 0.00002
+           rotation_noise:
+             x: 0.00002
+             y: 0.00002
+             z: 0.00002
+       - id: 3
+         bits: 6
+         size: 0.11986
+         pose:
+           position:       
+             x: -0.0889
+             y:  0.0
+             z: -0.0968
+           rotation:
+             x:  1.20919958
+             y: -1.20919958
+             z: -1.20919958
+           position_noise:
+             x: 0.00002
+             y: 0.00002
+             z: 0.00002
+           rotation_noise:
+             x: 0.00002
+             y: 0.00002
+             z: 0.00002
+       - id: 4
+         bits: 6
+         size: 0.11986
+         pose:
+           position:       
+             x:  0.1651
+             y:  0.0
+             z:  0.03175
+           rotation:
+             x: 0
+             y: 0
+             z: 0
+           position_noise:
+             x: 0.001
+             y: 0.001
+             z: 0.001
+           rotation_noise:
+             x: 0.001
+             y: 0.001
+             z: 0.001
