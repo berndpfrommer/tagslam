@@ -3,6 +3,8 @@
  */
 
 #include "tagslam/xml.h"
+#include "tagslam/logging.h"
+
 namespace tagslam {
   namespace xml {
     template <>
@@ -79,6 +81,30 @@ namespace tagslam {
         throw (e);
       }
     }
- 
+    template<>
+    ros::Time parse(XmlRpc::XmlRpcValue xml, const std::string &key) {
+      if (!xml.hasMember(key)) {
+        ROS_ERROR_STREAM("key not found: " << key);
+        throw XmlRpc::XmlRpcException("key not found: " + key);
+      }
+      try {
+        const std::string s = static_cast<std::string>(xml[key]);
+        size_t pos = s.find(".", 0);
+        if (pos == std::string::npos) {
+          BOMB_OUT("bad ros time value: " << s);
+        }
+        const std::string nsec = s.substr(pos + 1, std::string::npos);
+        const std::string sec  = s.substr(0, pos);
+        if (nsec.size() != 9) {
+          BOMB_OUT("ros nsec length is not 9 but: " << nsec.size());
+        }
+        ros::Time t(std::stoi(sec), std::stoi(nsec));
+        return (t);
+      } catch (const XmlRpc::XmlRpcException &e) {
+        ROS_ERROR_STREAM("error parsing: " << key);
+        //xml.write(std::cerr); std::cerr << std::endl;
+        throw (e);
+      }
+    }
   } // namespace
 }  // namespace

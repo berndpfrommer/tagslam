@@ -860,19 +860,25 @@ namespace tagslam {
     // Sometimes there are tags with duplicate ids in the data set.
     // In this case, remap the tag ids of the detected tags dependent
     // on time stamp, to something else so they become unique.
-    for (const auto &o: orig) {
+    for (const auto i: irange(0ul, orig.size())) {
+      const auto it = camSquash_.find(cameras_[i]->getName());
+      const std::set<int> *sqc = (it != camSquash_.end()) ?
+        &(it->second) : NULL;
+      const auto &o = orig[i];
       const ros::Time t = o->header.stamp;
       TagArrayPtr p(new TagArray());
       p->header = o->header;
       const auto sq = squash_.find(t);
-      ROS_INFO_STREAM("time match: " << t << " " << (sq != squash_.end()));
       for (const auto &tag: o->apriltags) {
         if (sq != squash_.end() && sq->second.count(tag.id) != 0) {
-          ROS_INFO_STREAM("squashed tag: " << tag.id);
+          ROS_INFO_STREAM("time - squashed tag: " << tag.id);
         } else{
-          p->apriltags.push_back(tag);
+          if (!sqc || sqc->count(tag.id) == 0) { // no camera squash?
+            p->apriltags.push_back(tag);
+          }
         }
       }
+      // remap 
       for (auto &tag: p->apriltags) {
         auto it = tagRemap_.find(tag.id);
         if (it != tagRemap_.end()) {
@@ -927,21 +933,6 @@ namespace tagslam {
     }
   }
 
-  static ros::Time parse_time(XmlRpc::XmlRpcValue v) {
-    const std::string s = static_cast<std::string>(v);
-    size_t pos = s.find(".", 0);
-    if (pos == std::string::npos) {
-      BOMB_OUT("bad ros time value: " << s);
-    }
-    const std::string nsec = s.substr(pos + 1, std::string::npos);
-    const std::string sec  = s.substr(0, pos);
-    if (nsec.size() != 9) {
-      BOMB_OUT("ros nsec length is not 9 but: " << nsec.size());
-    }
-    ros::Time t(std::stoi(sec), std::stoi(nsec));
-    return (t);
-  }
- 
   void TagSlam::readSquash(XmlRpc::XmlRpcValue config) {
     if (!config.hasMember("squash")) {
       return;
@@ -949,27 +940,20 @@ namespace tagslam {
     XmlRpc::XmlRpcValue squash = config["squash"];
     if (squash.getType() == XmlRpc::XmlRpcValue::TypeArray) {
       for (const auto i: irange(0, squash.size())) {
-        if (squash[i].getType() !=
-            XmlRpc::XmlRpcValue::TypeStruct) continue;
-        ros::Time t(0);
-        std::set<int> tags;
-        for (XmlRpc::XmlRpcValue::iterator it = squash[i].begin();
-             it != squash[i].end(); ++it) {
-          if (it->first == "time") {
-            t = parse_time(it->second);
+        try {
+          auto sq = squash[i];
+          const std::set<int> tags =
+            xml::parse_container<std::set<int>>(sq, "tags", std::set<int>());
+          // try to parse as time squash
+          const ros::Time t = xml::parse<ros::Time>(sq, "time", ros::Time(0));
+          if (t != ros::Time(0)) {
+            squash_[t] = tags;
+          } else {
+            const string cam = xml::parse<std::string>(sq, "camera");
+            camSquash_[cam] = tags;
           }
-          if (it->first == "tags") {
-            auto vtags = it->second;
-            if (vtags.getType() == XmlRpc::XmlRpcValue::TypeArray) {
-              for (const auto tag: irange(0, vtags.size())) {
-                tags.insert(static_cast<int>(vtags[tag]));
-              }
-            }
-          }
-        }
-        if (t != ros::Time(0) && !tags.empty()) {
-          ROS_INFO_STREAM("squashing " << tags.size() << " tags for " << t);
-          squash_[t] = tags;
+        } catch (const XmlRpc::XmlRpcException &e) {
+          BOMB_OUT("failed to parse squash number " << i);
         }
       }
     }

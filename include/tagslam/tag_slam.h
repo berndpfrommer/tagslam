@@ -183,6 +183,7 @@ namespace tagslam {
     
     std::unordered_map<int, std::vector<ReMap>>  tagRemap_;
     std::map<ros::Time, std::set<int>> squash_;
+    std::map<std::string, std::set<int>> camSquash_;
     std::vector<MeasurementsPtr> measurements_;
   };
 }

@@ -71,11 +71,16 @@ namespace tagslam {
  
     template <>
     PoseNoise parse(XmlRpc::XmlRpcValue xml, const std::string &key);
-    //
+
     // specialization for reading pose with noise
-    // 
+
     template <>
     PoseWithNoise parse(XmlRpc::XmlRpcValue xml, const std::string &key);
+
+    // specialization for reading ros::Time (must be enclosed in ""!)
+
+    template<>
+    ros::Time parse(XmlRpc::XmlRpcValue xml, const std::string &key);
 
     //
     // parse with default, for example
