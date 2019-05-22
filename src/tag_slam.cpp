@@ -255,22 +255,33 @@ namespace tagslam {
 
 
   void TagSlam::readCameraPoses(XmlRpc::XmlRpcValue config) {
-    bool camHasKnownPose = false;
+    std::map<BodyConstPtr, int> numKnownCamPoses;
     for (auto &cam: cameras_) {
+      if (numKnownCamPoses.count(cam->getRig()) == 0) {
+        numKnownCamPoses.emplace(cam->getRig(), 0);
+      }
       PoseWithNoise pwn; // defaults to invalid pose
       if (config.hasMember(cam->getName())) {
         pwn = xml::parse<PoseWithNoise>(config[cam->getName()], "pose",
                                         PoseWithNoise());
         if (pwn.isValid()) {
-          camHasKnownPose = true;
+          numKnownCamPoses[cam->getRig()]++;
           ROS_INFO_STREAM("camera " << cam->getName() << " has known pose!");
         }
       }
       graph_utils::add_pose_maybe_with_prior(
         graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
     }
-    if (!camHasKnownPose) {
-      BOMB_OUT("at least one camera must have known pose!");
+    for (const auto &ncp: numKnownCamPoses) {
+      if (ncp.first->isStatic()) {
+        if (ncp.second == 0 && !ncp.first->getPoseWithNoise().isValid()) {
+          BOMB_OUT(ncp.first->getName() << " has no pose nor cam pose!");
+        }
+      } else {
+        if (ncp.second == 0) {
+          BOMB_OUT(ncp.first->getName() << " must have cam with known pose!");
+        }
+      }
     }
   }
 
@@ -428,7 +439,10 @@ namespace tagslam {
       publishOriginalTagTransforms(t, &tfMsg);
     }
     publishCameraTransforms(t, &tfMsg);
-    outBag_.write<tf::tfMessage>("/tf", t, tfMsg);
+    if (t != ros::Time(0)) {
+      // rosbag API does not like t == 0;
+      outBag_.write<tf::tfMessage>("/tf", t, tfMsg);
+    }
   }
 
   void TagSlam::playFromBag(const string &fname) {
@@ -648,7 +662,8 @@ namespace tagslam {
     std::ofstream f(fname);
     for (const auto &cam : cameras_) {
       f << cam->getName() << ":" << std::endl;
-      PoseWithNoise pwn = graph_utils::get_optimized_camera_pose(*graph_,*cam);
+      PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
+        *graph_, Graph::cam_name(cam->getName()));
       if (pwn.isValid()) {
         yaml_utils::write_pose_with_covariance(f, "  ", pwn.getPose(),
                                                pwn.getNoise());
@@ -663,21 +678,27 @@ namespace tagslam {
     const std::string idn = "       ";
     for (const auto &body: bodies_) {
       Transform bodyTF;
-      const ros::Time tbody = body->isStatic() ? ros::Time(0) : t;
-      f << " - " << body->getName() << ":" << std::endl;
-      if (graph_utils::get_optimized_pose(*graph_, tbody, *body, &bodyTF)) {
-        f << "    pose:" << std::endl;
-        yaml_utils::write_pose(f, "       ",
-                               bodyTF, PoseNoise::make(0,0), true);
+      body->write(f, " ");
+      if (body->isStatic()) {
+        PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
+          *graph_, Graph::body_name(body->getName()));
+        if (pwn.isValid()) {
+          f << "     pose:" << std::endl;
+          yaml_utils::write_pose(f, "       ", pwn.getPose(),
+                                 pwn.getNoise(), true);
+        }
       }
-      for (const auto &tag: body->getTags()) {
-        Transform tagTF;
-        if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
-          f << idn << "- id: "   << tag->getId() << std::endl;
-          f << idn << "  size: " << tag->getSize() << std::endl;
-          f << idn << "  pose:" << std::endl;
-          const auto &pwn = tag->getPoseWithNoise();
-          yaml_utils::write_pose(f, idn + "    ", tagTF, pwn.getNoise(), true);
+      if (body->printTags()) {
+        for (const auto &tag: body->getTags()) {
+          Transform tagTF;
+          if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
+            f << idn << "- id: "   << tag->getId() << std::endl;
+            f << idn << "  size: " << tag->getSize() << std::endl;
+            f << idn << "  pose:" << std::endl;
+            const auto &pwn = tag->getPoseWithNoise();
+            yaml_utils::write_pose(f, idn + "    ", tagTF, pwn.getNoise(),
+                                   true);
+          }
         }
       }
     }

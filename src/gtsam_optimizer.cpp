@@ -388,7 +388,7 @@ namespace tagslam {
         std::map<OptimizerKey,
         gtsam::Matrix>::value_type(k, marginals.marginalCovariance(k))).first;
     }
-    const Matrix6d mat = it->second;
+    const PoseNoise::Matrix6d mat = it->second;
     return (PoseNoise(mat));
   }
 

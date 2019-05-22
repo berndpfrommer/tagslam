@@ -24,9 +24,10 @@ namespace tagslam {
     typedef std::shared_ptr<const Body>      BodyConstPtr;
     typedef std::vector<BodyPtr>             BodyVec;
     typedef std::vector<BodyConstPtr>        BodyConstVec;
-    typedef std::unordered_map<int, TagPtr> IdToTagMap;
+    typedef std::unordered_map<int, TagPtr>  IdToTagMap;
 
     // virtual methods to be implemented by derived classes
+    virtual bool printTags() const { return (true); }
     virtual bool write(std::ostream &os, const string &prefix) const = 0;
     virtual bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) = 0;
     //

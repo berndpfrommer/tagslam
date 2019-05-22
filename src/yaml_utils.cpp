@@ -6,10 +6,11 @@
 #include <boost/range/irange.hpp>
 #include <XmlRpcException.h>
 #include <Eigen/Geometry>
+#include <cmath>
 
 namespace tagslam {
   using boost::irange;
-
+  using std::sqrt;
   namespace yaml_utils {
     static void write_vec(std::ostream &of,
                           const std::string &prefix,
@@ -36,9 +37,9 @@ namespace tagslam {
       if (writeNoise) {
         Eigen::Matrix<double, 6, 1> diag = n.getDiagonal();
         of << prefix << "position_noise:" << std::endl;
-        write_vec(of, pps, diag(3),diag(4),diag(5));
+        write_vec(of, pps, sqrt(diag(3)),sqrt(diag(4)),sqrt(diag(5)));
         of << prefix << "rotation_noise:" << std::endl;
-        write_vec(of, pps, diag(0),diag(1),diag(2));
+        write_vec(of, pps, sqrt(diag(0)),sqrt(diag(1)),sqrt(diag(2)));
       }
     }
 

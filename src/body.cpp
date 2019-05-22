@@ -125,13 +125,16 @@ namespace tagslam {
     os << pfix << "is_static: " <<
       (isStatic_ ? "true" : "false") << std::endl;
     os << pfix << "default_tag_size: " << defaultTagSize_ << std::endl;
-    if (isStatic_) {
+#if 0
+    // Write the pose somewhere else!
+    if (isStatic_ && poseWithNoise_.isValid()) {
       os << pfix << "pose:" << std::endl;
       // TODO: compute true pose noise from marginals!
       PoseNoise smallNoise = PoseNoise::make(0.001, 0.001);
       yaml_utils::write_pose(os, pfix + "  ", poseWithNoise_.getPose(),
                              smallNoise, poseWithNoise_.isValid());
     }
+#endif    
     return (true);
   }
 

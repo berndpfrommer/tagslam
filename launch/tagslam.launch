@@ -18,7 +18,7 @@
       dot -Kfdp -Tpng ~/.ros/final_0.dot > bar.png ; eog bar.png
       -->
 #	launch-prefix="gdb -ex run --args"
-  <node pkg="tagslam" type="tagslam2_node" name="tagslam2" clear_params="true"
+  <node pkg="tagslam" type="tagslam_node" name="tagslam" clear_params="true"
 	output="$(arg output)">
     <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
     <rosparam param="tagslam_config" command="load"

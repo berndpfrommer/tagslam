@@ -45,8 +45,7 @@ namespace tagslam {
                             const Body &body, Transform *tf);
     bool get_optimized_pose(const Graph &g, const Tag &tag, Transform *tf);
 
-    PoseWithNoise get_optimized_camera_pose(const Graph &g,
-                                            const Camera &cam);
-
+    PoseWithNoise get_optimized_pose_with_noise(
+      const Graph &g, const string &name);
   }
 }

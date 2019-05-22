@@ -7,17 +7,18 @@
 #include "tagslam/geometry.h"
 
 namespace tagslam {
-  typedef Eigen::Matrix<double, 6, 6> Matrix6d;
   class PoseNoise {
   public:
+    typedef Eigen::Matrix<double, 6, 6> Matrix6d;
+    typedef Eigen::Matrix<double, 6, 1> Vector6d;
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     PoseNoise(const Matrix6d &n = Matrix6d::Identity(),
                bool isDiag = false) :
-      noise(n), isDiagonal(isDiag) {
+      noise_(n), isDiagonal_(isDiag) {
     };
     Eigen::Matrix<double,6,1>  getDiagonal() const;
-    const Matrix6d            &getSigmaMatrix() const { return (noise); }
-    bool                       getIsDiagonal() const { return (isDiagonal); }
+    const Matrix6d             getCovarianceMatrix() const;
+    bool                       getIsDiagonal() const { return (isDiagonal_); }
     Matrix6d                   convertToR() const;
     static PoseNoise make(const Point3d &angle,  const Point3d &pos);
     static PoseNoise make(double a, double p);
@@ -25,8 +26,8 @@ namespace tagslam {
     friend std::ostream &operator<<(std::ostream &os, const PoseNoise &pn);
 
   private:
-    Matrix6d noise;
-    bool     isDiagonal = {false};
+    Matrix6d noise_; // this is the covariance, *not* sigma
+    bool     isDiagonal_ = {false};
   };
   std::ostream &operator<<(std::ostream &os, const PoseNoise &pn);
 }

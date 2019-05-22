@@ -19,6 +19,7 @@ namespace tagslam {
       Body(n, iS) {
       type_ = "board";
     }
+    bool printTags() const override { return (false); }
     bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) override;
     bool write(std::ostream &os, const string &prefix) const override;
   private:
