@@ -94,10 +94,7 @@ namespace tagslam {
     nh_.param<string>("outbag", outBagName_, "out.bag");
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
     nh_.param<double>("pixel_noise", pixelNoise_, 1.0);
-    nh_.param<string>("camera_poses_out_file",
-                      camPoseFile_, "camera_poses.yaml");
-    nh_.param<string>("poses_out_file",
-                      poseFile_, "poses.yaml");
+    nh_.param<string>("output_directory", outDir_, ".");
     nh_.param<string>("bag_file", inBagFile_, "");
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
@@ -191,15 +188,16 @@ namespace tagslam {
     outBag_.close();
     tagCornerFile_.close();
     
-    writeCameraPoses(camPoseFile_);
+    writeCameraPoses(outDir_ + "/camera_poses.yaml");
+    writeFullCalibration(outDir_ + "/calibration.yaml");
     profiler_.reset();
-    writePoses(poseFile_);
+    writePoses(outDir_ + "/poses.yaml");
     profiler_.record("writePoses");
-    writeErrorMap("error_map.txt");
+    writeErrorMap(outDir_ + "/error_map.txt");
     profiler_.record("writeErrorMaps");
-    writeTagDiagnostics("tag_diagnostics.txt");
+    writeTagDiagnostics(outDir_ + "/tag_diagnostics.txt");
     profiler_.record("writeTagDiagnostics");
-    writeTimeDiagnostics("time_diagnostics.txt");
+    writeTimeDiagnostics(outDir_ + "/time_diagnostics.txt");
     profiler_.record("writeTimeDiagnostics");
     for (auto &m: measurements_) {
       m->writeDiagnostics();
@@ -577,6 +575,11 @@ namespace tagslam {
       ackPub_.publish(header);
     }
     if (runOnline() && frameNum_ >= maxFrameNum_) {
+      if (publishAck_) {
+        auto h = header;
+        h.frame_id = "FINISHED!";
+        ackPub_.publish(h);
+      }
       ROS_INFO_STREAM("reached max number of frames, finished!");
       finalize();
       ros::shutdown();
@@ -684,9 +687,24 @@ namespace tagslam {
     }
   }
 
+  void TagSlam::writeFullCalibration(const string &fname) const {
+    std::ofstream f(fname);
+    for (const auto &cam : cameras_) {
+      Transform tf;
+      if (graph_utils::get_optimized_pose(
+            *graph_, ros::Time(0), Graph::cam_name(cam->getName()), &tf)) {
+        f << cam->getName() << ":" << std::endl;
+        f << "  T_cam_body:" << std::endl;
+        yaml_utils::write_matrix(f, "  ", tf.inverse());
+        cam->getIntrinsics().writeYaml(f, "  ");
+      } else {
+        ROS_WARN_STREAM("no pose found for camera: " << cam->getName());
+      }
+    }
+  }
+
   void TagSlam::writePoses(const string &fname) const {
     std::ofstream f(fname);
-    const ros::Time t = times_.empty() ? ros::Time(0):*(times_.rbegin());
     f << "bodies:" << std::endl;
     const std::string idn = "       ";
     for (const auto &body: bodies_) {

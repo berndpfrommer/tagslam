@@ -25,6 +25,8 @@ namespace tagslam {
     const cv::Mat &getD() const { return (cvD_); }
     const DistortionModel &getDistortionModel() const {
       return (distortionModel_); }
+    // i/o functions
+    void writeYaml(std::ostream &f, const string &pf) const;
     // static functions
     static CameraIntrinsics parse(XmlRpc::XmlRpcValue config);
   private:

@@ -11,9 +11,15 @@
 namespace tagslam {
   using boost::irange;
   using std::sqrt;
+  using std::fixed;
+  using std::setw;
+  using std::setprecision;
+
+#define FMT(X, Y) fixed << setw(X) << setprecision(Y)
+
   namespace yaml_utils {
     static void write_vec(std::ostream &of,
-                          const std::string &prefix,
+                          const string &prefix,
                           double x, double y, double z) {
       const int p(8);
       of.precision(p);
@@ -23,13 +29,13 @@ namespace tagslam {
     }
 
 
-    void write_pose(std::ostream &of, const std::string &prefix,
+    void write_pose(std::ostream &of, const string &prefix,
                     const Transform &pose,
                     const PoseNoise &n, bool writeNoise) {
       Eigen::AngleAxisd aa(pose.linear());
       Point3d r = aa.angle() * aa.axis();
       Point3d t(pose.translation());
-      const std::string pps = prefix + "  ";
+      const string pps = prefix + "  ";
       of << prefix << "position:" << std::endl;
       write_vec(of, pps, t(0), t(1), t(2));
       of << prefix << "rotation:" << std::endl;
@@ -43,15 +49,27 @@ namespace tagslam {
       }
     }
 
+    void write_matrix(std::ostream &of, const string &prefix,
+                      const Transform &pose) {
+      const auto m = pose.matrix();
+      for (const auto i: irange(0, 4)) {
+        of << prefix << "- [";
+        for (const auto j: irange(0, 3)) {
+          of << FMT(12,8) << m(i, j) << ",";
+        }
+        of << FMT(12,8) << m(i, 3) << "]" << std::endl;
+      }
+    }
+  
     void write_pose_with_covariance(std::ostream &of,
-                                    const std::string &prefix,
+                                    const string &prefix,
                                     const Transform &pose,
                                     const PoseNoise &n) {
       Eigen::AngleAxisd aa;
       aa.fromRotationMatrix(pose.rotation());
       Eigen::Vector3d r = aa.angle() * aa.axis();
       Eigen::Vector3d t = pose.translation();
-      const std::string pps = prefix + "  ";
+      const string pps = prefix + "  ";
       of << prefix << "position:" << std::endl;
       write_vec(of, pps, t(0), t(1), t(2));
       of << prefix << "rotation:" << std::endl;

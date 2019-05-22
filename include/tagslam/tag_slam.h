@@ -133,6 +133,7 @@ namespace tagslam {
     bool replay(std_srvs::Trigger::Request& req,
                 std_srvs::Trigger::Response &res);
     void writeCameraPoses(const string &fname) const;
+    void writeFullCalibration(const string &fname) const;
     void writePoses(const string &fname) const;
     void writeTagDiagnostics(const string &fname) const;
     void writeTimeDiagnostics(const string &fname) const;
@@ -175,8 +176,7 @@ namespace tagslam {
     rosbag::Bag          outBag_;
     std::ofstream        tagCornerFile_;
     std::string          outBagName_;
-    std::string          poseFile_;
-    std::string          camPoseFile_;
+    std::string          outDir_;
     std::string          inBagFile_;
     std::shared_ptr<SubSyncCompressed> subSyncCompressed_;
     std::shared_ptr<SubSync> subSync_;

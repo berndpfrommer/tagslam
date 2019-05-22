@@ -11,25 +11,33 @@
 #include <ros/ros.h>
 #include <iostream>
 #include <string>
+#include <iomanip>
 
 namespace tagslam {
-  // computes a pose (rotation vector, translation) via homography
-  // from world and image points. Distortion is not taken into account,
-  // obviously this is just a starting guess.
   namespace yaml_utils {
-    void write_pose(std::ostream &of, const std::string &prefix,
+    using std::string;
+    void write_matrix(std::ostream &of, const string &prefix,
+                      const Transform &pose);
+    void write_pose(std::ostream &of, const string &prefix,
                     const Transform &pose,
                     const PoseNoise &n, bool writeNoise);
     void write_pose_with_covariance(std::ostream &of,
-                                    const std::string &prefix,
+                                    const string &prefix,
                                     const Transform &pose,
                                     const PoseNoise &n);
     template <typename T>
-    T parse(XmlRpc::XmlRpcValue xml, const std::string key, const T &def) {
-      if (xml.hasMember(key)) {
-        return (static_cast<T>(xml[key]));
+    void write_container(std::ostream &of, const string &pf, T c, int w = 12,
+                         int p = 8) {
+      of << "[";
+      for (int i = 0; i < (int)c.size() - 1; i++) {
+        of << std::fixed << std::setw(w) << std::setprecision(p);
+        of << c[i] << ",";
       }
-      return (def);
+      if (!c.empty()) {
+        of << std::fixed << std::setw(w) << std::setprecision(p);
+        of << c[c.size() - 1];
+      }
+      of << "]";
     }
   }
 }

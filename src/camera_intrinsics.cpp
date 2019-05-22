@@ -5,6 +5,7 @@
 #include "tagslam/camera_intrinsics.h"
 #include "tagslam/xml.h"
 #include "tagslam/logging.h"
+#include "tagslam/yaml_utils.h"
 
 #include <ros/console.h>
 #include <string>
@@ -21,6 +22,15 @@ namespace tagslam {
     {"equidistant", EQUIDISTANT}, {"equi", EQUIDISTANT},
     {"fisheye", EQUIDISTANT}};
 
+  static std::string model_to_string(DistortionModel m) {
+    for (const auto &dm: distMap) {
+      if (dm.second == m) {
+        return (dm.first);
+      }
+    }
+    return ("INVALID");
+  }
+  
   CameraIntrinsics
   CameraIntrinsics::parse_no_error(XmlRpc::XmlRpcValue config) {
     CameraIntrinsics ci;
@@ -47,6 +57,7 @@ namespace tagslam {
     }
     return (ci);
   }
+
   CameraIntrinsics
   CameraIntrinsics::parse(XmlRpc::XmlRpcValue config) {
     try {
@@ -55,6 +66,27 @@ namespace tagslam {
       ROS_ERROR_STREAM("error parsing camera intrinsics: " << e.getMessage());
       throw e;
     }
+  }
+
+  void
+  CameraIntrinsics::writeYaml(std::ostream &f, const string &pf) const {
+    f << pf << "camera_model: " << cameraModel_ << std::endl;
+    f << pf << "distortion_coeffs: ";
+    yaml_utils::write_container<std::vector<double>>(f, "", distortionCoeffs_);
+    f << std::endl;
+    f << pf << "distortion_model: " <<
+      model_to_string(distortionModel_) << std::endl;
+    f << pf << "intrinsics: ";
+    yaml_utils::write_container<std::vector<double>>(f, "", K_);
+    f << std::endl;
+    f << pf << "resolution: ";
+    yaml_utils::write_container<std::vector<int>>(f, "", resolution_, 4, 0);
+    f << std::endl;
+  }
+
+  std::ostream &operator<<(std::ostream &os, const CameraIntrinsics &ci) {
+    ci.writeYaml(os, "");
+    return (os);
   }
 
 }
