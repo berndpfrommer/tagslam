@@ -102,6 +102,7 @@ namespace tagslam {
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
+    nh_.param<bool>("publish_ack", publishAck_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
     
     // --- graph updater params ---
@@ -139,6 +140,9 @@ namespace tagslam {
     }
     clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
     service_ = nh_.advertiseService("replay", &TagSlam::replay, this);
+    if (publishAck_) {
+      ackPub_	 = nh_.advertise<std_msgs::Header>("acknowledge", 1);
+    }
     // optimize the initial setup if necessary
     graph_->optimize(0);
     // open output files
@@ -162,7 +166,6 @@ namespace tagslam {
                                  std::placeholders::_1, std::placeholders::_2,
                                  std::placeholders::_3), 5));
     }
-    // subscribe to 
   }
 
   void TagSlam::run() {
@@ -542,8 +545,9 @@ namespace tagslam {
       return;
     }
 
-    const ros::Time t = tagmsgs.empty() ?
-      odommsgs[0]->header.stamp : tagmsgs[0]->header.stamp;
+    const auto &header = tagmsgs.empty() ?
+      odommsgs[0]->header : tagmsgs[0]->header;
+    const ros::Time t = header.stamp;
     const bool hasOdom = !odommsgs.empty() || useFakeOdom_;
     if (anyTagsVisible(tagmsgs) || hasOdom) {
       // if we have any new valid observations,
@@ -569,6 +573,14 @@ namespace tagslam {
     publishAll(t);
     profiler_.record("publishAll");
     frameNum_++;
+    if (publishAck_) {
+      ackPub_.publish(header);
+    }
+    if (runOnline() && frameNum_ >= maxFrameNum_) {
+      ROS_INFO_STREAM("reached max number of frames, finished!");
+      finalize();
+      ros::shutdown();
+    }
   }
 
   void TagSlam::publishAll(const ros::Time &t) {
@@ -665,7 +677,8 @@ namespace tagslam {
       PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
         *graph_, Graph::cam_name(cam->getName()));
       if (pwn.isValid()) {
-        yaml_utils::write_pose_with_covariance(f, "  ", pwn.getPose(),
+        f << "  pose:" << std::endl;
+        yaml_utils::write_pose_with_covariance(f, "    ", pwn.getPose(),
                                                pwn.getNoise());
       }
     }

@@ -154,11 +154,13 @@ namespace tagslam {
     BodyVec              nonstaticBodies_;
     BodyPtr              defaultBody_;
     ros::Publisher       clockPub_;
+    ros::Publisher       ackPub_;
     std::vector<ros::Publisher> odomPub_;
     string               fixedFrame_;
     bool                 writeDebugImages_;
     bool                 hasCompressedImages_;
     bool                 useFakeOdom_{false};
+    bool                 publishAck_{false};
     int                  frameNum_{0};
     int                  maxFrameNum_{1000000};
     double               playbackRate_{1.0};
