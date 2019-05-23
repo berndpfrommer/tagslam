@@ -29,7 +29,7 @@
 #include <unordered_map>
 #include <map>
 #include <set>
-
+#include <fstream>
 
 namespace tagslam {
   class TagSlam: public TagFactory {
