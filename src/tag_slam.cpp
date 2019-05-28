@@ -244,6 +244,9 @@ namespace tagslam {
         if (body->getName() == defbody) {
           ROS_INFO_STREAM("default body: " << defbody);
           defaultBody_ = body;
+          if (defaultBody_->getDefaultTagSize() <= 0) {
+            BOMB_OUT("default body " << defbody << " has no dflt tag size!");
+          }
         }
       }
       if (!defaultBody_) {
@@ -648,6 +651,21 @@ namespace tagslam {
     }
   }
 
+  TagPtr TagSlam::addTag(int tagId, const BodyPtr &body) const {
+    TagPtr p;
+    if (body->ignoreTag(tagId)) {
+      return (p);
+    }
+    p = Tag::make(tagId, 6 /*num bits = tag family */,
+                  body->getDefaultTagSize(),
+                  PoseWithNoise() /* invalid pose */, body);
+    body->addTag(p);
+    ROS_INFO_STREAM("new tag " << tagId << " attached to " <<
+                    body->getName());
+    graph_utils::add_tag(graph_.get(), *p);
+    return (p);
+  }
+  
   TagConstPtr TagSlam::findTag(int tagId) {
     TagMap::iterator it = tagMap_.find(tagId);
     TagPtr p;
@@ -656,16 +674,10 @@ namespace tagslam {
         ROS_WARN_STREAM("no default body, ignoring tag: " << tagId);
         return (p);
       } else {
-        if (defaultBody_->ignoreTag(tagId)) {
+        p = addTag(tagId, defaultBody_);
+        if (!p) {
           return (p);
         }
-        p = Tag::make(tagId, 6 /*num bits = tag family */,
-                       defaultBody_->getDefaultTagSize(),
-                       PoseWithNoise() /* invalid pose */, defaultBody_);
-        defaultBody_->addTag(p);
-        ROS_INFO_STREAM("new tag " << tagId << " attached to " <<
-                        defaultBody_->getName());
-        graph_utils::add_tag(graph_.get(), *p);
         auto iit = tagMap_.insert(TagMap::value_type(tagId, p));
         it = iit.first;
       }

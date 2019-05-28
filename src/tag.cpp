@@ -5,6 +5,7 @@
 #include "tagslam/tag.h"
 #include "tagslam/body.h"
 #include "tagslam/xml.h"
+#include "tagslam/logging.h"
 #include <ros/ros.h>
 #include <map>
 
@@ -48,6 +49,9 @@ namespace tagslam {
 
   TagPtr Tag::make(int tagId, int bits, double size, const PoseWithNoise &pn,
                      const std::shared_ptr<Body> &body) {
+    if (size < 1e-6) {
+      BOMB_OUT("making tag " << tagId << " with zero size!");
+    }
     TagPtr tagPtr(new Tag(tagId, bits, size, pn, body));
     return (tagPtr);
   }

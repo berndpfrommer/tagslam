@@ -145,7 +145,7 @@ namespace tagslam {
     void remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
     void applyDistanceMeasurements();
-
+    TagPtr addTag(int tagId, const BodyPtr &body) const;
     // ------ variables --------
     ros::NodeHandle      nh_;
     GraphPtr             graph_;
