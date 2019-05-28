@@ -44,7 +44,7 @@ Run these three commands, each in a separate terminal:
     rosbag play --clock `rospack find tagslam`/example/example.bag --topics /pg_17274483/image_raw/compressed
 
 If all goes well, your rviz window should look like this:
-![alt text](https://github.com/berndpfrommer/tagslam/example/rviz_example.png "rviz image").
+![alt text](https://github.com/berndpfrommer/tagslam/example/tagslam_example.png "rviz image").
 
 ### Running from bag
 
