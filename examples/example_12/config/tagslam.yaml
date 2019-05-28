@@ -72,5 +72,3 @@ tag_id_remap:
       - remap_id: 520
         start_time: 1541687179.947268789
         end_time:   1541687229.942551085
-odometry:
-  topics: ["/fla/vio/odom"]
