@@ -1,40 +1,26 @@
 <launch>
-  <arg name="output" default="screen"/>
-  <arg name="example"/>
-  <!-- point cloud transformation nodelet  -->
-#	launch-prefix="gdb -ex run --args"
-  <arg name="data_dir" default="$(find tagslam)/examples/example_$(arg example)"/>
-  <arg name="config_dir" default="$(arg data_dir)/config"/>
+  <arg name="data_dir" default="$(find tagslam)/example"/>
+  <arg name="config_dir" default="$(arg data_dir)"/>
   
   <arg name="tagslam_config_file" default="$(arg config_dir)/tagslam.yaml"/>
   <arg name="calibration_file" default="$(arg config_dir)/cameras.yaml"/>
-  <arg name="camera_poses_file" default="$(arg config_dir)/camera_poses.yaml"/>
-  <arg name="bag" default="$(arg data_dir)/tag_detections.bag"/>
+  <arg name="camera_poses_file"
+       default="$(arg config_dir)/camera_poses.yaml"/>
+  <arg name="run_online" default="false"/>
+  <arg name="bag" default="$(arg data_dir)/example.bag"/>
   <arg name="max_number_of_frames" default="1000000"/>
   <arg name="start_time" default="0.0"/>
+  <arg name="has_compressed_images" default="true"/>
 
-  <!--
-      visualize dot files:
-      dot -Kfdp -Tpng ~/.ros/final_0.dot > bar.png ; eog bar.png
-      -->
-#	launch-prefix="gdb -ex run --args"
   <node pkg="tagslam" type="tagslam_node" name="tagslam" clear_params="true"
-	output="$(arg output)">
+	output="screen">
     <rosparam param="cameras" command="load" file="$(arg calibration_file)"/>
     <rosparam param="tagslam_config" command="load"
 	      file="$(arg tagslam_config_file)"/>
-    <rosparam param="camera_poses" command="load" file="$(arg
-							camera_poses_file)"/>
-    <!--
-	<param name="bag_start_time" value="190.0"/>
-	<param name="bag_start_time" value="13.1"/>
-	<param name="bag_start_time" value="26.5"/>
-    -->
+    <rosparam param="camera_poses" command="load"
+	      file="$(arg camera_poses_file)"/>
     <param name="bag_start_time" value="$(arg start_time)"/>
-    <!--
-	<param name="bag_file" value="$(arg bag)"/>
-    -->
-    <param name="bag_file" value="$(arg bag)"/>
+    <param name="bag_file" value="$(arg bag)" unless="$(arg run_online)"/>
     <param name="optimize_full_graph" value="false"/>
     <param name="max_subgraph_error" value="50.0"/>
     <param name="has_compressed_images" value="false"/>

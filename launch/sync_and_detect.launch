@@ -4,16 +4,19 @@
   <arg name="detector_type" default="Umich"/>
   <arg name="start_time" default="0.0"/>
   <arg name="duration" default="-1.0"/>
-  <arg name="images_are_compressed" default="false"/>
-  <arg name="annotate_images" default="false"/>
-#	launch-prefix="gdb -ex run --args"
+  <arg name="images_are_compressed" default="true"/>
+  <arg name="annotate_images" default="true"/>
   <node pkg="tagslam" type="sync_and_detect_node" name="sync_and_detect"
     output="$(arg output)" clear_params="True">
-    <rosparam param="image_topics"> ["/fla/ovc_node/left/image_raw", "/fla/ovc_node/right/image_raw"]</rosparam>
-    <rosparam param="image_output_topics"> ["/fla/ovc_node/left/compressed", "/fla/ovc_node/right/compressed"]</rosparam>
-    <rosparam param="tag_topics"> ["/fla/ovc_node/left/tags", "/fla/ovc_node/right/tags"]</rosparam>
-    <!--
-	<rosparam param="odometry_topics"> ["/fla/vio/odom"]</rosparam>
+    <rosparam param="image_topics">
+      ["/pg_17274483/image_raw/compressed"]
+    </rosparam>
+    <rosparam param="image_output_topics">
+      ["/annotated_images/compressed"]
+    </rosparam>
+    <rosparam param="tag_topics"> ["/detector/tags"]</rosparam>
+    <!-- To pass through odometry messages, add them like so:
+	<rosparam param="odometry_topics"> ["/vio/odom"]</rosparam>
     -->
     <param name="bag_file" value="$(arg bag)"/>
     <param name="detector_type" value="$(arg detector_type)"/>

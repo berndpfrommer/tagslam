@@ -6,8 +6,10 @@
     <param name="refine" type="bool" value="true"/>
     <param name="family" type="int" value="0"/>
     <param name="type"   type="int" value="0"/>
-    <param name="black_border" type="int" value="$(arg black_border)"/>
-    <remap from="~image" to="/pg_color/image_raw"/>
+    <param name="black_border" type="int" value="$(arg
+						 black_border)"/>
+    <param name="image_transport" value="compressed"/>
+    <remap from="~image/compressed" to="/pg_17274483/image_raw/compressed"/>
   </node>
 
 </launch>
