@@ -1,8 +1,0 @@
-cam0:
-  camera_model: pinhole
-  intrinsics: [1496.2, 1494.64, 1023.91, 1033.98]
-  distortion_model: radtan
-  distortion_coeffs: [-0.163638, 0.092397, 4.55646e-05, -6.28192e-05]
-  resolution: [2048, 2048]
-  tagtopic: /detector/tags
-
