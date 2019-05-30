@@ -22,7 +22,11 @@ int main(int argc, char** argv) {
     } else {
       node.run();
       node.finalize();
-      ros::spin(); // wait for potential replay service call
+      bool exitWhenDone;
+      pnh.param<bool>("exit_when_done", exitWhenDone, false);
+      if (!exitWhenDone) {
+        ros::spin(); // wait for potential replay service call
+      }
     }
   } catch (const std::exception& e) {
     ROS_ERROR("%s: %s", pnh.getNamespace().c_str(), e.what());
