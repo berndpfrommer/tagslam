@@ -143,7 +143,6 @@ namespace tagslam {
     // optimize the initial setup if necessary
     graph_->optimize(0);
     // open output files
-    outBag_.open(outBagName_, rosbag::bagmode::Write);
     tagCornerFile_.open("tag_corners.txt");
     return (true);
   }
@@ -185,9 +184,13 @@ namespace tagslam {
     }
     publishTransforms(times_.empty() ? ros::Time(0) :
                       *(times_.rbegin()), true);
-    outBag_.close();
     tagCornerFile_.close();
     
+    outBag_.open(outBagName_, rosbag::bagmode::Write);
+    writeToBag_= true;
+    doReplay(0 /* playback at full speed */);
+    outBag_.close();
+
     writeCameraPoses(outDir_ + "/camera_poses.yaml");
     writeFullCalibration(outDir_ + "/calibration.yaml");
     profiler_.reset();
@@ -202,7 +205,7 @@ namespace tagslam {
     for (auto &m: measurements_) {
       m->writeDiagnostics();
     }
-    profiler_.record("writeDiagnostics");
+    profiler_.record("writeMeasurementDiagnostics");
     std::cout << profiler_ << std::endl;
     std::cout.flush();
   }
@@ -350,23 +353,25 @@ namespace tagslam {
   }
 
   bool TagSlam::replay(std_srvs::Trigger::Request& req,
-                        std_srvs::Trigger::Response &res) {
+                       std_srvs::Trigger::Response &res) {
     ROS_INFO_STREAM("replaying!");
-    outBag_.open(outBagName_, rosbag::bagmode::Write);
+    doReplay(playbackRate_);
+    res.message = "replayed " + std::to_string(times_.size());
+    res.success = true;
+    ROS_INFO_STREAM("finished replaying " << times_.size() << " frames");
+    return (true);
+  }
+
+  void TagSlam::doReplay(double rate) {
     ros::Time t0(0);
     for (const auto &t: times_) {
       publishAll(t);
-      if (t0 != ros::Time(0)) {
-        sleep((t - t0).toSec() / playbackRate_);
+      if (t0 != ros::Time(0) && rate > 0) {
+        sleep((t - t0).toSec() / rate);
       }
       t0 = t;
     }
     publishTransforms(t0, true);
-    res.message = "replayed " + std::to_string(times_.size());
-    res.success = true;
-    ROS_INFO_STREAM("finished replaying " << times_.size());
-    outBag_.close();
-    return (true);
   }
 
   void TagSlam::publishCameraTransforms(const ros::Time &t,
@@ -443,7 +448,7 @@ namespace tagslam {
       publishOriginalTagTransforms(t, &tfMsg);
     }
     publishCameraTransforms(t, &tfMsg);
-    if (t != ros::Time(0)) {
+    if (t != ros::Time(0) && writeToBag_) {
       // rosbag API does not like t == 0;
       outBag_.write<tf::tfMessage>("/tf", t, tfMsg);
     }
@@ -521,8 +526,10 @@ namespace tagslam {
       if (graph_utils::get_optimized_pose(*graph_, t, *body, &pose)) {
         auto msg = make_odom(t, fixedFrame_, body->getOdomFrameId(), pose);
         odomPub_[body_idx].publish(msg);
-        outBag_.write<nav_msgs::Odometry>(
-          "odom/body_" + body->getName(), t, msg);
+        if (writeToBag_) {
+          outBag_.write<nav_msgs::Odometry>(
+            "odom/body_" + body->getName(), t, msg);
+        }
       }
     }
   }

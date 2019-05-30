@@ -145,6 +145,7 @@ namespace tagslam {
     void remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
     void applyDistanceMeasurements();
+    void doReplay(double rate);
     TagPtr addTag(int tagId, const BodyPtr &body) const;
     // ------ variables --------
     ros::NodeHandle      nh_;
@@ -176,6 +177,7 @@ namespace tagslam {
     rosbag::Bag          outBag_;
     std::ofstream        tagCornerFile_;
     std::string          outBagName_;
+    bool                 writeToBag_{false};
     std::string          outDir_;
     std::string          inBagFile_;
     std::shared_ptr<SubSyncCompressed> subSyncCompressed_;
