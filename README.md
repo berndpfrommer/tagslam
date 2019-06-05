@@ -85,6 +85,13 @@ can be used to directly drive tagslam. Besides that there is the topic
 ``/annotated_images/compressed`` which has the tags highlighted in the
 original image.
 
+## More examples
+
+Many more examples can be found in the 
+[tagslam_test](https://github.com/berndpfrommer/tagslam_test)
+repository on github!
+
+
 ## Documentation
 
 TODO: explain how to configure bodies etc, how to do simple camera localization,
