@@ -132,6 +132,9 @@ namespace tagslam {
     void publishAll(const ros::Time &t);
     bool replay(std_srvs::Trigger::Request& req,
                 std_srvs::Trigger::Response &res);
+    bool dump(std_srvs::Trigger::Request& req,
+              std_srvs::Trigger::Response &res);
+    void doDump();
     void writeCameraPoses(const string &fname) const;
     void writeFullCalibration(const string &fname) const;
     void writePoses(const string &fname) const;
@@ -170,7 +173,8 @@ namespace tagslam {
     std::vector<cv::Mat> images_;
     std::vector<OdometryProcessor> odomProcessors_;
     tf::TransformBroadcaster tfBroadcaster_;
-    ros::ServiceServer   service_;
+    ros::ServiceServer   replayService_;
+    ros::ServiceServer   dumpService_;
     TagMap               tagMap_;
     Profiler             profiler_;
     std::list<ros::Time> times_;

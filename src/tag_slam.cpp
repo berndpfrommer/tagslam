@@ -138,7 +138,8 @@ namespace tagslam {
     if (!runOnline()) {
       clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
     }
-    service_ = nh_.advertiseService("replay", &TagSlam::replay, this);
+    replayService_ = nh_.advertiseService("replay", &TagSlam::replay, this);
+    dumpService_ = nh_.advertiseService("dump", &TagSlam::dump, this);
     if (publishAck_) {
       ackPub_	 = nh_.advertise<std_msgs::Header>("acknowledge", 1);
     }
@@ -173,7 +174,7 @@ namespace tagslam {
     std::cout.flush();
   }
 
-  void TagSlam::finalize() {
+  void TagSlam::doDump() {
     graphUpdater_.printPerformance();
     // do final optimization
     profiler_.reset();
@@ -186,11 +187,12 @@ namespace tagslam {
     }
     publishTransforms(times_.empty() ? ros::Time(0) :
                       *(times_.rbegin()), true);
-    tagCornerFile_.close();
+    tagCornerFile_.flush();
     
     outBag_.open(outBagName_, rosbag::bagmode::Write);
-    writeToBag_= true;
+    writeToBag_ = true;
     doReplay(0 /* playback at full speed */);
+    writeToBag_ = false;
     outBag_.close();
 
     writeCameraPoses(outDir_ + "/camera_poses.yaml");
@@ -210,6 +212,11 @@ namespace tagslam {
     profiler_.record("writeMeasurementDiagnostics");
     std::cout << profiler_ << std::endl;
     std::cout.flush();
+  }
+
+  void TagSlam::finalize() {
+    doDump();
+    tagCornerFile_.close();
   }
 
   void TagSlam::readBodies(XmlRpc::XmlRpcValue config) {
@@ -361,6 +368,16 @@ namespace tagslam {
     res.message = "replayed " + std::to_string(times_.size());
     res.success = true;
     ROS_INFO_STREAM("finished replaying " << times_.size() << " frames");
+    return (true);
+  }
+  
+  bool TagSlam::dump(std_srvs::Trigger::Request& req,
+                     std_srvs::Trigger::Response &res) {
+    ROS_INFO_STREAM("dumping!");
+    doDump();
+    res.message = "dump complete!";
+    res.success = true;
+    ROS_INFO_STREAM("finished dumping.");
     return (true);
   }
 
