@@ -71,20 +71,20 @@ namespace tagslam {
   }
 
   void
-  GraphUpdater::examine(const ros::Time &t, VertexDesc fac,
+  GraphUpdater::examine(Graph *graph, const ros::Time &t, VertexDesc fac,
                         VertexDeque *factorsToExamine,
                         SubGraph *covered, SubGraph *newSubGraph) {
-    //ROS_DEBUG_STREAM("examining factor: " << graph_->info(fac));
+    //ROS_DEBUG_STREAM("examining factor: " << graph->info(fac));
     VertexDesc valueVertex;
     VertexDeque values;
     int numMissing =
-      examine_connected_values(*graph_, fac, *covered,
+      examine_connected_values(*graph, fac, *covered,
                                &valueVertex, &values);
     if (numMissing == 1) {
       // establishes new value, let's explore the new
-      VertexConstPtr vt = graph_->getVertex(valueVertex);
+      VertexConstPtr vt = graph->getVertex(valueVertex);
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
-      ROS_DEBUG_STREAM(" factor " << graph_->info(fac) << " establishes new value: " << vp->getLabel());
+      ROS_DEBUG_STREAM(" factor " << graph->info(fac) << " establishes new value: " << vp->getLabel());
       auto &ff = covered->factors;
       if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
         ff.push_back(fac);
@@ -95,9 +95,9 @@ namespace tagslam {
         //ROS_INFO_STREAM("  adding new corresponding values: " << info(vv));
         covered->values.insert(vv);
       }
-      VertexVec connFac = graph_->getConnected(valueVertex);
+      VertexVec connFac = graph->getConnected(valueVertex);
       for (const auto &fv: connFac) {
-        VertexConstPtr  fvp = graph_->getVertex(fv); // pointer to factor
+        VertexConstPtr  fvp = graph->getVertex(fv); // pointer to factor
         FactorConstPtr fp =
           std::dynamic_pointer_cast<const factor::Factor>(fvp);
         if (fp) {
@@ -130,7 +130,7 @@ namespace tagslam {
       // this factor does not establish a new value, but
       // provides an additional measurement on existing ones.
       ROS_DEBUG_STREAM(" factor provides additional measurement: "
-                       << graph_->info(fac));
+                       << graph->info(fac));
       auto &ff = covered->factors;
       if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
         ff.push_back(fac);
@@ -147,39 +147,39 @@ namespace tagslam {
         }
       }
     } else {
-      ROS_DEBUG_STREAM(" factor does not establish new values: " << graph_->info(fac));
+      ROS_DEBUG_STREAM(" factor does not establish new values: " << graph->info(fac));
     }
   }
   
   void
-  GraphUpdater::exploreSubGraph(const ros::Time &t,
-                         VertexDesc start,
-                         SubGraph *subGraph, SubGraph *covered) {
+  GraphUpdater::exploreSubGraph(Graph *graph, const ros::Time &t,
+                                VertexDesc start,
+                                SubGraph *subGraph, SubGraph *covered) {
     VertexDeque factorsToExamine;
     factorsToExamine.push_back(start);
     while (!factorsToExamine.empty()) {
       VertexDesc exFac = factorsToExamine.front();
       factorsToExamine.pop_front();
       // examine() may append new factors to factorsToExamine
-      examine(t, exFac, &factorsToExamine, covered, subGraph);
+      examine(graph, t, exFac, &factorsToExamine, covered, subGraph);
     }
   }
 
 
   std::vector<VertexDeque>
-  GraphUpdater::findSubgraphs(const ros::Time &t, const VertexVec &facs,
-                              SubGraph *found) {
+  GraphUpdater::findSubgraphs(Graph *graph, const ros::Time &t,
+                              const VertexVec &facs, SubGraph *found) {
     profiler_.reset();
     std::vector<VertexDeque> sv;
     ROS_DEBUG_STREAM("===================== finding subgraphs for t = " << t);
     // first look over the new factors
     for (const auto &fac: facs) {
       ROS_DEBUG_STREAM(" ----- exploring new subgraph starting at: "
-                       << graph_->info(fac));
+                       << graph->info(fac));
       if (!contains(found->factors, fac)) {
         // this is a new factor that has not been explored
         SubGraph sg;
-        exploreSubGraph(t, fac, &sg, found);
+        exploreSubGraph(graph, t, fac, &sg, found);
         if (!sg.factors.empty()) {
           sv.push_back(sg.factors);    // transfer factors
         }
@@ -475,7 +475,8 @@ namespace tagslam {
   }
   
   double
-  GraphUpdater::initializeSubgraphs(std::vector<GraphPtr> *subGraphs,
+  GraphUpdater::initializeSubgraphs(Graph *graph,
+                                    std::vector<GraphPtr> *subGraphs,
                                     const std::vector<VertexDeque> &verts) {
     double totalSGError(0);
 
@@ -493,7 +494,7 @@ namespace tagslam {
       double errMin = 1e10;
       for (const auto &ordering: orderings) {
         ord++;
-        if (try_initialization(*graph_, ordering, ord, minimumViewingAngle_,
+        if (try_initialization(*graph, ordering, ord, minimumViewingAngle_,
                                maxSubgraphError_, &errMin, &bestGraph)) {
           // found a good-enough error value!
           break;
@@ -509,7 +510,7 @@ namespace tagslam {
         const double maxErr = bestGraph->getMaxError();
         if (maxErr < maxSubgraphError_) {
           totalSGError += sgErr;
-          graph_utils::initialize_from(graph_.get(), *bestGraph);
+          graph_utils::initialize_from(graph, *bestGraph);
         } else { 
           ROS_WARN_STREAM("dropping subgraph with error: " << sgErr << " "
                           << maxErr);
@@ -523,26 +524,26 @@ namespace tagslam {
     return (totalSGError);
   }
 
-  double GraphUpdater::optimize(double thresh) {
+  double GraphUpdater::optimize(Graph *graph, double thresh) {
     profiler_.reset();
     double error;
     if (optimizeFullGraph_) {
-      error = graph_->optimizeFull();
+      error = graph->optimizeFull();
     } else {
       if (numIncrementalOpt_ < maxNumIncrementalOpt_) {
 #ifdef DEBUG
         {
-          const auto errMap = graph_->getErrorMap();
+          const auto errMap = graph->getErrorMap();
           int count(0);
           const int MAX_COUNT(1000000);
           for (auto it = errMap.rbegin(); it != errMap.rend() && count < MAX_COUNT; ++it, count++) {
             ROS_INFO_STREAM("ERROR_MAP_BEFORE  " << it->first
-                            << " " << *((*graph_)[it->second]));
+                            << " " << *((*graph)[it->second]));
           }
-          //graph_->printErrorMap("ERROR DETAILS BEFORE");
+          //graph->printErrorMap("ERROR DETAILS BEFORE");
         }
 #endif        
-        error = graph_->optimize(thresh);
+        error = graph->optimize(thresh);
         numIncrementalOpt_++;
 #define REOPT        
 #ifdef REOPT        
@@ -553,26 +554,26 @@ namespace tagslam {
         const double deltaErr = error - lastIncError_;
         if (deltaErr > 5 * thresh && deltaErr > 0.5 * (lastIncError_)) {
 #ifdef DEBUG
-          const auto errMap = graph_->getErrorMap();
+          const auto errMap = graph->getErrorMap();
           int count(0);
           const int MAX_COUNT(1000000);
           for (auto it = errMap.rbegin(); it != errMap.rend() && count < MAX_COUNT; ++it, count++) {
             ROS_INFO_STREAM("ERROR_MAP  " << it->first
-                            << " " << *((*graph_)[it->second]));
+                            << " " << *((*graph)[it->second]));
           }
 #endif          
           ROS_INFO_STREAM("large err increase: " << deltaErr << ", doing full optimization");
-          error = graph_->optimizeFull(/*force*/ true);
+          error = graph->optimizeFull(/*force*/ true);
           ROS_INFO_STREAM("error after full opt: " << error);
-          graph_->transferFullOptimization();
+          graph->transferFullOptimization();
           numIncrementalOpt_ = 0;
         }
         lastIncError_ = error;
 #endif        
       } else {
         ROS_INFO_STREAM("max count reached, running full optimization!");
-        error = graph_->optimizeFull(/*force*/ true);
-        graph_->transferFullOptimization();
+        error = graph->optimizeFull(/*force*/ true);
+        graph->transferFullOptimization();
         numIncrementalOpt_ = 0;
       }
     }
@@ -581,17 +582,17 @@ namespace tagslam {
   }
 
   bool
-  GraphUpdater::applyFactorsToGraph(const ros::Time &t, const VertexVec &facs,
-                                    SubGraph *covered) {
+  GraphUpdater::applyFactorsToGraph(Graph *graph, const ros::Time &t,
+                                    const VertexVec &facs, SubGraph *covered) {
     std::vector<VertexDeque> sv;
-    sv = findSubgraphs(t, facs, covered);
+    sv = findSubgraphs(graph, t, facs, covered);
     if (sv.empty()) {
       return (false);
     }
     std::vector<GraphPtr> subGraphs;
-    const double serr = initializeSubgraphs(&subGraphs, sv);
+    const double serr = initializeSubgraphs(graph, &subGraphs, sv);
     subgraphError_ += serr;
-    const double err = optimize(serr);
+    const double err = optimize(graph, serr);
     ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
                     ", full graph error: " << err);
     eraseStoredFactors(t, covered->factors);
@@ -599,7 +600,8 @@ namespace tagslam {
   }
 
   void
-  GraphUpdater::processNewFactors(const ros::Time &t, const VertexVec &facs) {
+  GraphUpdater::processNewFactors(Graph *graph, const ros::Time &t,
+                                  const VertexVec &facs) {
     if (facs.empty()) {
       ROS_DEBUG_STREAM("no new factors received!");
       return;
@@ -607,7 +609,7 @@ namespace tagslam {
     // "covered" keeps track of what part of the graph has already
     // been operated on during this update cycle
     SubGraph covered;
-    bool oldFactorsActivated = applyFactorsToGraph(t, facs, &covered);
+    bool oldFactorsActivated = applyFactorsToGraph(graph, t, facs, &covered);
     if (!oldFactorsActivated) {
       ROS_DEBUG_STREAM("no old factors activated!");
       return;
@@ -621,11 +623,11 @@ namespace tagslam {
       const ros::Time oldTime = it->first;
       ROS_DEBUG_STREAM("++++++++ handling " << it->second.size()
                        << " old factors for t = " << oldTime);
-      if (!applyFactorsToGraph(oldTime, it->second, &covered)) {
+      if (!applyFactorsToGraph(graph, oldTime, it->second, &covered)) {
         break;
       }
     }
-    ROS_INFO_STREAM("graph after update: " << graph_->getStats());
+    ROS_INFO_STREAM("graph after update: " << graph->getStats());
   }
 
   void GraphUpdater::eraseStoredFactors(
@@ -638,8 +640,6 @@ namespace tagslam {
       // is inefficient. Use different structure
       for (auto ii = factors.begin(); ii != factors.end();) {
         if (contains(covered, *ii)) {
-          //ROS_DEBUG_STREAM("removing used factor " <<
-          //graph_->info(*ii) << " for time "  << key);
           ii = factors.erase(ii);
         } else {
           ++ii;

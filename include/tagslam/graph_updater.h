@@ -32,35 +32,35 @@ namespace tagslam {
   public:
     typedef std::deque<VertexDesc> VertexDeque;
     // ---------------------
-    void setGraph(const GraphPtr &g)   { graph_ = g; }
     void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
     void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
     void setMaxNumIncrementalOpt(int n) { maxNumIncrementalOpt_ = n; }
     void setMinimumViewingAngle(double angDeg);
 
-    void processNewFactors(const ros::Time &t, const VertexVec &facs);
+    void processNewFactors(Graph *g,
+                           const ros::Time &t, const VertexVec &facs);
     void printPerformance();
   private:
     typedef std::map<ros::Time, VertexVec> TimeToVertexesMap;
-    void examine(const ros::Time &t, VertexDesc fac,
+    void examine(Graph *graph, const ros::Time &t, VertexDesc fac,
                  VertexDeque *factorsToExamine,
                  SubGraph *found, SubGraph *sg);
 
     std::vector<VertexDeque>
-    findSubgraphs(const ros::Time &t, const VertexVec &fac, SubGraph *found);
+    findSubgraphs(Graph *g, const ros::Time &t, const VertexVec &fac,
+                  SubGraph *found);
  
-    double initializeSubgraphs(std::vector<GraphPtr> *subGraphs,
+    double initializeSubgraphs(Graph *g, std::vector<GraphPtr> *subGraphs,
                                const std::vector<VertexDeque> &verts);
-    void exploreSubGraph(const ros::Time &t, VertexDesc start,
+    void exploreSubGraph(Graph *g, const ros::Time &t, VertexDesc start,
                          SubGraph *subGraph, SubGraph *found);
-    bool applyFactorsToGraph(const ros::Time &t, const VertexVec &facs,
-                             SubGraph *covered);
+    bool applyFactorsToGraph(Graph *g, const ros::Time &t,
+                             const VertexVec &facs, SubGraph *covered);
     void eraseStoredFactors(const ros::Time &t,
                             const SubGraph::FactorCollection &covered);
-    double optimize(double thresh);
+    double optimize(Graph *g, double thresh);
     // ------ variables --------------
     bool               optimizeFullGraph_;
-    GraphPtr           graph_;
     TimeToVertexesMap  oldFactors_;
     Profiler           profiler_;
     double             maxSubgraphError_{15.0};

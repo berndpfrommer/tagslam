@@ -25,6 +25,8 @@ namespace tagslam {
     virtual double getMaxError() const = 0;
     virtual void   setErrorThreshold(double th) = 0;
     virtual void   setVerbosity(const string &v) = 0;
+    // makes deep copy
+    virtual Optimizer *clone() const = 0;
     // retrieves the optimized pose for a given key
     virtual Transform getPose(ValueKey key) = 0;
     // retrieves marginal for given key

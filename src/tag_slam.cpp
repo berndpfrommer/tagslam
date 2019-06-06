@@ -76,9 +76,12 @@ namespace tagslam {
   }
  
   TagSlam::TagSlam(const ros::NodeHandle &nh) : nh_(nh) {
-    graph_.reset(new Graph());
+    initialGraph_.reset(new Graph());
+    // Alias the graph to the initial graph. That way during startup,
+    // all updates that are done on graph_, are also done on the initial
+    // graph
+    graph_ = initialGraph_;
     graph_->setVerbosity("SILENT");
-    graphUpdater_.setGraph(graph_);
   }
 
   void TagSlam::sleep(double dt) const {
@@ -147,6 +150,8 @@ namespace tagslam {
     graph_->optimize(0);
     // open output files
     tagCornerFile_.open("tag_corners.txt");
+    // make a deep copy of the initial graph now
+    graph_.reset(initialGraph_->clone());
     return (true);
   }
 
@@ -286,7 +291,8 @@ namespace tagslam {
         }
       }
       graph_utils::add_pose_maybe_with_prior(
-        graph_.get(), ros::Time(0), Graph::cam_name(cam->getName()),pwn, true);
+        graph_.get(), ros::Time(0),
+        Graph::cam_name(cam->getName()),pwn, true);
     }
     for (const auto &ncp: numKnownCamPoses) {
       if (ncp.first->isStatic()) {
@@ -593,7 +599,7 @@ namespace tagslam {
     profiler_.record("processOdom");
     processTags(tagmsgs, &factors);
     profiler_.record("processTags");
-    graphUpdater_.processNewFactors(t, factors);
+    graphUpdater_.processNewFactors(graph_.get(), t, factors);
     profiler_.record("processNewFactors");
 
     times_.push_back(t);
@@ -661,7 +667,7 @@ namespace tagslam {
         ROS_WARN_STREAM("This will screw up the odom!");
       }
       ROS_INFO_STREAM("have odom from " << bpt->getName() << " " << frameId);
-      odomProcessors_.push_back(OdometryProcessor(nh_, graph_, bpt));
+      odomProcessors_.push_back(OdometryProcessor(nh_, bpt));
     }
   }
 
@@ -674,7 +680,7 @@ namespace tagslam {
     // from odom child frame id, deduce bodies
     for (const auto odomIdx: irange(0ul, odomMsgs.size())) {
       const auto &msg = odomMsgs[odomIdx];
-      odomProcessors_[odomIdx].process(msg, factors);
+      odomProcessors_[odomIdx].process(graph_.get(), msg, factors);
       //graph_.test();
     }
   }

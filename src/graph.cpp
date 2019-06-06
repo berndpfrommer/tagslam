@@ -46,6 +46,15 @@ namespace tagslam {
     optimizer_.reset(new GTSAMOptimizer());
   }
 
+  Graph *Graph::clone() const {
+    // it's not really a full deep copy, because the vertex pointers
+    // are copied shallow. 
+    Graph *g = new Graph(*this);
+    // The optimizer is just a pointer, need to clone it
+    g->optimizer_.reset(optimizer_->clone());
+    return (g);
+  }
+
   double Graph::optimize(double thresh) {
     return (optimizer_->optimize(thresh));
   }

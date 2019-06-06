@@ -43,6 +43,12 @@ namespace tagslam {
   GTSAMOptimizer::~GTSAMOptimizer() {
   }
 
+  Optimizer* GTSAMOptimizer::clone() const {
+    GTSAMOptimizer *o = new GTSAMOptimizer(*this);
+    o->isam2_.reset(new gtsam::ISAM2(*isam2_));
+    return (o);
+  }
+
   std::shared_ptr<Cal3DS3> GTSAMOptimizer::getRadTanModel(
     const string &cname, const CameraIntrinsics &ci) {
     // TODO: introduce camera ID and use lookup table!

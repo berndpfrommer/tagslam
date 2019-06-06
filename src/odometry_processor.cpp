@@ -13,9 +13,8 @@ namespace tagslam {
   using OdometryConstPtr = nav_msgs::OdometryConstPtr;
 
   OdometryProcessor::OdometryProcessor(ros::NodeHandle &nh,
-                                       const GraphPtr &g,
                                        const BodyConstPtr &body) :
-    graph_(g), body_(body) {
+    body_(body) {
     pub_ =
       nh.advertise<nav_msgs::Odometry>("raw_odom/body_"+body->getName(), 5);
     acceleration_ = body->getOdomAcceleration();
@@ -31,7 +30,7 @@ namespace tagslam {
   }
 
   void
-  OdometryProcessor::process(const OdometryConstPtr &msg,
+  OdometryProcessor::process(Graph *graph, const OdometryConstPtr &msg,
                              std::vector<VertexDesc> *factors) {
     auto msg2 = *msg;
     msg2.header.frame_id = "map";
@@ -79,7 +78,7 @@ namespace tagslam {
         PoseNoise::make(std::max(dang, angularAcceleration_ * dt2),
                          std::max(dpos, acceleration_ * dt2));
       const PoseWithNoise pwn(deltaPose, pn, true);
-      auto fac = add_body_pose_delta(graph_.get(), time_, msg->header.stamp,
+      auto fac = add_body_pose_delta(graph, time_, msg->header.stamp,
                                      body_, pwn);
       factors->push_back(fac);
     }

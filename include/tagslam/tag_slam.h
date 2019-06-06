@@ -153,6 +153,7 @@ namespace tagslam {
     // ------ variables --------
     ros::NodeHandle      nh_;
     GraphPtr             graph_;
+    GraphPtr             initialGraph_;
     GraphUpdater         graphUpdater_;
     CameraVec            cameras_;
     BodyVec              bodies_;

@@ -28,7 +28,8 @@ namespace tagslam {
 
     double    getMaxError() const override;
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
-    void      setVerbosity(const string &v) { verbosity_ = v;}
+    void      setVerbosity(const string &v) override { verbosity_ = v;}
+    Optimizer *clone() const override;
     Transform getPose(ValueKey key) override;
     PoseNoise getMarginal(const ValueKey k) override;
     ValueKey  addPose(const Transform &pose) override;

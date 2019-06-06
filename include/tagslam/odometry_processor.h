@@ -19,16 +19,14 @@ namespace tagslam {
     using OdometryConstPtr = nav_msgs::OdometryConstPtr;
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    OdometryProcessor(ros::NodeHandle &nh, const GraphPtr &graph,
-                      const BodyConstPtr &body);
-    void process(const OdometryConstPtr &msgs,
+    OdometryProcessor(ros::NodeHandle &nh, const BodyConstPtr &body);
+    void process(Graph *g, const OdometryConstPtr &msgs,
                  std::vector<VertexDesc> *factors);
     static VertexDesc add_body_pose_delta(
       Graph *graph, const ros::Time &tPrev, const ros::Time &tCurr,
       const BodyConstPtr &body, const PoseWithNoise &deltaPose);
   private:
     // ---- variables
-    GraphPtr        graph_;
     BodyConstPtr    body_;
     Transform       pose_;
     ros::Time       time_{0};

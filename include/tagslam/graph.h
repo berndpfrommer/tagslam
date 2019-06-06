@@ -69,13 +69,16 @@ namespace tagslam {
     std::pair<BoostGraph::vertex_iterator, BoostGraph::vertex_iterator>
     getVertexIterator() const { return (boost::vertices(graph_)); }
     
-    void transferFullOptimization() { optimizer_->transferFullOptimization(); }
     void setVerbosity(const string &v) {
       optimizer_->setVerbosity(v);
     }
-    void  initializeFrom(const Graph &sg);
     void  print(const string &pre = "") const;
     string getStats() const;
+    //
+    // deep copy and other nasty stuff
+    //
+    Graph *clone() const;
+    void transferFullOptimization() { optimizer_->transferFullOptimization(); }
     //
     // methods related to optimization
     //
