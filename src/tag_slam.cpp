@@ -135,7 +135,9 @@ namespace tagslam {
       m->addToGraph(graph_);
       m->tryAddToOptimizer();
     }
-    clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
+    if (!runOnline()) {
+      clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
+    }
     service_ = nh_.advertiseService("replay", &TagSlam::replay, this);
     if (publishAck_) {
       ackPub_	 = nh_.advertise<std_msgs::Header>("acknowledge", 1);
@@ -598,9 +600,11 @@ namespace tagslam {
 
   void TagSlam::publishAll(const ros::Time &t) {
     publishBodyOdom(t);
-    rosgraph_msgs::Clock clockMsg;
-    clockMsg.clock = t;
-    clockPub_.publish(clockMsg);
+    if (!runOnline()) {
+      rosgraph_msgs::Clock clockMsg;
+      clockMsg.clock = t;
+      clockPub_.publish(clockMsg);
+    }
     publishTransforms(t, false);
   }
 
