@@ -27,7 +27,16 @@ namespace tagslam {
   SyncAndDetect::~SyncAndDetect() {
   }
 
+  using Family = apriltag_ros::TagFamily;
   bool SyncAndDetect::initialize() {
+    int tagF;
+    nh_.param<int>("tag_family", tagF, 0);
+    Family tagFamily = static_cast<Family>(tagF);
+    if (tagFamily != Family::tf36h11 &&
+        tagFamily != Family::tf25h9  &&
+        tagFamily != Family::tf16h5) {
+      BOMB_OUT("invalid tag family!");
+    }
     nh_.getParam("odometry_topics", odometryTopics_);
     if (!nh_.getParam("image_topics", imageTopics_)) {
       BOMB_OUT("must specify image_topics parameter!");
@@ -44,10 +53,10 @@ namespace tagslam {
     nh_.param<std::string>("detector_type", detectorType_, "Mit");
     if (detectorType_ == "Mit") {
       detector_ = apriltag_ros::ApriltagDetector::Create(
-        apriltag_ros::DetectorType::Mit, apriltag_ros::TagFamily::tf36h11);
+        apriltag_ros::DetectorType::Mit, tagFamily);
     } else if (detectorType_ == "Umich") {
       detector_ = apriltag_ros::ApriltagDetector::Create(
-        apriltag_ros::DetectorType::Umich, apriltag_ros::TagFamily::tf36h11);
+        apriltag_ros::DetectorType::Umich, tagFamily);
     } else {
       BOMB_OUT("INVALID DETECTOR TYPE: " << detectorType_);
     }

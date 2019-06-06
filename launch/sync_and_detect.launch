@@ -6,6 +6,12 @@
   <arg name="duration" default="-1.0"/>
   <arg name="images_are_compressed" default="true"/>
   <arg name="annotate_images" default="true"/>
+  <!-- for list of valid tag families, see apriltag_detector.h
+       0 = 36h11
+       1 = 25h9
+       2 = 16h5
+  -->
+  <arg name="tag_family" default="0"/>
   <node pkg="tagslam" type="sync_and_detect_node" name="sync_and_detect"
     output="$(arg output)" clear_params="True">
     <rosparam param="image_topics">
@@ -20,6 +26,7 @@
     -->
     <param name="bag_file" value="$(arg bag)"/>
     <param name="detector_type" value="$(arg detector_type)"/>
+    <param name="tag_family" value="$(arg tag_family)"/>
     <param name="black_border_width" value="1"/>
     <param name="annotate_images" value="$(arg annotate_images)"/>
     <param name="images_are_compressed" value="$(arg images_are_compressed)"/>
