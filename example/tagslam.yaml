@@ -46,4 +46,4 @@ bodies:
            z: 1.0e-05
  - rig:
      is_static: false
-     type: camera_rig
+     type: simple

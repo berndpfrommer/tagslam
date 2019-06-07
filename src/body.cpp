@@ -23,10 +23,13 @@ namespace tagslam {
     if (type == "board") {
       BoardPtr board(new Board(name));
       p = board;
-    } else  if (type == "simple" || type == "camera_rig") {
+    } else  if (type == "simple") {
       SimpleBodyPtr sb(new SimpleBody(name));
       p = sb;
     } else {
+      if (type == "camera_rig") {
+        ROS_ERROR_STREAM("camera_rig is deprecated, change to simple!");
+      }
       BOMB_OUT("invalid rigid body type: " + type);
     }
     p->setType(type);
