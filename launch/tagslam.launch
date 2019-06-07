@@ -23,7 +23,6 @@
     <param name="bag_file" value="$(arg bag)" unless="$(arg run_online)"/>
     <param name="optimize_full_graph" value="false"/>
     <param name="max_subgraph_error" value="50.0"/>
-    <param name="prune_graph_time" value="5.0"/>
     <param name="has_compressed_images" value="false"/>
     <param name="playback_rate" value="10.0"/>
     <param name="max_num_incremental_opt" value="200"/>
