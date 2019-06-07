@@ -98,7 +98,7 @@ namespace tagslam {
     typedef std::unordered_map<int, TagConstPtr> TagMap;
 
     void readBodies(XmlRpc::XmlRpcValue config);
-    void readDefaultBody(XmlRpc::XmlRpcValue config);
+    void readGlobalParameters(XmlRpc::XmlRpcValue config);
     void readCameras(XmlRpc::XmlRpcValue config);
     void readCameraPoses(XmlRpc::XmlRpcValue config);
     void readDistanceMeasurements();
@@ -149,6 +149,7 @@ namespace tagslam {
                         const std::vector<TagArrayConstPtr> &orig);
     void applyDistanceMeasurements();
     void doReplay(double rate);
+    void copyPosesAndReset();
     TagPtr addTag(int tagId, const BodyPtr &body) const;
     // ------ variables --------
     ros::NodeHandle      nh_;
@@ -167,6 +168,7 @@ namespace tagslam {
     bool                 hasCompressedImages_;
     bool                 useFakeOdom_{false};
     bool                 publishAck_{false};
+    bool                 amnesia_{false};
     int                  frameNum_{0};
     int                  maxFrameNum_{1000000};
     double               playbackRate_{1.0};

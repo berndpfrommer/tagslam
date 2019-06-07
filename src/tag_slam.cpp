@@ -104,7 +104,6 @@ namespace tagslam {
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("publish_ack", publishAck_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
-    
     // --- graph updater params ---
     
     bool   optFullGraph;
@@ -127,7 +126,7 @@ namespace tagslam {
     readSquash(config);
     readRemap(config);
     readBodies(config);
-    readDefaultBody(config);
+    readGlobalParameters(config);
     nh_.getParam("cameras", camConfig);
     readCameras(camConfig);
     nh_.getParam("camera_poses", camPoses);
@@ -250,27 +249,25 @@ namespace tagslam {
     }
   }
 
-  void TagSlam::readDefaultBody(XmlRpc::XmlRpcValue config) {
-    try {
-      const string defbody = config["default_body"];
-      if (defbody.empty()) {
-        ROS_WARN_STREAM("no default body specified!");
-        return;
-      }
+  void TagSlam::readGlobalParameters(XmlRpc::XmlRpcValue config) {
+    const string defbody = xml::parse<std::string>(config, "default_body", "");
+    if (defbody.empty()) {
+      ROS_WARN_STREAM("no default body specified!");
+    } else {
       for (auto &body: bodies_) {
         if (body->getName() == defbody) {
-          ROS_INFO_STREAM("default body: " << defbody);
           defaultBody_ = body;
           if (defaultBody_->getDefaultTagSize() <= 0) {
-            BOMB_OUT("default body " << defbody << " has no dflt tag size!");
+            BOMB_OUT("body " << defbody << " must have default tag size!");
           }
+          break;
         }
       }
-      if (!defaultBody_) {
-        ROS_WARN_STREAM("cannot find default body: " << defbody);
-      }
-    } catch (const XmlRpc::XmlRpcException &e) {
-      ROS_WARN("no default body!");
+      if (!defaultBody_) { BOMB_OUT("cannot find default body: " << defbody); }
+    }
+    amnesia_ = xml::parse<bool>(config, "amnesia", false);
+    if (amnesia_) {
+      ROS_INFO_STREAM("using amnesia!");
     }
   }
 
@@ -568,9 +565,45 @@ namespace tagslam {
     return (false);
   }
 
+  void TagSlam::copyPosesAndReset() {
+    //
+    // For all dynamic bodies, copy the previous pose
+    // and bolt it down with a pose prior. In combination
+    // with fake odometry, this helps initialization.
+    //
+    ros::Time t = times_.back();
+    Graph *g = initialGraph_->clone();
+    for (const auto &body: bodies_) {
+      if (body->isStatic() && body->getPoseWithNoise().isValid()) {
+        continue;
+      }
+      Transform pose;
+      if (graph_utils::get_optimized_pose(*graph_, t, *body, &pose)) {
+        const std::string name = Graph::body_name(body->getName());
+        // add pose to graph and optimizer
+        const VertexDesc v = g->addPose(t, name, false /*isCamPose*/);
+        const PoseValuePtr pp = std::dynamic_pointer_cast<value::Pose>((*g)[v]);
+        pp->addToOptimizer(pose, g);
+        // add pose prior to graph and optimizer
+        const double ns = 0.001;
+        PoseWithNoise pwn(pose, PoseNoise::make(ns, ns), true);
+        AbsolutePosePriorFactorPtr
+          app(new factor::AbsolutePosePrior(t, pwn, pp->getName()));
+        app->addToGraph(app, g);
+        app->addToOptimizer(g);
+      }
+    }
+    times_.clear();
+    times_.push_back(t); // such that fake odom works!
+    graph_.reset(g); // now use the new graph
+  }
+
   void TagSlam::processTagsAndOdom(
     const std::vector<TagArrayConstPtr> &origtagmsgs,
     const std::vector<OdometryConstPtr> &odommsgs) {
+    if (amnesia_ && !times_.empty()) {
+      copyPosesAndReset();
+    }
     std::vector<TagArrayConstPtr> tagmsgs;
     remapAndSquash(&tagmsgs, origtagmsgs);
     if (tagmsgs.empty() && odommsgs.empty()) {
