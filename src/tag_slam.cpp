@@ -269,6 +269,7 @@ namespace tagslam {
     if (amnesia_) {
       ROS_INFO_STREAM("using amnesia!");
     }
+    maxHammingDistance_ = xml::parse<int>(config, "max_hamming_distance", 100);
   }
 
 
@@ -949,6 +950,12 @@ namespace tagslam {
       p->header = o->header;
       const auto sq = squash_.find(t);
       for (const auto &tag: o->apriltags) {
+        if (tag.hamming > maxHammingDistance_) {
+          ROS_WARN_STREAM("dropped dropped tag " << tag.id <<
+                          " with hamming dist: " << tag.hamming
+                          << " > " << maxHammingDistance_);
+          continue;
+        }
         if (sq != squash_.end() && sq->second.count(tag.id) != 0) {
           ROS_INFO_STREAM("time - squashed tag: " << tag.id);
         } else{

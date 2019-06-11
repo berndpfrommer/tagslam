@@ -171,6 +171,7 @@ namespace tagslam {
     bool                 amnesia_{false};
     int                  frameNum_{0};
     int                  maxFrameNum_{1000000};
+    int                  maxHammingDistance_{100};
     double               playbackRate_{1.0};
     double               pixelNoise_{1.0};
     std::vector<cv::Mat> images_;
