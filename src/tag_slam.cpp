@@ -952,7 +952,7 @@ namespace tagslam {
       const auto sq = squash_.find(t);
       for (const auto &tag: o->apriltags) {
         if (tag.hamming > maxHammingDistance_) {
-          ROS_WARN_STREAM("dropped dropped tag " << tag.id <<
+          ROS_WARN_STREAM("dropped tag " << tag.id <<
                           " with hamming dist: " << tag.hamming
                           << " > " << maxHammingDistance_);
           continue;
