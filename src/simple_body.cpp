@@ -23,6 +23,8 @@ namespace tagslam {
     if (!Body::writeCommon(os, prefix)) {
       return (false);
     }
+/*
+    // Don't write tag poses here anymore
     const std::string ind = prefix + "    "; // indent
     os << ind << "tags: " << std::endl;
     PoseNoise smallNoise = PoseNoise::make(0.001, 0.001);
@@ -34,9 +36,9 @@ namespace tagslam {
         yaml_utils::write_pose(os, ind + "  ",
                                tag->getPoseWithNoise().getPose(),
                                smallNoise, true);
-        //TODO: tag->poseEstimate.getNoise());
       }
     }
+*/
     return (true);
   }
 

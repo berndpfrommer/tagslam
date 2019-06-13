@@ -800,6 +800,7 @@ namespace tagslam {
         }
       }
       if (body->printTags()) {
+        f << "     tags:" << std::endl;
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
           if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
