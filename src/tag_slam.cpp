@@ -386,15 +386,16 @@ namespace tagslam {
   }
 
   void TagSlam::doReplay(double rate) {
-    ros::Time t0(0);
+    ros::WallRate wallRate(std::max(rate, 1e-3));
     for (const auto &t: times_) {
       publishAll(t);
-      if (t0 != ros::Time(0) && rate > 0) {
-        sleep((t - t0).toSec() / rate);
+      if (rate > 0) {
+        wallRate.sleep();
       }
-      t0 = t;
     }
-    publishTransforms(t0, true);
+    if (!times_.empty()) {
+      publishTransforms(*times_.rbegin(), true);
+    }
   }
 
   void TagSlam::publishCameraTransforms(const ros::Time &t,
