@@ -1,7 +1,7 @@
 <launch>
   <arg name="output" default="screen"/>
   <arg name="bag" default=""/>
-  <arg name="detector_type" default="Umich"/>
+  <arg name="detector_type" default="Mit"/>
   <arg name="start_time" default="0.0"/>
   <arg name="duration" default="-1.0"/>
   <arg name="images_are_compressed" default="true"/>
