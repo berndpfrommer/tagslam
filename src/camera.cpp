@@ -35,9 +35,12 @@ namespace tagslam {
     CameraVec cdv;
     int cam_idx = 0;
     for (const auto cam_num: irange(0, 100)) {
-      const string name = "cam" + std::to_string(cam_num);
+      string name = "cam" + std::to_string(cam_num);
       if (!config.hasMember(name)) {
+        name = "camera_" + std::to_string(cam_num);
+        if (!config.hasMember(name)) {
         continue;
+        }
       }
       try {
         CameraPtr camera = parse_camera(name, config[name]);
