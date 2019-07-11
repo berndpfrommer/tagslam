@@ -142,6 +142,7 @@ namespace tagslam {
     }
     replayService_ = nh_.advertiseService("replay", &TagSlam::replay, this);
     dumpService_ = nh_.advertiseService("dump", &TagSlam::dump, this);
+    plotService_ = nh_.advertiseService("plot", &TagSlam::plot, this);
     if (publishAck_) {
       ackPub_	 = nh_.advertise<std_msgs::Header>("acknowledge", 1);
     }
@@ -365,6 +366,16 @@ namespace tagslam {
     return (topics);
   }
 
+  bool TagSlam::plot(std_srvs::Trigger::Request& req,
+                     std_srvs::Trigger::Response &res) {
+    ROS_INFO_STREAM("plotting!");
+    graph_utils::plot("graph.dot", graph_.get());
+    res.message = "dump complete!";
+    res.success = true;
+    ROS_INFO_STREAM("finished dumping.");
+    return (true);
+  }
+ 
   bool TagSlam::replay(std_srvs::Trigger::Request& req,
                        std_srvs::Trigger::Response &res) {
     ROS_INFO_STREAM("replaying!");

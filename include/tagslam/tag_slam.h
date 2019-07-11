@@ -130,6 +130,8 @@ namespace tagslam {
     std::vector<TagConstPtr> findTags(const std::vector<Apriltag> &ta);
     bool anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs);
     void publishAll(const ros::Time &t);
+    bool plot(std_srvs::Trigger::Request& req,
+              std_srvs::Trigger::Response &res);
     bool replay(std_srvs::Trigger::Request& req,
                 std_srvs::Trigger::Response &res);
     bool dump(std_srvs::Trigger::Request& req,
@@ -177,6 +179,7 @@ namespace tagslam {
     std::vector<cv::Mat> images_;
     std::vector<OdometryProcessor> odomProcessors_;
     tf::TransformBroadcaster tfBroadcaster_;
+    ros::ServiceServer   plotService_;
     ros::ServiceServer   replayService_;
     ros::ServiceServer   dumpService_;
     TagMap               tagMap_;

@@ -4,11 +4,39 @@
 
 #include "tagslam/graph_utils.h"
 #include "tagslam/logging.h"
-
+#include <boost/graph/graphviz.hpp>
+#include <boost/graph/graph_utility.hpp>
+#include <fstream>
 
 namespace tagslam {
   namespace graph_utils {
     using std::string;
+    class LabelWriter {
+    public:
+      LabelWriter(const Graph *g) : graph_(g)  { }
+      template <class VertexOrEdge>
+      void operator()(std::ostream &out, const VertexOrEdge& v) const {
+        VertexConstPtr vp = graph_->getVertex(v);
+        const string color =  graph_->isOptimized(v) ? "green" : "red";
+        out << "[label=\"" << vp->getLabel() << "\", shape="
+            << vp->getShape() << ", color=" << color << "]";
+      }
+    private:
+      const Graph *graph_;
+    };
+
+    void plot(const string &fname, const Graph *g) {
+      std::ofstream ofile(fname);
+      boost::write_graphviz(ofile, g->getBoostGraph(), LabelWriter(g));
+    }
+    
+    void plot_debug(const ros::Time &t, const string &tag, const Graph &g) {
+      std::stringstream ss;
+      ss << tag << "_" <<  t.toNSec() << ".dot";
+      graph_utils::plot(ss.str(), &g);
+    }
+
+
 
     static AbsolutePosePriorFactorPtr
     find_abs_pose_prior(const Graph &g, const VertexDesc &vv) {

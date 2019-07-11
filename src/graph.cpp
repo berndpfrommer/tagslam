@@ -12,8 +12,6 @@
 #include "tagslam/factor/relative_pose_prior.h"
 #include "tagslam/factor/tag_projection.h"
 #include <boost/range/irange.hpp>
-#include <boost/graph/graphviz.hpp>
-#include <boost/graph/graph_utility.hpp>
 
 
 #include <sstream>
@@ -22,25 +20,6 @@ namespace tagslam {
 
   using boost::irange;
   using std::string;
-
-  class LabelWriter {
-  public:
-    LabelWriter(const Graph *g) : graph_(g)  { }
-    template <class VertexOrEdge>
-    void operator()(std::ostream &out, const VertexOrEdge& v) const {
-      VertexConstPtr vp = graph_->getVertex(v);
-      const string color =  graph_->isOptimized(v) ? "green" : "red";
-      out << "[label=\"" << vp->getLabel() << "\", shape="
-          << vp->getShape() << ", color=" << color << "]";
-    }
-  private:
-    const Graph *graph_;
-  };
-
-  static void plot(const string &fname, const Graph *g) {
-    std::ofstream ofile(fname);
-    boost::write_graphviz(ofile, g->getBoostGraph(), LabelWriter(g));
-  }
 
   Graph::Graph() {
     optimizer_.reset(new GTSAMOptimizer());
@@ -188,12 +167,6 @@ namespace tagslam {
     return (optimizer_->getPose(it->second[0]));
   }
 
-
-  void Graph::plotDebug(const ros::Time &t, const string &tag) {
-    std::stringstream ss;
-    ss << tag << "_" <<  t.toNSec() << ".dot";
-    plot(ss.str(), this);
-  }
 
   string Graph::info(const VertexDesc &v) const {
     return (graph_[v]->getLabel());
