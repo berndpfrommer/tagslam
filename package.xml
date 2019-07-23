@@ -13,6 +13,7 @@
   <depend>roscpp</depend>
   <depend>nodelet</depend>
   <depend>tf</depend>
+  <depend>image_transport</depend>
   <depend>tf_conversions</depend>
   <depend>eigen_conversions</depend>
   <depend>cv_bridge</depend>

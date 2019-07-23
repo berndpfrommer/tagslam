@@ -25,6 +25,7 @@ namespace tagslam {
   }
 
   SyncAndDetect::~SyncAndDetect() {
+    std::cout << profiler_ << std::endl;
   }
 
   using Family = apriltag_ros::TagFamily;
@@ -68,18 +69,57 @@ namespace tagslam {
     nh_.param<int>("skip", skip_, 1);
     nh_.param<bool>("images_are_compressed", imagesAreCompressed_, false);
     nh_.param<bool>("annotate_images", annotateImages_, false);
-    std::string bagFile;
-    nh_.param<std::string>("bag_file", bagFile, "");
+    nh_.param<std::string>("bag_file", bagFile_, "");
     std::string outfname;
     nh_.param<std::string>("output_bag_file", outfname, "output.bag");
     outbag_.open(outfname, rosbag::bagmode::Write);
-    if (!bagFile.empty()) {
-      processBag(bagFile);
+    if (runOnline()) {
+      subscribe();
     } else {
-      BOMB_OUT("must specify bag_file parameter!");
+      processBag(bagFile_);
     }
-    outbag_.close();
     return (true);
+  }
+
+  SyncAndDetect::Odom::Odom(
+    ros::NodeHandle &nh, const std::string &topic,
+    ImageOdometrySync* sync) : topic_(topic), sync_(sync) {
+    sub_ = nh.subscribe(topic, 10, &Odom::callback, this);
+  }
+
+  void SyncAndDetect::Odom::callback(const OdometryConstPtr &odom) {
+    sync_->process(topic_, odom);
+  }
+
+  SyncAndDetect::View::View(
+    ImageTransport *it, const std::string &topic,
+    ImageOdometrySync* sync) : topic_(topic), sync_(sync) {
+    image_transport::TransportHints th("compressed");
+    sub_ = it->subscribe(topic, 10, &View::callback, this, th);
+  }
+
+  void SyncAndDetect::View::callback(const ImageConstPtr &image) {
+    sync_->process(topic_, image);
+  }
+
+  void
+  SyncAndDetect::subscribe() {
+    std::vector<std::vector<std::string>> tpv;
+    tpv.push_back(imageTopics_);
+    tpv.push_back(odometryTopics_);
+    imageTransport_.reset(new image_transport::ImageTransport(nh_));
+    sync_.reset(new flex_sync::Sync<Image, Odometry>(
+                  tpv, std::bind(&SyncAndDetect::processImages,
+                                 this, std::placeholders::_1,
+                                 std::placeholders::_2)));
+    for (const auto &topic: imageTopics_) {
+      views_.emplace_back(new View(imageTransport_.get(),
+                                   topic, sync_.get()));
+    }
+    // warning: never tested odom code!
+    for (const auto &topic: odometryTopics_) {
+      odoms_.emplace_back(new Odom(nh_, topic, sync_.get()));
+    }
   }
 
   void
@@ -90,16 +130,20 @@ namespace tagslam {
     typedef std::vector<apriltag_msgs::Apriltag> TagVec;
     std::vector<TagVec> allTags(grey.size());
     if (detectorType_ == "Umich") {
+      profiler_.reset();
+//#pragma omp parallel for
       for (int i = 0; i < (int)grey.size(); i++) {
         allTags[i] = detector_->Detect(grey[i]);
       }
+      profiler_.record("detect", grey.size());
     } else {
+      profiler_.reset();
 #pragma omp parallel for
       for (int i = 0; i < (int)grey.size(); i++) {
         allTags[i] = detector_->Detect(grey[i]);
       }
+      profiler_.record("detect", grey.size());
     }
-
     sensor_msgs::CompressedImage msg;
     msg.format = "jpeg";
     std::vector<int> param(2);
@@ -114,9 +158,10 @@ namespace tagslam {
       for (const auto &tag: tags) {
         tagMsg.apriltags.push_back(tag);
       }
-      if(headers[i].stamp.toSec() != 0)
+      if (headers[i].stamp.toSec() != 0) {
         outbag_.write<apriltag_msgs::ApriltagArrayStamped>(
           tagTopics_[i], headers[i].stamp, tagMsg);
+      }
       if (annotateImages_) {
         cv::Mat colorImg = imgs[i].clone();
         if (!tags.empty()) {
@@ -195,6 +240,7 @@ namespace tagslam {
       headers.push_back(img->header);
     }
     processCVMat(headers, grey_images, images);
+        
     for (const auto i: irange(0ul, odom.size())) {
       outbag_.write<Odometry>(odometryTopics_[i],
                               odom[i]->header.stamp, odom[i]);
@@ -233,6 +279,7 @@ namespace tagslam {
                   this, std::placeholders::_1, std::placeholders::_2));
     }
     bag.close();
+    outbag_.close();
     ros::shutdown();
   }
   

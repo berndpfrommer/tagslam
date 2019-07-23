@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   tf_conversions
   eigen_conversions
+  image_transport
 )
 
 find_package(Eigen3 REQUIRED QUIET)
@@ -69,7 +70,7 @@ include_directories(
 #)
 
 add_executable(sync_and_detect_node src/sync_and_detect_node.cpp
-src/sync_and_detect.cpp)
+src/sync_and_detect.cpp src/profiler.cpp)
 target_link_libraries(sync_and_detect_node ${catkin_LIBRARIES})
 
 

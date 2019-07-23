@@ -4,7 +4,10 @@
 
 #pragma once
 
+#include "tagslam/profiler.h"
+
 #include <flex_sync/sync.h>
+#include <image_transport/image_transport.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
@@ -22,6 +25,9 @@ namespace tagslam {
   using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
   using Odometry = nav_msgs::Odometry;
   using OdometryConstPtr = nav_msgs::OdometryConstPtr;
+  using ImageTransport = image_transport::ImageTransport;
+  typedef flex_sync::Sync<Image, Odometry> ImageOdometrySync;
+
   class SyncAndDetect {
   public:
     SyncAndDetect(const ros::NodeHandle &pnh);
@@ -33,6 +39,30 @@ namespace tagslam {
     bool initialize();
 
   private:
+    class View {
+    public:
+      View(ImageTransport *it, const std::string &topic,
+           ImageOdometrySync* sync);
+    private:
+      std::string       topic_;
+      ImageOdometrySync *sync_;
+      image_transport::Subscriber sub_;
+      void callback(const ImageConstPtr &image);
+    };
+
+    class Odom {
+    public:
+      Odom(ros::NodeHandle &nh, const std::string &topic,
+           ImageOdometrySync *sync);
+    private:
+      std::string       topic_;
+      ImageOdometrySync *sync_;
+      ros::Subscriber   sub_;
+      void callback(const OdometryConstPtr &odom);
+    };
+
+    void subscribe();
+    bool runOnline() const { return (bagFile_.empty()); }
     void processImages(const std::vector<ImageConstPtr> &msgvec,
                        const std::vector<OdometryConstPtr> &odomvec);
     void processCompressedImages(const std::vector<CompressedImageConstPtr> &mv,
@@ -76,6 +106,7 @@ namespace tagslam {
     // ----------------------------------------------------------
     ros::NodeHandle                     nh_;
     unsigned int                        fnum_{0};
+    std::string                         bagFile_;
     rosbag::Bag                         outbag_;
     std::vector<std::string>            tagTopics_;
     std::vector<std::string>            imageTopics_;
@@ -87,5 +118,10 @@ namespace tagslam {
     int                                 skip_{1};
     apriltag_ros::ApriltagDetector::Ptr detector_;
     std::string                         detectorType_;
+    Profiler                            profiler_;
+    std::shared_ptr<ImageTransport>     imageTransport_;
+    std::shared_ptr<ImageOdometrySync>  sync_;
+    std::vector<std::shared_ptr<View>>  views_;
+    std::vector<std::shared_ptr<Odom>>  odoms_;
   };
 }
