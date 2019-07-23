@@ -52,18 +52,21 @@ namespace tagslam {
       BOMB_OUT("must have same number of tag_topics and image_topics!");
     }
     nh_.param<std::string>("detector_type", detectorType_, "Mit");
-    if (detectorType_ == "Mit") {
-      detector_ = apriltag_ros::ApriltagDetector::Create(
-        apriltag_ros::DetectorType::Mit, tagFamily);
-    } else if (detectorType_ == "Umich") {
-      detector_ = apriltag_ros::ApriltagDetector::Create(
-        apriltag_ros::DetectorType::Umich, tagFamily);
-    } else {
-      BOMB_OUT("INVALID DETECTOR TYPE: " << detectorType_);
-    }
     int borderWidth;
     nh_.param<int>("black_border_width", borderWidth, 1);
-    detector_->set_black_border(borderWidth);
+    for (const auto &i: irange(0ul, imageTopics_.size())) {
+      (void)i;
+      if (detectorType_ == "Mit") {
+        detectors_.push_back(apriltag_ros::ApriltagDetector::Create(
+                              apriltag_ros::DetectorType::Mit, tagFamily));
+      } else if (detectorType_ == "Umich") {
+        detectors_.push_back(apriltag_ros::ApriltagDetector::Create(
+                               apriltag_ros::DetectorType::Umich, tagFamily));
+      } else {
+        BOMB_OUT("INVALID DETECTOR TYPE: " << detectorType_);
+      }
+      detectors_.back()->set_black_border(borderWidth);
+    }
 
     nh_.param<int>("max_number_frames", maxFrameNumber_, 1000000);
     nh_.param<int>("skip", skip_, 1);
@@ -112,9 +115,11 @@ namespace tagslam {
                   tpv, std::bind(&SyncAndDetect::processImages,
                                  this, std::placeholders::_1,
                                  std::placeholders::_2)));
-    for (const auto &topic: imageTopics_) {
+    for (const auto &i: irange(0ul, imageTopics_.size())) {
       views_.emplace_back(new View(imageTransport_.get(),
-                                   topic, sync_.get()));
+                                   imageTopics_[i], sync_.get()));
+      pubs_.push_back(nh_.advertise<apriltag_msgs::ApriltagArrayStamped>(
+                        tagTopics_[i], 10));
     }
     // warning: never tested odom code!
     for (const auto &topic: odometryTopics_) {
@@ -131,16 +136,16 @@ namespace tagslam {
     std::vector<TagVec> allTags(grey.size());
     if (detectorType_ == "Umich") {
       profiler_.reset();
-//#pragma omp parallel for
+#pragma omp parallel for
       for (int i = 0; i < (int)grey.size(); i++) {
-        allTags[i] = detector_->Detect(grey[i]);
+        allTags[i] = detectors_[i]->Detect(grey[i]);
       }
       profiler_.record("detect", grey.size());
     } else {
       profiler_.reset();
 #pragma omp parallel for
       for (int i = 0; i < (int)grey.size(); i++) {
-        allTags[i] = detector_->Detect(grey[i]);
+        allTags[i] = detectors_[i]->Detect(grey[i]);
       }
       profiler_.record("detect", grey.size());
     }
@@ -161,6 +166,9 @@ namespace tagslam {
       if (headers[i].stamp.toSec() != 0) {
         outbag_.write<apriltag_msgs::ApriltagArrayStamped>(
           tagTopics_[i], headers[i].stamp, tagMsg);
+        if (runOnline()) {
+          pubs_[i].publish(tagMsg);
+        }
       }
       if (annotateImages_) {
         cv::Mat colorImg = imgs[i].clone();

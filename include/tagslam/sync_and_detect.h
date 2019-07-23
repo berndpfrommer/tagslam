@@ -116,12 +116,13 @@ namespace tagslam {
     bool                                annotateImages_{false};
     int                                 maxFrameNumber_;
     int                                 skip_{1};
-    apriltag_ros::ApriltagDetector::Ptr detector_;
+    std::vector<apriltag_ros::ApriltagDetector::Ptr> detectors_;
     std::string                         detectorType_;
     Profiler                            profiler_;
     std::shared_ptr<ImageTransport>     imageTransport_;
     std::shared_ptr<ImageOdometrySync>  sync_;
     std::vector<std::shared_ptr<View>>  views_;
     std::vector<std::shared_ptr<Odom>>  odoms_;
+    std::vector<ros::Publisher>         pubs_;
   };
 }
