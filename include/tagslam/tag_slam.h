@@ -12,6 +12,7 @@
 #include "tagslam/odometry_processor.h"
 #include "tagslam/measurements/measurements.h"
 
+#include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <flex_sync/subscribing_sync.h>
 
 
