@@ -6,15 +6,12 @@
 
 #include "tagslam/pose_with_noise.h"
 #include "tagslam/tag.h"
-#include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <map>
 #include <unordered_map>
 #include <memory>
 #include <iostream>
 
 namespace tagslam {
-  using TagArray = apriltag_msgs::ApriltagArrayStamped;
-  using TagArrayConstPtr = TagArray::ConstPtr;
   class Body {
     using string = std::string;
   public:
