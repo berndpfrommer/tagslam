@@ -571,7 +571,7 @@ namespace tagslam {
 
   bool TagSlam::anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs) {
     for (const auto &msg: tagmsgs) {
-      if (!findTags(msg->apriltags).empty()) {
+      if (!findTags(msg->tags).empty()) {
         return (true);
       }
     }
@@ -907,7 +907,7 @@ namespace tagslam {
     for (const auto i: irange(0ul, cameras_.size())) {
       const ros::Time &t = tagMsgs[i]->header.stamp;
       const auto &cam = cameras_[i];
-      const auto tags = findTags(tagMsgs[i]->apriltags);
+      const auto tags = findTags(tagMsgs[i]->tags);
       if (!tags.empty()) {
         // insert time-dependent camera pose
         graph_->addPose(t, Graph::cam_name(cam->getName()),
@@ -921,7 +921,7 @@ namespace tagslam {
         VertexDesc v = fac->addToGraph(fac, graph_.get());
         sortedFactors.insert(MMap::value_type(1e10, v));
       }
-      for (const auto &tag: tagMsgs[i]->apriltags) {
+      for (const auto &tag: tagMsgs[i]->tags) {
         TagConstPtr tagPtr = findTag(tag.id);
         if (tagPtr) {
           const geometry_msgs::Point *corners = &(tag.corners[0]);
@@ -936,7 +936,7 @@ namespace tagslam {
         }
       }
       std::stringstream ss;
-      for (const auto &tag: tagMsgs[i]->apriltags) {
+      for (const auto &tag: tagMsgs[i]->tags) {
         ss << " " << tag.id;
       }
       ROS_INFO_STREAM("frame " << frameNum_ << " " << cam->getName()
@@ -962,7 +962,7 @@ namespace tagslam {
       TagArrayPtr p(new TagArray());
       p->header = o->header;
       const auto sq = squash_.find(t);
-      for (const auto &tag: o->apriltags) {
+      for (const auto &tag: o->tags) {
         if (tag.hamming > maxHammingDistance_) {
           ROS_WARN_STREAM("dropped tag " << tag.id <<
                           " with hamming dist: " << tag.hamming
@@ -973,12 +973,12 @@ namespace tagslam {
           ROS_INFO_STREAM("time - squashed tag: " << tag.id);
         } else{
           if (!sqc || sqc->count(tag.id) == 0) { // no camera squash?
-            p->apriltags.push_back(tag);
+            p->tags.push_back(tag);
           }
         }
       }
       // remap 
-      for (auto &tag: p->apriltags) {
+      for (auto &tag: p->tags) {
         auto it = tagRemap_.find(tag.id);
         if (it != tagRemap_.end()) {
           for (const ReMap &r: it->second) {

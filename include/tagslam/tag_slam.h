@@ -14,6 +14,7 @@
 
 #include <flex_sync/subscribing_sync.h>
 
+#include <apriltag_msgs/ApriltagsStamped.h>
 
 #include <tf/transform_broadcaster.h>
 #include <ros/ros.h>
@@ -34,7 +35,7 @@
 namespace tagslam {
   class TagSlam: public TagFactory {
     using Apriltag = apriltag_msgs::Apriltag;
-    using TagArray = apriltag_msgs::ApriltagArrayStamped;
+    using TagArray = apriltag_msgs::ApriltagsStamped;
     using TagArrayPtr = TagArray::Ptr;
     using TagArrayConstPtr = TagArray::ConstPtr;
     using Odometry = nav_msgs::Odometry;

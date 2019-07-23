@@ -12,7 +12,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <eigen_conversions/eigen_msg.h>
 #include <boost/range/irange.hpp>
-#include <apriltag_msgs/ApriltagArrayStamped.h>
+#include <apriltag_msgs/ApriltagsStamped.h>
 #include <math.h>
 #include <fstream>
 #include <iomanip>
@@ -27,14 +27,14 @@ namespace tagslam {
   SyncAndDetect::~SyncAndDetect() {
   }
 
-  using Family = apriltag_ros::TagFamily;
+  using Family = apriltag_ros::ApriltagFamily;
   bool SyncAndDetect::initialize() {
     int tagF;
     nh_.param<int>("tag_family", tagF, 0);
     Family tagFamily = static_cast<Family>(tagF);
-    if (tagFamily != Family::tf36h11 &&
-        tagFamily != Family::tf25h9  &&
-        tagFamily != Family::tf16h5) {
+    if (tagFamily != Family::tag36h11 &&
+        tagFamily != Family::tag25h9  &&
+        tagFamily != Family::tag16h5) {
       BOMB_OUT("invalid tag family!");
     }
     nh_.getParam("odometry_topics", odometryTopics_);
@@ -50,7 +50,8 @@ namespace tagslam {
     if (tagTopics_.size() != imageTopics_.size()) {
       BOMB_OUT("must have same number of tag_topics and image_topics!");
     }
-    nh_.param<std::string>("detector_type", detectorType_, "Mit");
+    nh_.param<std::string>("detector_type", detectorType_, "Umich3");
+#if 0    
     if (detectorType_ == "Mit") {
       detector_ = apriltag_ros::ApriltagDetector::Create(
         apriltag_ros::DetectorType::Mit, tagFamily);
@@ -60,9 +61,18 @@ namespace tagslam {
     } else {
       BOMB_OUT("INVALID DETECTOR TYPE: " << detectorType_);
     }
+#else
+    if (detectorType_ == "UMich3") {
+      detector_.reset(new apriltag_ros::ApriltagDetector(tagFamily));
+    } else {
+      BOMB_OUT("INVALID DETECTOR TYPE: " << detectorType_);
+    }
+#endif    
     int borderWidth;
     nh_.param<int>("black_border_width", borderWidth, 1);
+#if 0    
     detector_->set_black_border(borderWidth);
+#endif    
 
     nh_.param<int>("max_number_frames", maxFrameNumber_, 1000000);
     nh_.param<int>("skip", skip_, 1);
@@ -89,15 +99,12 @@ namespace tagslam {
     int totTags(0);
     typedef std::vector<apriltag_msgs::Apriltag> TagVec;
     std::vector<TagVec> allTags(grey.size());
-    if (detectorType_ == "Umich") {
+    if (detectorType_ == "Umich3") {
       for (int i = 0; i < (int)grey.size(); i++) {
-        allTags[i] = detector_->Detect(grey[i]);
+        allTags[i] = detector_->Detect(grey[i], 0 /* max hamming*/);
       }
     } else {
-#pragma omp parallel for
-      for (int i = 0; i < (int)grey.size(); i++) {
-        allTags[i] = detector_->Detect(grey[i]);
-      }
+      BOMB_OUT("invalid detector!");
     }
 
     sensor_msgs::CompressedImage msg;
@@ -109,13 +116,13 @@ namespace tagslam {
     for (const auto i: irange(0ul, grey.size())) {
       const std::vector<apriltag_msgs::Apriltag> tags = allTags[i];
       totTags += tags.size();
-      apriltag_msgs::ApriltagArrayStamped tagMsg;
+      apriltag_msgs::ApriltagsStamped tagMsg;
       tagMsg.header = headers[i];
       for (const auto &tag: tags) {
-        tagMsg.apriltags.push_back(tag);
+        tagMsg.tags.push_back(tag);
       }
       if(headers[i].stamp.toSec() != 0)
-        outbag_.write<apriltag_msgs::ApriltagArrayStamped>(
+        outbag_.write<apriltag_msgs::ApriltagsStamped>(
           tagTopics_[i], headers[i].stamp, tagMsg);
       if (annotateImages_) {
         cv::Mat colorImg = imgs[i].clone();
