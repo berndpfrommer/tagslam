@@ -865,7 +865,7 @@ namespace tagslam {
         if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
           const auto &pwn = tag->getPoseWithNoise();
           if (pwn.isValid()) {
-            const Transform poseDiff = tagTF * pwn.getPose().inverse();
+            const Transform poseDiff = pwn.getPose().inverse() * tagTF;
             const auto x = poseDiff.translation();
             Eigen::AngleAxisd aa;
             aa.fromRotationMatrix(poseDiff.rotation());
