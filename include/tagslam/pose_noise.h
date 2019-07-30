@@ -6,6 +6,8 @@
 
 #include "tagslam/geometry.h"
 
+#include <memory>
+
 namespace tagslam {
   class PoseNoise {
   public:
@@ -30,4 +32,6 @@ namespace tagslam {
     bool     isDiagonal_ = {false};
   };
   std::ostream &operator<<(std::ostream &os, const PoseNoise &pn);
+  typedef std::shared_ptr<PoseNoise>       PoseNoisePtr;
+  typedef std::shared_ptr<const PoseNoise> PoseNoiseConstPtr;
 }

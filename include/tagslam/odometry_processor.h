@@ -26,6 +26,9 @@ namespace tagslam {
       Graph *graph, const ros::Time &tPrev, const ros::Time &tCurr,
       const BodyConstPtr &body, const PoseWithNoise &deltaPose);
   private:
+    PoseNoiseConstPtr makeAdaptiveNoise(const ros::Time &t,
+                                        const Transform &deltaPose);
+
     // ---- variables
     BodyConstPtr    body_;
     Transform       pose_;
@@ -34,6 +37,8 @@ namespace tagslam {
     Transform       T_body_odom_;
     double          acceleration_{5.0}; // m/s^2
     double          angularAcceleration_{5.0}; // rad/sec^2
+    double          translationNoise_{-1.0}; // m
+    double          rotationNoise_{-1.0}; // rads
     Eigen::Vector3d lastOmega_;
     Eigen::Vector3d lastVelocity_;
   };

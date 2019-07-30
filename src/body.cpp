@@ -50,6 +50,10 @@ namespace tagslam {
                                                 Transform::Identity());
       odomFrameId_      = xml::parse<string>(body, "odom_frame_id", "");
       odomTopic_        = xml::parse<string>(body, "odom_topic", "");
+      odomTranslationNoise_ = xml::parse<double>(
+        body, "odom_translation_noise", -1.0);
+      odomRotationNoise_ = xml::parse<double>(
+        body, "odom_rotation_noise", -1.0);
       odomAcceleration_ = xml::parse<double>(body, "odom_acceleration", 5.0);
       odomAngularAcceleration_=
         xml::parse<double>(body, "odom_angular_acceleration", 5.0);
