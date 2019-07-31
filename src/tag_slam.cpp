@@ -182,7 +182,7 @@ namespace tagslam {
   void TagSlam::doDump() {
     graphUpdater_.printPerformance();
     // do final optimization
-    profiler_.reset();
+    profiler_.reset("finalOptimization");
     const double error = graph_->optimizeFull(true /*force*/);
     profiler_.record("finalOptimization");
     ROS_INFO_STREAM("final error: " << error);
@@ -202,15 +202,19 @@ namespace tagslam {
 
     writeCameraPoses(outDir_ + "/camera_poses.yaml");
     writeFullCalibration(outDir_ + "/calibration.yaml");
-    profiler_.reset();
+    profiler_.reset("writePoses");
     writePoses(outDir_ + "/poses.yaml");
     profiler_.record("writePoses");
+    profiler_.reset("writeErrorMaps");
     writeErrorMap(outDir_ + "/error_map.txt");
     profiler_.record("writeErrorMaps");
+    profiler_.reset("writeTagDiagnostics");
     writeTagDiagnostics(outDir_ + "/tag_diagnostics.txt");
     profiler_.record("writeTagDiagnostics");
+    profiler_.reset("writeTimeDiagnostics");
     writeTimeDiagnostics(outDir_ + "/time_diagnostics.txt");
     profiler_.record("writeTimeDiagnostics");
+    profiler_.reset("writeMeasurementDiagnostics");
     for (auto &m: measurements_) {
       m->writeDiagnostics();
     }
@@ -507,7 +511,7 @@ namespace tagslam {
     publishTransforms(startTime, false);
 
     rosbag::View view(bag, rosbag::TopicQuery(flatTopics), startTime);
-    ros::Time tFinal;
+    ros::WallTime t0 = ros::WallTime::now();
     if (hasCompressedImages_) {
       flex_sync::Sync<TagArray, CompressedImage, Odometry>
         sync3c(topics, std::bind(&TagSlam::syncCallbackCompressed, this,
@@ -523,23 +527,32 @@ namespace tagslam {
       processBag(&sync3, &view);
       bag.close();
     }
-    ROS_INFO_STREAM("done processing bag!");
+    ROS_INFO_STREAM("done processing bag, total wall time: " <<
+                    (ros::WallTime::now() - t0).toSec());
   }
 
   void TagSlam::syncCallback(
     const std::vector<TagArrayConstPtr> &msgvec1,
     const std::vector<ImageConstPtr> &msgvec2,
     const std::vector<OdometryConstPtr> &msgvec3) {
+    profiler_.reset("processImages");
     process_images<ImageConstPtr>(msgvec2, &images_);
+    profiler_.record("processImages");
+    profiler_.reset("processTagsAndOdom");
     processTagsAndOdom(msgvec1, msgvec3);
+    profiler_.record("processTagsAndOdom");
   }
   
   void TagSlam::syncCallbackCompressed(
     const std::vector<TagArrayConstPtr> &msgvec1,
     const std::vector<CompressedImageConstPtr> &msgvec2,
     const std::vector<OdometryConstPtr> &msgvec3) {
+    profiler_.reset("processCompressedImages");
     process_images<CompressedImageConstPtr>(msgvec2, &images_);
+    profiler_.record("processCompressedImages");
+    profiler_.reset("processTagsAndOdom");
     processTagsAndOdom(msgvec1, msgvec3);
+    profiler_.record("processTagsAndOdom");
   }
 
   static nav_msgs::Odometry make_odom(const ros::Time &t,
@@ -614,6 +627,7 @@ namespace tagslam {
   void TagSlam::processTagsAndOdom(
     const std::vector<TagArrayConstPtr> &origtagmsgs,
     const std::vector<OdometryConstPtr> &odommsgs) {
+    profiler_.reset("processOdom");
     if (amnesia_ && !times_.empty()) {
       copyPosesAndReset();
     }
@@ -636,25 +650,26 @@ namespace tagslam {
       }
     }
     std::vector<VertexDesc> factors;
-    profiler_.reset();
     if (odommsgs.size() != 0) {
       processOdom(odommsgs, &factors);
     } else if (useFakeOdom_) {
       fakeOdom(t, &factors);
     }
     profiler_.record("processOdom");
+    profiler_.reset("processTags");
     processTags(tagmsgs, &factors);
     profiler_.record("processTags");
+    profiler_.reset("processNewFactors");
     graphUpdater_.processNewFactors(graph_.get(), t, factors);
     profiler_.record("processNewFactors");
-
+    profiler_.reset("publish");
     times_.push_back(t);
     publishAll(t);
-    profiler_.record("publishAll");
     frameNum_++;
     if (publishAck_) {
       ackPub_.publish(header);
     }
+    profiler_.record("publish");
     if (runOnline() && frameNum_ >= maxFrameNum_) {
       if (publishAck_) {
         auto h = header;

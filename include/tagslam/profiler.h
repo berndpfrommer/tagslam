@@ -11,30 +11,37 @@
 namespace tagslam {
   class Profiler {
   public:
+    typedef boost::chrono::high_resolution_clock::time_point TimePoint;
+    typedef boost::chrono::duration<long long, boost::micro> Duration;
     Profiler() {};
     virtual ~Profiler() {};
 
-    void reset() {
-      last_ = boost::chrono::high_resolution_clock::now();
-    }
-    int record(const char *label, int ncount = 1) {
-      boost::chrono::high_resolution_clock::time_point now =
-				boost::chrono::high_resolution_clock::now();
-      Duration usec =	boost::chrono::duration_cast<Duration>(now - last_);
+    void reset(const char *label) {
+      const auto t = boost::chrono::high_resolution_clock::now();
       ProfilerMap::iterator i = map_.find(label);
       if (i == map_.end()) {
-        map_[label] = PTimer(usec, ncount);
+        map_[label] = MapEntry(PTimer(), t);
       } else {
-        map_[label] = PTimer(usec, i->second, ncount);
+        i->second.lastTime = t;
       }
-      last_ = now;
+    }
+    int record(const char *label, int ncount = 1) {
+      ProfilerMap::iterator i = map_.find(label);
+      if (i == map_.end()) {
+        std::cout << "ERROR: invalid timer: " << label << std::endl;
+        throw std::runtime_error("invalid timer!");
+      }
+      auto &me = i->second;
+      const TimePoint now =	boost::chrono::high_resolution_clock::now();
+      const Duration usec =	boost::chrono::duration_cast<Duration>(now - me.lastTime);
+      me.timer = PTimer(usec, me.timer, ncount);
+      me.lastTime = now;
       return (usec.count());
     }
     friend std::ostream &operator<<(std::ostream& os, const Profiler &p);
   private:
-    typedef boost::chrono::duration<long long, boost::micro> Duration;
     struct PTimer {
-      PTimer(const Duration d = Duration(0), int ncount = 1);
+      PTimer();
       PTimer(const Duration &d, const PTimer&oldTimer, int ncount = 1);
       Duration	duration;		// sum of durations
       int64_t		sqduration;	// sum of squared durations
@@ -42,9 +49,13 @@ namespace tagslam {
       Duration	max;				// largest duration
       int64_t		count;			// number of samples
     };
-    typedef boost::chrono::high_resolution_clock::time_point TimePoint;
-    typedef boost::unordered_map<const char *, PTimer> ProfilerMap;
-    TimePoint 		last_;
+    struct MapEntry {
+      MapEntry(const PTimer &p = PTimer(), const TimePoint &t = TimePoint()) :
+        timer(p), lastTime(t) {}
+      PTimer    timer;
+      TimePoint lastTime;
+    };
+    typedef boost::unordered_map<const char *, MapEntry> ProfilerMap;
     ProfilerMap 	map_;
   };
   std::ostream &operator<<(std::ostream& os, const Profiler &p);
