@@ -440,14 +440,17 @@ namespace tagslam {
 
   static bool try_initialization(const Graph &g, const VertexDeque &factors,
                                  int ord, double minViewAngle, double errLimit,
-                                 double *errMin, GraphPtr *bestGraph) {
+                                 double *errMin, GraphPtr *bestGraph,
+                                 Profiler *profiler) {
     GraphPtr sg(new Graph());
     Graph &subGraph = *sg;
     // populate the subgraph with factors from the full graph
     graph_utils::copy_subgraph(sg.get(), g, factors);
     //subGraph.print("init subgraph");
     if (initialize_subgraph(&subGraph, minViewAngle)) {
+      profiler->reset("subgraphOpt");
       double err    = subGraph.optimizeFull();
+      profiler->record("subgraphOpt");
       double maxErr = subGraph.getMaxError();
       ROS_DEBUG_STREAM("ordering " << ord << " has error: " << err << " " << maxErr);
       if (maxErr >= 0 && maxErr < *errMin) {
@@ -495,7 +498,8 @@ namespace tagslam {
       for (const auto &ordering: orderings) {
         ord++;
         if (try_initialization(*graph, ordering, ord, minimumViewingAngle_,
-                               maxSubgraphError_, &errMin, &bestGraph)) {
+                               maxSubgraphError_, &errMin, &bestGraph,
+                               &profiler_)) {
           // found a good-enough error value!
           break;
         }
@@ -545,31 +549,23 @@ namespace tagslam {
 #endif        
         error = graph->optimize(thresh);
         numIncrementalOpt_++;
-#define REOPT        
-#ifdef REOPT        
         // if there is a large increase in error, perform
         // a full optimization.
         // TODO: this is a terrible hack. Why does the
         // incremental optimizer fail? No idea.
         const double deltaErr = error - lastIncError_;
-        if (deltaErr > 5 * thresh && deltaErr > 0.5 * (lastIncError_)) {
-#ifdef DEBUG
-          const auto errMap = graph->getErrorMap();
-          int count(0);
-          const int MAX_COUNT(1000000);
-          for (auto it = errMap.rbegin(); it != errMap.rend() && count < MAX_COUNT; ++it, count++) {
-            ROS_INFO_STREAM("ERROR_MAP  " << it->first
-                            << " " << *((*graph)[it->second]));
-          }
-#endif          
-          ROS_INFO_STREAM("large err inc: " << deltaErr << " vs " << thresh <<  ", doing full optimization");
+        const double MIN_DELTA_ERR = 0.1;
+        if (deltaErr > 5 * thresh &&
+            deltaErr > MIN_DELTA_ERR && // in case thresh is low
+            deltaErr > 0.5 * (lastIncError_)) {
+          ROS_INFO_STREAM("large err inc: " << deltaErr << " vs " << thresh <<  " vs "
+                          << 0.5 * lastIncError_ << ", doing full optimization");
           error = graph->optimizeFull(/*force*/ true);
           ROS_INFO_STREAM("error after full opt: " << error);
           graph->transferFullOptimization();
           numIncrementalOpt_ = 0;
         }
         lastIncError_ = error;
-#endif        
       } else {
         ROS_INFO_STREAM("max count reached, running full optimization!");
         error = graph->optimizeFull(/*force*/ true);
