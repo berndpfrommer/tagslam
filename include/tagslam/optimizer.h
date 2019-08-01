@@ -8,6 +8,7 @@
 #include "tagslam/geometry.h"
 #include "tagslam/camera_intrinsics.h"
 #include "tagslam/pose_with_noise.h"
+#include "tagslam/optimizer_mode.h"
 
 namespace tagslam {
   class Optimizer {
@@ -25,6 +26,7 @@ namespace tagslam {
     virtual double getMaxError() const = 0;
     virtual void   setErrorThreshold(double th) = 0;
     virtual void   setVerbosity(const string &v) = 0;
+    virtual void   setMode(OptimizerMode mode) = 0;
     // makes deep copy
     virtual Optimizer *clone() const = 0;
     // retrieves the optimized pose for a given key

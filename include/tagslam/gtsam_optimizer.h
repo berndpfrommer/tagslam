@@ -29,6 +29,8 @@ namespace tagslam {
     double    getMaxError() const override;
     void      setErrorThreshold(double th) override { errorThreshold_ = th; }
     void      setVerbosity(const string &v) override { verbosity_ = v;}
+    void      setMode(OptimizerMode mode) override;
+
     Optimizer *clone() const override;
     Transform getPose(ValueKey key) override;
     PoseNoise getMarginal(const ValueKey k) override;
@@ -81,6 +83,7 @@ namespace tagslam {
     RadTanModelMap                radTanModelMap_;
     EquiModelMap                  equiModelMap_;
     PixelNoiseMap                 pixelNoiseMap_;
+    OptimizerMode                 mode_{SLOW};
     std::map<OptimizerKey, gtsam::Matrix> covariances_;
   };
 }

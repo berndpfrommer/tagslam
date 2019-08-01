@@ -74,6 +74,12 @@ namespace tagslam {
            -x(1,0)*x(0,1) - x(2,0)*x(1,1) - x(3,0)*x(2,1) - x(0,0)*x(3,1));
     return (A);
   }
+
+  const std::map<std::string, OptimizerMode> optModeMap = {
+    {"full", SLOW},
+    {"slow", SLOW},
+    {"fast", FAST}
+  };
  
   TagSlam::TagSlam(const ros::NodeHandle &nh) : nh_(nh) {
     initialGraph_.reset(new Graph());
@@ -106,17 +112,23 @@ namespace tagslam {
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
     // --- graph updater params ---
     
-    bool   optFullGraph;
     int    maxIncOpt;
     double maxSubgraphError, angleLimit;
-    nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
     graphUpdater_.setMinimumViewingAngle(angleLimit);
     nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
     graphUpdater_.setMaxSubgraphError(maxSubgraphError);
     nh_.param<int>("max_num_incremental_opt", maxIncOpt, 100);
     graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
-    graphUpdater_.setOptimizeFullGraph(optFullGraph);
+    nh_.param<string>("optimizer_mode", optimizerMode_, "SLOW");
+    graphUpdater_.setOptimizerMode(optimizerMode_);
+    const auto ommi = optModeMap.find(optimizerMode_);
+    if (ommi == optModeMap.end()) {
+      BOMB_OUT("invalid optimizer mode: " << optimizerMode_);
+    } else {
+      graph_->getOptimizer()->setMode(ommi->second);
+    }
+    ROS_INFO_STREAM("optimizer mode: " << optimizerMode_);
   }
 
   bool TagSlam::initialize() {

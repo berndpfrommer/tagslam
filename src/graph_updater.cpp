@@ -70,6 +70,12 @@ namespace tagslam {
     return (numMissing);
   }
 
+  void GraphUpdater::setOptimizerMode(const std::string &mode) {
+    if (mode == "FULL") {
+      optimizeFullGraph_ = true;
+    }
+  }
+
   void
   GraphUpdater::examine(Graph *graph, const ros::Time &t, VertexDesc fac,
                         VertexDeque *factorsToExamine,
@@ -554,12 +560,11 @@ namespace tagslam {
         // TODO: this is a terrible hack. Why does the
         // incremental optimizer fail? No idea.
         const double deltaErr = error - lastIncError_;
-        const double MIN_DELTA_ERR = 0.1;
+        const double MIN_DELTA_ERR = 1.0;
         if (deltaErr > 5 * thresh &&
-            deltaErr > MIN_DELTA_ERR && // in case thresh is low
-            deltaErr > 0.5 * (lastIncError_)) {
-          ROS_INFO_STREAM("large err inc: " << deltaErr << " vs " << thresh <<  " vs "
-                          << 0.5 * lastIncError_ << ", doing full optimization");
+            deltaErr > MIN_DELTA_ERR) {
+          ROS_INFO_STREAM("large err inc: " << deltaErr << " vs " << thresh <<
+                          ", doing full optimization");
           error = graph->optimizeFull(/*force*/ true);
           ROS_INFO_STREAM("error after full opt: " << error);
           graph->transferFullOptimization();
@@ -589,8 +594,12 @@ namespace tagslam {
     const double serr = initializeSubgraphs(graph, &subGraphs, sv);
     subgraphError_ += serr;
     const double err = optimize(graph, serr);
-    ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
-                    ", full graph error: " << err);
+    if (err >= 0) {
+      ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
+                      ", full graph error: " << err);
+    } else {
+      ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_);
+    }
     eraseStoredFactors(t, covered->factors);
     return (true);
   }
