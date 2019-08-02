@@ -120,7 +120,7 @@ namespace tagslam {
     graphUpdater_.setMaxSubgraphError(maxSubgraphError);
     nh_.param<int>("max_num_incremental_opt", maxIncOpt, 100);
     graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
-    nh_.param<string>("optimizer_mode", optimizerMode_, "SLOW");
+    nh_.param<string>("optimizer_mode", optimizerMode_, "slow");
     graphUpdater_.setOptimizerMode(optimizerMode_);
     const auto ommi = optModeMap.find(optimizerMode_);
     if (ommi == optModeMap.end()) {
