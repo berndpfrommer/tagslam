@@ -588,7 +588,7 @@ namespace tagslam {
         odomPub_[body_idx].publish(msg);
         if (writeToBag_) {
           outBag_.write<nav_msgs::Odometry>(
-            "odom/body_" + body->getName(), t, msg);
+            "/tagslam/odom/body_" + body->getName(), t, msg);
         }
       }
     }
