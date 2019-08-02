@@ -26,6 +26,9 @@ namespace tagslam {
 
   SyncAndDetect::~SyncAndDetect() {
     std::cout << profiler_ << std::endl;
+    for (const auto &d: detectors_) {
+      d->print_profiling_info();
+    }
   }
 
   using Family = apriltag_ros::TagFamily;
