@@ -21,7 +21,7 @@
 	      file="$(arg camera_poses_file)"/>
     <param name="bag_start_time" value="$(arg start_time)"/>
     <param name="bag_file" value="$(arg bag)" unless="$(arg run_online)"/>
-    <param name="optimize_full_graph" value="false"/>
+    <param name="optimizer_mode" value="slow"/>
     <param name="max_subgraph_error" value="50.0"/>
     <param name="has_compressed_images" value="false"/>
     <param name="playback_rate" value="10.0"/>

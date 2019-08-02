@@ -41,6 +41,10 @@ namespace tagslam {
     double getDefaultTagSize() const              { return (defaultTagSize_); }
     const std::list<TagPtr> &getTags() const     { return (tagList_); }
     
+    double getOdomTranslationNoise() const {
+      return (odomTranslationNoise_); }
+    double getOdomRotationNoise() const {
+      return (odomRotationNoise_); }
     double getOdomAcceleration() const {
       return (odomAcceleration_); }
     double getOdomAngularAcceleration() const {
@@ -101,6 +105,8 @@ namespace tagslam {
     // variables used in case odometry data is available
     string              odomTopic_;
     string              odomFrameId_;
+    double              odomTranslationNoise_{-1.0};
+    double              odomRotationNoise_{-1.0};
     double              odomAcceleration_{5.0}; // m/s^2
     double              odomAngularAcceleration_{5.0}; // rad/sec^2
     Transform           T_body_odom_;

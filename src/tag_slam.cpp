@@ -74,6 +74,12 @@ namespace tagslam {
            -x(1,0)*x(0,1) - x(2,0)*x(1,1) - x(3,0)*x(2,1) - x(0,0)*x(3,1));
     return (A);
   }
+
+  const std::map<std::string, OptimizerMode> optModeMap = {
+    {"full", SLOW},
+    {"slow", SLOW},
+    {"fast", FAST}
+  };
  
   TagSlam::TagSlam(const ros::NodeHandle &nh) : nh_(nh) {
     initialGraph_.reset(new Graph());
@@ -106,17 +112,23 @@ namespace tagslam {
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
     // --- graph updater params ---
     
-    bool   optFullGraph;
     int    maxIncOpt;
     double maxSubgraphError, angleLimit;
-    nh_.param<bool>("optimize_full_graph", optFullGraph, false);
     nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
     graphUpdater_.setMinimumViewingAngle(angleLimit);
     nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
     graphUpdater_.setMaxSubgraphError(maxSubgraphError);
     nh_.param<int>("max_num_incremental_opt", maxIncOpt, 100);
     graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
-    graphUpdater_.setOptimizeFullGraph(optFullGraph);
+    nh_.param<string>("optimizer_mode", optimizerMode_, "SLOW");
+    graphUpdater_.setOptimizerMode(optimizerMode_);
+    const auto ommi = optModeMap.find(optimizerMode_);
+    if (ommi == optModeMap.end()) {
+      BOMB_OUT("invalid optimizer mode: " << optimizerMode_);
+    } else {
+      graph_->getOptimizer()->setMode(ommi->second);
+    }
+    ROS_INFO_STREAM("optimizer mode: " << optimizerMode_);
   }
 
   bool TagSlam::initialize() {
@@ -182,7 +194,7 @@ namespace tagslam {
   void TagSlam::doDump() {
     graphUpdater_.printPerformance();
     // do final optimization
-    profiler_.reset();
+    profiler_.reset("finalOptimization");
     const double error = graph_->optimizeFull(true /*force*/);
     profiler_.record("finalOptimization");
     ROS_INFO_STREAM("final error: " << error);
@@ -202,15 +214,19 @@ namespace tagslam {
 
     writeCameraPoses(outDir_ + "/camera_poses.yaml");
     writeFullCalibration(outDir_ + "/calibration.yaml");
-    profiler_.reset();
+    profiler_.reset("writePoses");
     writePoses(outDir_ + "/poses.yaml");
     profiler_.record("writePoses");
+    profiler_.reset("writeErrorMaps");
     writeErrorMap(outDir_ + "/error_map.txt");
     profiler_.record("writeErrorMaps");
+    profiler_.reset("writeTagDiagnostics");
     writeTagDiagnostics(outDir_ + "/tag_diagnostics.txt");
     profiler_.record("writeTagDiagnostics");
+    profiler_.reset("writeTimeDiagnostics");
     writeTimeDiagnostics(outDir_ + "/time_diagnostics.txt");
     profiler_.record("writeTimeDiagnostics");
+    profiler_.reset("writeMeasurementDiagnostics");
     for (auto &m: measurements_) {
       m->writeDiagnostics();
     }
@@ -507,7 +523,7 @@ namespace tagslam {
     publishTransforms(startTime, false);
 
     rosbag::View view(bag, rosbag::TopicQuery(flatTopics), startTime);
-    ros::Time tFinal;
+    ros::WallTime t0 = ros::WallTime::now();
     if (hasCompressedImages_) {
       flex_sync::Sync<TagArray, CompressedImage, Odometry>
         sync3c(topics, std::bind(&TagSlam::syncCallbackCompressed, this,
@@ -523,23 +539,32 @@ namespace tagslam {
       processBag(&sync3, &view);
       bag.close();
     }
-    ROS_INFO_STREAM("done processing bag!");
+    ROS_INFO_STREAM("done processing bag, total wall time: " <<
+                    (ros::WallTime::now() - t0).toSec());
   }
 
   void TagSlam::syncCallback(
     const std::vector<TagArrayConstPtr> &msgvec1,
     const std::vector<ImageConstPtr> &msgvec2,
     const std::vector<OdometryConstPtr> &msgvec3) {
+    profiler_.reset("processImages");
     process_images<ImageConstPtr>(msgvec2, &images_);
+    profiler_.record("processImages");
+    profiler_.reset("processTagsAndOdom");
     processTagsAndOdom(msgvec1, msgvec3);
+    profiler_.record("processTagsAndOdom");
   }
   
   void TagSlam::syncCallbackCompressed(
     const std::vector<TagArrayConstPtr> &msgvec1,
     const std::vector<CompressedImageConstPtr> &msgvec2,
     const std::vector<OdometryConstPtr> &msgvec3) {
+    profiler_.reset("processCompressedImages");
     process_images<CompressedImageConstPtr>(msgvec2, &images_);
+    profiler_.record("processCompressedImages");
+    profiler_.reset("processTagsAndOdom");
     processTagsAndOdom(msgvec1, msgvec3);
+    profiler_.record("processTagsAndOdom");
   }
 
   static nav_msgs::Odometry make_odom(const ros::Time &t,
@@ -563,7 +588,7 @@ namespace tagslam {
         odomPub_[body_idx].publish(msg);
         if (writeToBag_) {
           outBag_.write<nav_msgs::Odometry>(
-            "odom/body_" + body->getName(), t, msg);
+            "/tagslam/odom/body_" + body->getName(), t, msg);
         }
       }
     }
@@ -614,6 +639,7 @@ namespace tagslam {
   void TagSlam::processTagsAndOdom(
     const std::vector<TagArrayConstPtr> &origtagmsgs,
     const std::vector<OdometryConstPtr> &odommsgs) {
+    profiler_.reset("processOdom");
     if (amnesia_ && !times_.empty()) {
       copyPosesAndReset();
     }
@@ -636,25 +662,26 @@ namespace tagslam {
       }
     }
     std::vector<VertexDesc> factors;
-    profiler_.reset();
     if (odommsgs.size() != 0) {
       processOdom(odommsgs, &factors);
     } else if (useFakeOdom_) {
       fakeOdom(t, &factors);
     }
     profiler_.record("processOdom");
+    profiler_.reset("processTags");
     processTags(tagmsgs, &factors);
     profiler_.record("processTags");
+    profiler_.reset("processNewFactors");
     graphUpdater_.processNewFactors(graph_.get(), t, factors);
     profiler_.record("processNewFactors");
-
+    profiler_.reset("publish");
     times_.push_back(t);
     publishAll(t);
-    profiler_.record("publishAll");
     frameNum_++;
     if (publishAck_) {
       ackPub_.publish(header);
     }
+    profiler_.record("publish");
     if (runOnline() && frameNum_ >= maxFrameNum_) {
       if (publishAck_) {
         auto h = header;
@@ -865,7 +892,7 @@ namespace tagslam {
         if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
           const auto &pwn = tag->getPoseWithNoise();
           if (pwn.isValid()) {
-            const Transform poseDiff = tagTF * pwn.getPose().inverse();
+            const Transform poseDiff = pwn.getPose().inverse() * tagTF;
             const auto x = poseDiff.translation();
             Eigen::AngleAxisd aa;
             aa.fromRotationMatrix(poseDiff.rotation());

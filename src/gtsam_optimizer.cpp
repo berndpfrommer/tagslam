@@ -20,24 +20,41 @@
 namespace tagslam {
   using boost::irange;
 
-  static std::shared_ptr<gtsam::ISAM2> make_isam2() {
+  static std::shared_ptr<gtsam::ISAM2> make_isam2(OptimizerMode mode) {
     gtsam::ISAM2Params p;
     p.setEnableDetailedResults(true);
-    p.setEvaluateNonlinearError(true);
-    p.setEnablePartialRelinearizationCheck(true);
-    // these two settings were absolutely necessary to
-    // make ISAM2 work.
-    //p.relinearizeThreshold = 0.01;
-    // p.relinearizeSkip = 1;
-    p.relinearizeThreshold = 0.01;
-    p.relinearizeSkip = 1;
+    switch (mode) {
+    case SLOW:
+      // evaluation of nonlinear error is time consuming!
+      p.setEvaluateNonlinearError(true);
+      // gtsam documentation says "use with caution"
+      p.setEnablePartialRelinearizationCheck(false);
+      // lower from default of 0.1
+      p.relinearizeThreshold = 0.01;
+      // don't skip relinearization step
+      p.relinearizeSkip = 1;
+      break;
+    case FAST:
+      // when we switch this off, the optimizer error
+      // returned is bogus, but it's much faster
+      p.setEvaluateNonlinearError(false);
+      // never mind the gtsam documentation "use with caution"
+      p.setEnablePartialRelinearizationCheck(true);
+      // these are the default parameters
+      p.relinearizeThreshold = 0.1;
+      p.relinearizeSkip = 10;
+      break;
+    default:
+      throw std::runtime_error("invalid optimizer mode!");
+      break;
+    }
     std::shared_ptr<gtsam::ISAM2> isam2(new gtsam::ISAM2(p));
     return (isam2);
   }
 
   GTSAMOptimizer::GTSAMOptimizer() {
     verbosity_ = "SILENT";
-    isam2_ = make_isam2();
+    isam2_ = make_isam2(mode_);
   }
 
   GTSAMOptimizer::~GTSAMOptimizer() {
@@ -47,6 +64,11 @@ namespace tagslam {
     GTSAMOptimizer *o = new GTSAMOptimizer(*this);
     o->isam2_.reset(new gtsam::ISAM2(*isam2_));
     return (o);
+  }
+
+  void GTSAMOptimizer::setMode(OptimizerMode mode) {
+    mode_  = mode;
+    isam2_ = make_isam2(mode_);
   }
 
   std::shared_ptr<Cal3DS3> GTSAMOptimizer::getRadTanModel(
@@ -272,12 +294,18 @@ namespace tagslam {
     ROS_DEBUG_STREAM("incremental optimize new values: " << newValues_.size()
                      << " factors: " << newGraph_.size()
                      << " delta: " << deltaError);
+    const bool hasValidError = isam2_->params().isEvaluateNonlinearError();
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
       gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
       double prevErr = *res.errorAfter;
       for (int i = 0; i < maxIter_ - 1; i++) {
         res = isam2_->update();
+        if (!hasValidError) {
+          // without nonlinear error calc GTSAM returns garbage
+          // so just quit after one iteration
+          break;
+        }
         // if either there is small improvement
         if (*res.errorAfter < lastError_ + deltaError
             || fabs(*res.errorAfter - prevErr) < 0.01) {
@@ -311,7 +339,7 @@ namespace tagslam {
     } else {
       ROS_INFO_STREAM("optimizer: delta graph is 0!");
     }
-    return (lastError_);
+    return (hasValidError ? lastError_ : -1.0);
   }
 
 
@@ -399,7 +427,7 @@ namespace tagslam {
   }
 
   void GTSAMOptimizer::transferFullOptimization() {
-    isam2_ = make_isam2();
+    isam2_ = make_isam2(mode_);
     isam2_->update(fullGraph_, values_);
   }
 

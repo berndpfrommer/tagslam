@@ -138,14 +138,14 @@ namespace tagslam {
     typedef std::vector<apriltag_msgs::Apriltag> TagVec;
     std::vector<TagVec> allTags(grey.size());
     if (detectorType_ == "Umich") {
-      profiler_.reset();
+      profiler_.reset("detect");
 #pragma omp parallel for
       for (int i = 0; i < (int)grey.size(); i++) {
         allTags[i] = detectors_[i]->Detect(grey[i]);
       }
       profiler_.record("detect", grey.size());
     } else {
-      profiler_.reset();
+      profiler_.reset("detect");
 #pragma omp parallel for
       for (int i = 0; i < (int)grey.size(); i++) {
         allTags[i] = detectors_[i]->Detect(grey[i]);

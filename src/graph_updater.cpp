@@ -70,6 +70,12 @@ namespace tagslam {
     return (numMissing);
   }
 
+  void GraphUpdater::setOptimizerMode(const std::string &mode) {
+    if (mode == "FULL") {
+      optimizeFullGraph_ = true;
+    }
+  }
+
   void
   GraphUpdater::examine(Graph *graph, const ros::Time &t, VertexDesc fac,
                         VertexDeque *factorsToExamine,
@@ -169,7 +175,7 @@ namespace tagslam {
   std::vector<VertexDeque>
   GraphUpdater::findSubgraphs(Graph *graph, const ros::Time &t,
                               const VertexVec &facs, SubGraph *found) {
-    profiler_.reset();
+    profiler_.reset("findSubGraphs");
     std::vector<VertexDeque> sv;
     ROS_DEBUG_STREAM("===================== finding subgraphs for t = " << t);
     // first look over the new factors
@@ -440,14 +446,17 @@ namespace tagslam {
 
   static bool try_initialization(const Graph &g, const VertexDeque &factors,
                                  int ord, double minViewAngle, double errLimit,
-                                 double *errMin, GraphPtr *bestGraph) {
+                                 double *errMin, GraphPtr *bestGraph,
+                                 Profiler *profiler) {
     GraphPtr sg(new Graph());
     Graph &subGraph = *sg;
     // populate the subgraph with factors from the full graph
     graph_utils::copy_subgraph(sg.get(), g, factors);
     //subGraph.print("init subgraph");
     if (initialize_subgraph(&subGraph, minViewAngle)) {
+      profiler->reset("subgraphOpt");
       double err    = subGraph.optimizeFull();
+      profiler->record("subgraphOpt");
       double maxErr = subGraph.getMaxError();
       ROS_DEBUG_STREAM("ordering " << ord << " has error: " << err << " " << maxErr);
       if (maxErr >= 0 && maxErr < *errMin) {
@@ -484,7 +493,7 @@ namespace tagslam {
     subGraphs->clear();
     for (const auto &vs: verts) {  // iterate over all subgraphs
       ROS_DEBUG_STREAM("---------- subgraph of size: " << vs.size());
-      profiler_.reset();
+      profiler_.reset("initializeSubgraphs");
       std::vector<VertexDeque> orderings;
       enumerate(&orderings, vs);
       
@@ -495,14 +504,15 @@ namespace tagslam {
       for (const auto &ordering: orderings) {
         ord++;
         if (try_initialization(*graph, ordering, ord, minimumViewingAngle_,
-                               maxSubgraphError_, &errMin, &bestGraph)) {
+                               maxSubgraphError_, &errMin, &bestGraph,
+                               &profiler_)) {
           // found a good-enough error value!
           break;
         }
       }
       profiler_.record("initializeSubgraphs");
       if (bestGraph) {  // found an acceptable error value
-        profiler_.reset();
+        profiler_.reset("initializeFromSubgraphs");
         subGraphs->push_back(bestGraph);
         ROS_DEBUG_STREAM("best subgraph init found after " << ord <<
                          " attempts with error: " << errMin);
@@ -516,7 +526,7 @@ namespace tagslam {
                           << maxErr);
         }
         //bestGraph->printErrorMap("BEST SUBGRAPH");
-        profiler_.record("initialzeFromSubgraphs");
+        profiler_.record("initializeFromSubgraphs");
       } else {
         ROS_WARN_STREAM("could not initialize subgraph!");
       }
@@ -525,7 +535,7 @@ namespace tagslam {
   }
 
   double GraphUpdater::optimize(Graph *graph, double thresh) {
-    profiler_.reset();
+    profiler_.reset("optimize");
     double error;
     if (optimizeFullGraph_) {
       error = graph->optimizeFull();
@@ -545,31 +555,22 @@ namespace tagslam {
 #endif        
         error = graph->optimize(thresh);
         numIncrementalOpt_++;
-#define REOPT        
-#ifdef REOPT        
         // if there is a large increase in error, perform
         // a full optimization.
         // TODO: this is a terrible hack. Why does the
         // incremental optimizer fail? No idea.
         const double deltaErr = error - lastIncError_;
-        if (deltaErr > 5 * thresh && deltaErr > 0.5 * (lastIncError_)) {
-#ifdef DEBUG
-          const auto errMap = graph->getErrorMap();
-          int count(0);
-          const int MAX_COUNT(1000000);
-          for (auto it = errMap.rbegin(); it != errMap.rend() && count < MAX_COUNT; ++it, count++) {
-            ROS_INFO_STREAM("ERROR_MAP  " << it->first
-                            << " " << *((*graph)[it->second]));
-          }
-#endif          
-          ROS_INFO_STREAM("large err increase: " << deltaErr << ", doing full optimization");
+        const double MIN_DELTA_ERR = 1.0;
+        if (deltaErr > 5 * thresh &&
+            deltaErr > MIN_DELTA_ERR) {
+          ROS_INFO_STREAM("large err inc: " << deltaErr << " vs " << thresh <<
+                          ", doing full optimization");
           error = graph->optimizeFull(/*force*/ true);
           ROS_INFO_STREAM("error after full opt: " << error);
           graph->transferFullOptimization();
           numIncrementalOpt_ = 0;
         }
         lastIncError_ = error;
-#endif        
       } else {
         ROS_INFO_STREAM("max count reached, running full optimization!");
         error = graph->optimizeFull(/*force*/ true);
@@ -593,8 +594,12 @@ namespace tagslam {
     const double serr = initializeSubgraphs(graph, &subGraphs, sv);
     subgraphError_ += serr;
     const double err = optimize(graph, serr);
-    ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
-                    ", full graph error: " << err);
+    if (err >= 0) {
+      ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
+                      ", full graph error: " << err);
+    } else {
+      ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_);
+    }
     eraseStoredFactors(t, covered->factors);
     return (true);
   }
@@ -602,8 +607,10 @@ namespace tagslam {
   void
   GraphUpdater::processNewFactors(Graph *graph, const ros::Time &t,
                                   const VertexVec &facs) {
+    profiler_.reset("processNewFactors");
     if (facs.empty()) {
       ROS_DEBUG_STREAM("no new factors received!");
+      profiler_.record("processNewFactors");
       return;
     }
     // "covered" keeps track of what part of the graph has already
@@ -612,6 +619,7 @@ namespace tagslam {
     bool oldFactorsActivated = applyFactorsToGraph(graph, t, facs, &covered);
     if (!oldFactorsActivated) {
       ROS_DEBUG_STREAM("no old factors activated!");
+      profiler_.record("processNewFactors");
       return;
     }
     // The new measurements may have established previously
@@ -628,11 +636,12 @@ namespace tagslam {
       }
     }
     ROS_INFO_STREAM("graph after update: " << graph->getStats());
+    profiler_.record("processNewFactors");
   }
 
   void GraphUpdater::eraseStoredFactors(
     const ros::Time &t, const SubGraph::FactorCollection &covered) {
-    profiler_.reset();
+    profiler_.reset("eraseStoredFactors");
     const TimeToVertexesMap::iterator it = oldFactors_.find(t);
     if (it != oldFactors_.end()) {
       VertexVec &factors = it->second;

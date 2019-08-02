@@ -19,7 +19,7 @@ namespace tagslam {
     std::multimap<int64_t, const char *> avgToStr;
     size_t maxlen(0);
     for (const Profiler::ProfilerMap::value_type &v: p.map_) {
-      const Profiler::PTimer &pt = v.second;
+      const Profiler::PTimer &pt = v.second.timer;
       int64_t dn = (pt.count > 0) ? (pt.duration / pt.count).count() : -1;
       avgToStr.insert(std::pair<int64_t, const char *>(dn, v.first));
       maxlen = std::max(maxlen, strlen(v.first));
@@ -31,7 +31,7 @@ namespace tagslam {
         std::cout << "ERROR: cannot find key: " << mi.second << std::endl;
         continue;
       }
-      const Profiler::PTimer &pt = it->second;
+      const Profiler::PTimer &pt = it->second.timer;
       int64_t dn = (pt.count > 0) ? (pt.duration / pt.count).count() : -1;
       int64_t sumdelta = pt.duration.count();
       // too much roundoff error: int64_t sqdn = (pt.count > 0) ? ((pt.sqduration / pt.count) - dn * dn): 0;
@@ -39,8 +39,10 @@ namespace tagslam {
       float stddev = sqrt((double) sqdn);
       int64_t dmin = (pt.count > 0) ? pt.min.count() : -1;
       int64_t dmax = (pt.count > 0) ? pt.max.count() : -1;
-      os << std::setw(maxlen + 1) << std::left << it->first << "= tot: " << pt.duration << " per: "
-         << dn << "+-" << (int)stddev << "(" << dmin << "-" << dmax << ")" << " count: " << pt.count << " " << std::endl;
+      os << std::setw(maxlen + 1) << std::left << it->first << "= tot: "
+         << std::setw(9) << std::right << pt.duration.count() << "us per: "
+         << dn << "+-" << (int)stddev << "(" << dmin << "-" << dmax << ")"
+         << " count: " << pt.count << " " << std::endl;
     }
     return os;
   }
@@ -54,13 +56,10 @@ namespace tagslam {
     count = oldTimer.count + ncount;
   }
 
-  Profiler::PTimer::PTimer(const Duration d, int ncount) :
-    duration(d), sqduration((int64_t)d.count() * (int64_t)d.count() / (int64_t)ncount),
+  Profiler::PTimer::PTimer() :
+    duration(0), sqduration(0),
     min(std::numeric_limits<int64_t>::max()),
-    max(std::numeric_limits<int64_t>::min()), count(ncount) {
-    Duration dn = d / ncount;
-    min = (dn < min) ? dn : min;
-    max = (dn > max) ? dn : max;
+    max(std::numeric_limits<int64_t>::min()), count(0) {
   }
 
 }

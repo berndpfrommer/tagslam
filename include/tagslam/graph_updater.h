@@ -32,7 +32,7 @@ namespace tagslam {
   public:
     typedef std::deque<VertexDesc> VertexDeque;
     // ---------------------
-    void setOptimizeFullGraph(bool fg) { optimizeFullGraph_ = fg; }
+    void setOptimizerMode(const std::string &mode);
     void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
     void setMaxNumIncrementalOpt(int n) { maxNumIncrementalOpt_ = n; }
     void setMinimumViewingAngle(double angDeg);
@@ -60,7 +60,7 @@ namespace tagslam {
                             const SubGraph::FactorCollection &covered);
     double optimize(Graph *g, double thresh);
     // ------ variables --------------
-    bool               optimizeFullGraph_;
+    bool               optimizeFullGraph_{false};
     TimeToVertexesMap  oldFactors_;
     Profiler           profiler_;
     double             maxSubgraphError_{15.0};
