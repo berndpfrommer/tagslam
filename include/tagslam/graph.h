@@ -44,6 +44,8 @@ namespace tagslam {
     double optimizeFull(bool force = false);
 
     const VertexVec  &getFactors() const { return (factors_); }
+    VertexVec getOptimizedFactors() const;
+    std::vector<OptimizerKey> getOptimizerKeys(const VertexVec &vv) const;
     const BoostGraph &getBoostGraph() const { return (graph_); }
 
     VertexVec getConnected(const VertexDesc &v) const;

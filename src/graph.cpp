@@ -13,8 +13,10 @@
 #include "tagslam/factor/tag_projection.h"
 #include <boost/range/irange.hpp>
 
-
+#include <iomanip>
 #include <sstream>
+
+#define FMT(X, Y) std::fixed << std::setw(X) << std::setprecision(Y)
 
 namespace tagslam {
 
@@ -218,75 +220,92 @@ namespace tagslam {
 
   double
   Graph::getError(const VertexDesc &v) const {
-    const VertexConstPtr vp = graph_[v];
-    VertexToOptMap::const_iterator it = optimized_.find(v);
-    if (!vp->isValue() && it != optimized_.end()) {
-      const FactorConstPtr fp =
-        std::dynamic_pointer_cast<const factor::Factor>(vp);
-      double errSum(0);
-      for (const auto &k: it->second) {
-        double e = optimizer_->getError(k);
-        errSum += e;
-      }
-      return (errSum);
+    const auto vv = getOptimizedFactors();
+    const auto vk = getOptimizerKeys(vv);
+    const auto facErr = optimizer_->getErrors(vk);
+    double err(0);
+    for (const auto &fe: facErr) {
+      err += fe.second;
     }
-    return (-1.0);
+    return (err);
+  }
+
+  std::vector<OptimizerKey>
+  Graph::getOptimizerKeys(const VertexVec &vv) const {
+    std::vector<OptimizerKey> vk;
+    for (const auto &v: vv) {
+      const VertexToOptMap::const_iterator it = optimized_.find(v);
+      if (it != optimized_.end()) {
+        vk.insert(vk.end(), it->second.begin(), it->second.end());
+      }
+    }
+    return (vk);
+  }
+
+  VertexVec Graph::getOptimizedFactors() const {
+    VertexVec vv;
+    std::copy_if(
+      getFactors().begin(), getFactors().end(), std::back_inserter(vv),
+      [this](VertexDesc v) {
+        return (optimized_.find(v) != optimized_.end()); });
+    return (vv);
+  }
+
+  static double error_sum(const KeyToErrorMap &kem,
+                          const std::vector<OptimizerKey> &keys) {
+    double errSum(0);
+    for (const auto &k: keys) {
+      const auto it = kem.find(k);
+      if (it != kem.end()) {
+        errSum += it->second;
+      }
+    }
+    return (errSum);
   }
 
   Graph::ErrorToVertexMap Graph::getErrorMap() const {
     ErrorToVertexMap errMap;
-    for (auto vi = boost::vertices(graph_); vi.first != vi.second;
-         ++vi.first) {
-      try {
-        const double err = getError(*vi.first);
-        if (err >= 0) {
-          errMap.insert(ErrorToVertexMap::value_type(err, *vi.first));
-        }
-      } catch (const OptimizerException &e) {
-        ROS_ERROR_STREAM("cannot find error for: " << info(*vi.first));
+    const auto vv = getOptimizedFactors();
+    const auto vk = getOptimizerKeys(vv);
+    const auto facErr = optimizer_->getErrors(vk);
+    for (const auto v: vv) {
+      const VertexToOptMap::const_iterator it = optimized_.find(v);
+      if (it != optimized_.end()) {
+        const double err = error_sum(facErr, it->second);
+        errMap.insert(ErrorToVertexMap::value_type(err, v));
       }
     }
     return (errMap);
   }
 
   void Graph::printErrorMap(const string &prefix) const {
-    for (auto vi = boost::vertices(graph_); vi.first != vi.second;
-         ++vi.first) {
-      const VertexDesc v = *vi.first;
-      const VertexConstPtr vp = graph_[v];
-      VertexToOptMap::const_iterator it = optimized_.find(v);
-      if (!vp->isValue() && it != optimized_.end()) {
-        double errSum(0);
-        ROS_INFO_STREAM(prefix << " " << info(v) << ":");
-        for (const auto &k: it->second) {
-          double e = optimizer_->getError(k);
-          errSum += e;
-          optimizer_->printFactorError(k);
-        }
-      }
+    auto errMap = getErrorMap();
+    for (const auto &v: errMap) {
+      const auto &vp = graph_[v.second];
+      ROS_INFO_STREAM(prefix << " " << FMT(8,3) << v.first << " " << *vp);
     }
   }
 
   Graph::TimeToErrorMap Graph::getTimeToErrorMap() const {
     TimeToErrorMap m;
-    for (auto vi = boost::vertices(graph_); vi.first != vi.second;
-         ++vi.first) {
-      const VertexDesc v = *vi.first;
-      const VertexConstPtr vp = graph_[v];
-      VertexToOptMap::const_iterator it = optimized_.find(v);
-      if (!vp->isValue() && it != optimized_.end()) {
+    const auto vv = getOptimizedFactors();
+    const auto vk = getOptimizerKeys(vv);
+    const auto facErr = optimizer_->getErrors(vk);
+    for (const auto v: vv) {
+      const VertexToOptMap::const_iterator it = optimized_.find(v);
+      if (it != optimized_.end()) {
+        const VertexConstPtr vp = graph_[v];
         const FactorConstPtr fp =
           std::dynamic_pointer_cast<const factor::Factor>(vp);
-        double errSum(0);
-        for (const auto &k: it->second) {
-          double e = optimizer_->getError(k);
-          errSum += e;
+        if (!fp) {
+          BOMB_OUT("vertex is no factor: " << *vp);
         }
-        auto it = m.find(fp->getTime());
-        if (it == m.end()) {
-          it = m.emplace(fp->getTime(),TimeToErrorMap::mapped_type()).first;
+        const double err = error_sum(facErr, it->second);
+        auto ti = m.find(fp->getTime());
+        if (ti == m.end()) { // empty list if first factor for this time slot
+          ti = m.emplace(fp->getTime(),TimeToErrorMap::mapped_type()).first;
         }
-        it->second.emplace_back(fp, errSum);
+        ti->second.emplace_back(fp, err);
       }
     }
     return (m);

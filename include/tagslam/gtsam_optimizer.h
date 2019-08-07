@@ -23,7 +23,7 @@ namespace tagslam {
     double    optimizeFull(bool force = false) override;
     void      transferFullOptimization() override;
     double    errorFull() override;
-    double    getError(FactorKey k) const override;
+    KeyToErrorMap getErrors(const std::vector<FactorKey> &keys) const override;
     void      printFactorError(FactorKey k) const override;
 
     double    getMaxError() const override;

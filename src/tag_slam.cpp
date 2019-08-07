@@ -188,7 +188,13 @@ namespace tagslam {
   void TagSlam::run() {
     sleep(1.0); // give rviz time to connect
     // this plays back the data
-    playFromBag(inBagFile_);
+    try {
+      playFromBag(inBagFile_);
+    } catch (const OptimizerException &e) {
+      ROS_WARN_STREAM("Terminated with optimizer exception!");
+      ROS_WARN_STREAM("Check all your input noise settings!");
+      ROS_WARN_STREAM("No mixing of large and small noise, right???");
+    }
     std::cout.flush();
   }
 
@@ -220,9 +226,9 @@ namespace tagslam {
     profiler_.reset("writePoses");
     writePoses(outDir_ + "/poses.yaml");
     profiler_.record("writePoses");
-    profiler_.reset("writeErrorMaps");
+    profiler_.reset("writeErrorMap");
     writeErrorMap(outDir_ + "/error_map.txt");
-    profiler_.record("writeErrorMaps");
+    profiler_.record("writeErrorMap");
     profiler_.reset("writeTagDiagnostics");
     writeTagDiagnostics(outDir_ + "/tag_diagnostics.txt");
     profiler_.record("writeTagDiagnostics");
@@ -685,7 +691,8 @@ namespace tagslam {
     try {
       graphUpdater_.processNewFactors(graph_.get(), t, factors);
     } catch (const OptimizerException &e) {
-      ROS_ERROR_STREAM("optimizer crapped out!");
+      ROS_WARN_STREAM("optimizer crapped out!");
+      ROS_WARN_STREAM(e.what());
       finalize(false);
       throw (e);
     }
@@ -821,7 +828,7 @@ namespace tagslam {
                                                  pwn.getNoise());
         }
       } catch (const OptimizerException &e) {
-        ROS_ERROR_STREAM("no optimized pose for: " << cam->getName());
+        ROS_WARN_STREAM("no optimized pose for: " << cam->getName());
       }
     }
   }
@@ -859,7 +866,7 @@ namespace tagslam {
                                    pwn.getNoise(), true);
           }
         } catch (const OptimizerException &e) {
-          ROS_ERROR_STREAM("cannot find pose for " << body->getName());
+          ROS_WARN_STREAM("cannot find pose for " << body->getName());
         }
       }
       if (body->printTags()) {
@@ -876,7 +883,7 @@ namespace tagslam {
                                      true);
             }
           } catch (const OptimizerException &e) {
-            ROS_ERROR_STREAM("cannot find pose for tag " << tag->getId());
+            ROS_WARN_STREAM("cannot find pose for tag " << tag->getId());
           }
         }
       }

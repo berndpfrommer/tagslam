@@ -10,12 +10,15 @@
 #include "tagslam/pose_with_noise.h"
 #include "tagslam/optimizer_mode.h"
 
+#include <map>
+
 namespace tagslam {
   class OptimizerException: public std::runtime_error {
   public:
     OptimizerException(const std::string &what) : std::runtime_error(what) {
     };
   };
+  typedef std::map<FactorKey, double> KeyToErrorMap;
   class Optimizer {
   public:
     using string = std::string;
@@ -26,7 +29,8 @@ namespace tagslam {
     virtual double optimizeFull(bool force = false) = 0;
     virtual void   transferFullOptimization() = 0;
     virtual double errorFull() = 0;
-    virtual double getError(FactorKey k) const = 0;
+    virtual KeyToErrorMap getErrors(
+      const std::vector<FactorKey> &keys) const = 0;
     virtual void   printFactorError(FactorKey k) const = 0;
     virtual double getMaxError() const = 0;
     virtual void   setErrorThreshold(double th) = 0;

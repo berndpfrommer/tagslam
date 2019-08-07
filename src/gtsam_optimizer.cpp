@@ -455,25 +455,36 @@ namespace tagslam {
     isam2_->update(fullGraph_, values_);
   }
 
-  double GTSAMOptimizer::getError(FactorKey k) const {
-    try {
-      double err;
-      if (newGraph_.empty() && newValues_.empty()) {
-        const auto i = fullGraph_.at(k);
-        err = i->error(values_);
-      } else {
-        gtsam::ExpressionFactorGraph  testGraph = fullGraph_;
-        testGraph += newGraph_;
-        gtsam::Values testValues = values_;
-        testValues.insert(newValues_);
-        const auto i = testGraph.at(k);
-        err = i->error(testValues);
-      }
-      return (err);
-    } catch (const gtsam::ValuesKeyDoesNotExist &e) {
-      throw (OptimizerException(e.what()));
+  KeyToErrorMap
+  GTSAMOptimizer::getErrors(const std::vector<FactorKey> &keys) const {
+    KeyToErrorMap ke;
+    const gtsam::ExpressionFactorGraph *g;
+    const gtsam::Values *values;
+    gtsam::ExpressionFactorGraph  testGraph;
+    gtsam::Values testValues;
+    
+    if (newGraph_.empty() && newValues_.empty()) {
+      g      = &fullGraph_;
+      values = &values_;
+    } else {
+      // need to first add the new values to the full graph
+      testGraph = fullGraph_; // deep copy
+      testGraph += newGraph_;
+      testValues = values_; // deep copy
+      testValues.insert(newValues_);
+      g      = &testGraph;
+      values = &testValues;
     }
-
+    for (const auto &k: keys) {
+      try {
+        const auto i = g->at(k);
+        double err = i->error(*values);
+        ke.insert(KeyToErrorMap::value_type(k, err));
+      } catch (const gtsam::ValuesKeyDoesNotExist &e) {
+        ROS_WARN_STREAM("cannot get error for key: " << k);
+      }
+    }
+    return (ke);
   }
 
   void
