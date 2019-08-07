@@ -1009,7 +1009,8 @@ namespace tagslam {
     // In this case, remap the tag ids of the detected tags dependent
     // on time stamp, to something else so they become unique.
     for (const auto i: irange(0ul, orig.size())) {
-      const auto it = camSquash_.find(cameras_[i]->getName());
+      const string &camName = cameras_[i]->getName();
+      const auto it = camSquash_.find(camName);
       const std::set<int> *sqc = (it != camSquash_.end()) ?
         &(it->second) : NULL;
       const auto &o = orig[i];
@@ -1037,7 +1038,8 @@ namespace tagslam {
         auto it = tagRemap_.find(tag.id);
         if (it != tagRemap_.end()) {
           for (const ReMap &r: it->second) {
-            if (t >= r.startTime && t <= r.endTime) {
+            if (t >= r.startTime && t <= r.endTime &&
+                (r.camera.empty() || (camName == r.camera))) {
               tag.id = r.remappedId;
             }
           }
@@ -1072,6 +1074,7 @@ namespace tagslam {
                 if (a.getType() !=
                     XmlRpc::XmlRpcValue::TypeStruct) continue;
                 ReMap r(static_cast<int>(a["remap_id"]),
+                        xml::parse<std::string>(a, "camera", ""),
                         ros::Time(static_cast<double>(a["start_time"])),
                         ros::Time(static_cast<double>(a["end_time"])));
                 remaps.push_back(r);

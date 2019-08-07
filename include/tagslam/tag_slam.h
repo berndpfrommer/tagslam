@@ -89,10 +89,11 @@ namespace tagslam {
   private:
     void readParams();
     struct ReMap {
-      ReMap(int i, ros::Time ts, ros::Time te) :
-        remappedId(i), startTime(ts), endTime(te) {
+      ReMap(int i, const string &cam, ros::Time ts, ros::Time te) :
+        remappedId(i), camera(cam), startTime(ts), endTime(te) {
       };
       int       remappedId;
+      string    camera;
       ros::Time startTime;
       ros::Time endTime;
     };
