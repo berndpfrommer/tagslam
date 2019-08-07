@@ -11,6 +11,11 @@
 #include "tagslam/optimizer_mode.h"
 
 namespace tagslam {
+  class OptimizerException: public std::runtime_error {
+  public:
+    OptimizerException(const std::string &what) : std::runtime_error(what) {
+    };
+  };
   class Optimizer {
   public:
     using string = std::string;

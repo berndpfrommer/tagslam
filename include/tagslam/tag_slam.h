@@ -59,7 +59,7 @@ namespace tagslam {
     // ------ own methods
     bool initialize();
     void run();
-    void finalize();
+    void finalize(bool optimize = true);
     void subscribe();
     bool runOnline() const { return (inBagFile_.empty()); }
 
@@ -137,7 +137,7 @@ namespace tagslam {
                 std_srvs::Trigger::Response &res);
     bool dump(std_srvs::Trigger::Request& req,
               std_srvs::Trigger::Response &res);
-    void doDump();
+    void doDump(bool optimize);
     void writeCameraPoses(const string &fname) const;
     void writeFullCalibration(const string &fname) const;
     void writePoses(const string &fname) const;
@@ -175,6 +175,7 @@ namespace tagslam {
     int                  frameNum_{0};
     int                  maxFrameNum_{1000000};
     int                  maxHammingDistance_{100};
+    int                  syncQueueSize_{100};
     double               playbackRate_{1.0};
     double               pixelNoise_{1.0};
     std::vector<cv::Mat> images_;

@@ -291,6 +291,16 @@ namespace tagslam {
   }
 
   double GTSAMOptimizer::optimize(double deltaError) {
+    try {
+      return (doOptimize(deltaError));
+    } catch (const gtsam::IndeterminantLinearSystemException &e) {
+      throw OptimizerException(e.what());
+    } catch (const gtsam::CheiralityException &e) {
+      throw OptimizerException(e.what());
+    }
+  }
+
+  double GTSAMOptimizer::doOptimize(double deltaError) {
     ROS_DEBUG_STREAM("incremental optimize new values: " << newValues_.size()
                      << " factors: " << newGraph_.size()
                      << " delta: " << deltaError);
@@ -382,6 +392,16 @@ namespace tagslam {
   }
 
   double GTSAMOptimizer::optimizeFull(bool force) {
+    try {
+      return (doOptimizeFull(force));
+    } catch (const gtsam::IndeterminantLinearSystemException &e) {
+      throw OptimizerException(e.what());
+    } catch (const gtsam::CheiralityException &e) {
+      throw OptimizerException(e.what());
+    }
+  }
+
+  double GTSAMOptimizer::doOptimizeFull(bool force) {
     ROS_DEBUG_STREAM("optimizing full(" << force << ") new fac: " <<
                      newGraph_.size() << ", new val: " << newValues_.size());
     if (newGraph_.empty() && newValues_.empty() && !force) {
@@ -413,17 +433,21 @@ namespace tagslam {
     newValues_.clear();
     return (lastError_);
   }
-
+    
   PoseNoise GTSAMOptimizer::getMarginal(const ValueKey k)  {
-    auto it = covariances_.find(k);
-    if (it == covariances_.end()) {
-      gtsam::Marginals marginals(fullGraph_, values_);
-      it = covariances_.insert(
-        std::map<OptimizerKey,
-        gtsam::Matrix>::value_type(k, marginals.marginalCovariance(k))).first;
+    try {
+      auto it = covariances_.find(k);
+      if (it == covariances_.end()) {
+        gtsam::Marginals marginals(fullGraph_, values_);
+        it = covariances_.insert(
+          std::map<OptimizerKey,
+          gtsam::Matrix>::value_type(k, marginals.marginalCovariance(k))).first;
+      }
+      const PoseNoise::Matrix6d mat = it->second;
+      return (PoseNoise(mat));
+    } catch (const gtsam::ValuesKeyDoesNotExist &e) {
+      throw (OptimizerException(e.what()));
     }
-    const PoseNoise::Matrix6d mat = it->second;
-    return (PoseNoise(mat));
   }
 
   void GTSAMOptimizer::transferFullOptimization() {
@@ -432,19 +456,24 @@ namespace tagslam {
   }
 
   double GTSAMOptimizer::getError(FactorKey k) const {
-    double err;
-    if (newGraph_.empty() && newValues_.empty()) {
-      const auto i = fullGraph_.at(k);
-      err = i->error(values_);
-    } else {
-      gtsam::ExpressionFactorGraph  testGraph = fullGraph_;
-      testGraph += newGraph_;
-      gtsam::Values testValues = values_;
-      testValues.insert(newValues_);
-      const auto i = testGraph.at(k);
-      err = i->error(testValues);
+    try {
+      double err;
+      if (newGraph_.empty() && newValues_.empty()) {
+        const auto i = fullGraph_.at(k);
+        err = i->error(values_);
+      } else {
+        gtsam::ExpressionFactorGraph  testGraph = fullGraph_;
+        testGraph += newGraph_;
+        gtsam::Values testValues = values_;
+        testValues.insert(newValues_);
+        const auto i = testGraph.at(k);
+        err = i->error(testValues);
+      }
+      return (err);
+    } catch (const gtsam::ValuesKeyDoesNotExist &e) {
+      throw (OptimizerException(e.what()));
     }
-    return (err);
+
   }
 
   void
@@ -466,11 +495,15 @@ namespace tagslam {
   }
 
   Transform GTSAMOptimizer::getPose(ValueKey key) {
-    const auto it = newValues_.exists<gtsam::Pose3>(key);
-    if (it) {
-      return (gtsam_utils::from_gtsam(*it));
+    try {
+      const auto it = newValues_.exists<gtsam::Pose3>(key);
+      if (it) {
+        return (gtsam_utils::from_gtsam(*it));
+      }
+      return (gtsam_utils::from_gtsam(values_.at<gtsam::Pose3>(key)));
+    } catch (const gtsam::ValuesKeyDoesNotExist &e) {
+      throw (OptimizerException(e.what()));
     }
-    return (gtsam_utils::from_gtsam(values_.at<gtsam::Pose3>(key)));
   }
   
 }  // end of namespace

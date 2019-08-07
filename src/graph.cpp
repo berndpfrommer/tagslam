@@ -237,9 +237,13 @@ namespace tagslam {
     ErrorToVertexMap errMap;
     for (auto vi = boost::vertices(graph_); vi.first != vi.second;
          ++vi.first) {
-      const double err = getError(*vi.first);
-      if (err >= 0) {
-        errMap.insert(ErrorToVertexMap::value_type(err, *vi.first));
+      try {
+        const double err = getError(*vi.first);
+        if (err >= 0) {
+          errMap.insert(ErrorToVertexMap::value_type(err, *vi.first));
+        }
+      } catch (const OptimizerException &e) {
+        ROS_ERROR_STREAM("cannot find error for: " << info(*vi.first));
       }
     }
     return (errMap);

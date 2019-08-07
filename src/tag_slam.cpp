@@ -107,6 +107,7 @@ namespace tagslam {
     nh_.param<string>("bag_file", inBagFile_, "");
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
+    nh_.param<int>("sync_queue_size", syncQueueSize_, 100);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("publish_ack", publishAck_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
@@ -191,13 +192,15 @@ namespace tagslam {
     std::cout.flush();
   }
 
-  void TagSlam::doDump() {
+  void TagSlam::doDump(bool optimize) {
     graphUpdater_.printPerformance();
     // do final optimization
-    profiler_.reset("finalOptimization");
-    const double error = graph_->optimizeFull(true /*force*/);
-    profiler_.record("finalOptimization");
-    ROS_INFO_STREAM("final error: " << error);
+    if (optimize) {
+      profiler_.reset("finalOptimization");
+      const double error = graph_->optimizeFull(true /*force*/);
+      profiler_.record("finalOptimization");
+      ROS_INFO_STREAM("final error: " << error);
+    }
     graph_->printUnoptimized();
     for (auto &m: measurements_) {
       m->printUnused();
@@ -235,8 +238,8 @@ namespace tagslam {
     std::cout.flush();
   }
 
-  void TagSlam::finalize() {
-    doDump();
+  void TagSlam::finalize(bool optimize) {
+    doDump(optimize);
     tagCornerFile_.close();
   }
 
@@ -405,7 +408,7 @@ namespace tagslam {
   bool TagSlam::dump(std_srvs::Trigger::Request& req,
                      std_srvs::Trigger::Response &res) {
     ROS_INFO_STREAM("dumping!");
-    doDump();
+    doDump(true);
     res.message = "dump complete!";
     res.success = true;
     ROS_INFO_STREAM("finished dumping.");
@@ -527,18 +530,25 @@ namespace tagslam {
     if (hasCompressedImages_) {
       flex_sync::Sync<TagArray, CompressedImage, Odometry>
         sync3c(topics, std::bind(&TagSlam::syncCallbackCompressed, this,
-                             std::placeholders::_1, std::placeholders::_2,
-                             std::placeholders::_3));
+                                 std::placeholders::_1, std::placeholders::_2,
+                                 std::placeholders::_3), syncQueueSize_);
       processBag(&sync3c, &view);
-      bag.close();
+      if (sync3c.getNumberDropped() != 0) {
+        ROS_WARN_STREAM("sync dropped messages: " << sync3c.getNumberDropped());
+        sync3c.clearNumberDropped();
+      }
     } else {
       flex_sync::Sync<TagArray, Image, Odometry>
         sync3(topics, std::bind(&TagSlam::syncCallback, this,
-                            std::placeholders::_1, std::placeholders::_2,
-                            std::placeholders::_3));
+                                std::placeholders::_1, std::placeholders::_2,
+                                std::placeholders::_3), syncQueueSize_);
       processBag(&sync3, &view);
-      bag.close();
+      if (sync3.getNumberDropped() != 0) {
+        ROS_WARN_STREAM("sync dropped messages: " << sync3.getNumberDropped());
+        sync3.clearNumberDropped();
+      }
     }
+    bag.close();
     ROS_INFO_STREAM("done processing bag, total wall time: " <<
                     (ros::WallTime::now() - t0).toSec());
   }
@@ -672,7 +682,13 @@ namespace tagslam {
     processTags(tagmsgs, &factors);
     profiler_.record("processTags");
     profiler_.reset("processNewFactors");
-    graphUpdater_.processNewFactors(graph_.get(), t, factors);
+    try {
+      graphUpdater_.processNewFactors(graph_.get(), t, factors);
+    } catch (const OptimizerException &e) {
+      ROS_ERROR_STREAM("optimizer crapped out!");
+      finalize(false);
+      throw (e);
+    }
     profiler_.record("processNewFactors");
     profiler_.reset("publish");
     times_.push_back(t);
@@ -689,7 +705,7 @@ namespace tagslam {
         ackPub_.publish(h);
       }
       ROS_INFO_STREAM("reached max number of frames, finished!");
-      finalize();
+      finalize(true);
       ros::shutdown();
     }
   }
@@ -796,12 +812,16 @@ namespace tagslam {
     std::ofstream f(fname);
     for (const auto &cam : cameras_) {
       f << cam->getName() << ":" << std::endl;
-      PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
-        *graph_, Graph::cam_name(cam->getName()));
-      if (pwn.isValid()) {
-        f << "  pose:" << std::endl;
-        yaml_utils::write_pose_with_covariance(f, "    ", pwn.getPose(),
-                                               pwn.getNoise());
+      try {
+        PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
+          *graph_, Graph::cam_name(cam->getName()));
+        if (pwn.isValid()) {
+          f << "  pose:" << std::endl;
+          yaml_utils::write_pose_with_covariance(f, "    ", pwn.getPose(),
+                                                 pwn.getNoise());
+        }
+      } catch (const OptimizerException &e) {
+        ROS_ERROR_STREAM("no optimized pose for: " << cam->getName());
       }
     }
   }
@@ -830,25 +850,33 @@ namespace tagslam {
       Transform bodyTF;
       body->write(f, " ");
       if (body->isStatic()) {
-        PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
-          *graph_, Graph::body_name(body->getName()));
-        if (pwn.isValid()) {
-          f << "     pose:" << std::endl;
-          yaml_utils::write_pose(f, "       ", pwn.getPose(),
-                                 pwn.getNoise(), true);
+        try {
+          PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
+            *graph_, Graph::body_name(body->getName()));
+          if (pwn.isValid()) {
+            f << "     pose:" << std::endl;
+            yaml_utils::write_pose(f, "       ", pwn.getPose(),
+                                   pwn.getNoise(), true);
+          }
+        } catch (const OptimizerException &e) {
+          ROS_ERROR_STREAM("cannot find pose for " << body->getName());
         }
       }
       if (body->printTags()) {
         f << "     tags:" << std::endl;
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
-          if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
-            f << idn << "- id: "   << tag->getId() << std::endl;
-            f << idn << "  size: " << tag->getSize() << std::endl;
-            f << idn << "  pose:" << std::endl;
-            const auto &pwn = tag->getPoseWithNoise();
-            yaml_utils::write_pose(f, idn + "    ", tagTF, pwn.getNoise(),
-                                   true);
+          try {
+            if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
+              f << idn << "- id: "   << tag->getId() << std::endl;
+              f << idn << "  size: " << tag->getSize() << std::endl;
+              f << idn << "  pose:" << std::endl;
+              const auto &pwn = tag->getPoseWithNoise();
+              yaml_utils::write_pose(f, idn + "    ", tagTF, pwn.getNoise(),
+                                     true);
+            }
+          } catch (const OptimizerException &e) {
+            ROS_ERROR_STREAM("cannot find pose for tag " << tag->getId());
           }
         }
       }
@@ -997,7 +1025,7 @@ namespace tagslam {
           continue;
         }
         if (sq != squash_.end() && sq->second.count(tag.id) != 0) {
-          ROS_INFO_STREAM("time - squashed tag: " << tag.id);
+          ROS_INFO_STREAM("time " << t << " squashed tag: " <<  tag.id);
         } else{
           if (!sqc || sqc->count(tag.id) == 0) { // no camera squash?
             p->apriltags.push_back(tag);

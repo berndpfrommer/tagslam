@@ -69,6 +69,8 @@ namespace tagslam {
     std::shared_ptr<Cal3DS3> getRadTanModel(
       const string &cname, const CameraIntrinsics &ci);
     double checkForLargeErrors(double thresh) const;
+    double doOptimize(double deltaError);
+    double doOptimizeFull(bool force);
     // ------------ variables ------------
     ValueKey                      key_{0};
     string                        verbosity_;
