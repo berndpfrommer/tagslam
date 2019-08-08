@@ -194,6 +194,7 @@ namespace tagslam {
       ROS_WARN_STREAM("Terminated with optimizer exception!");
       ROS_WARN_STREAM("Check all your input noise settings!");
       ROS_WARN_STREAM("No mixing of large and small noise, right???");
+      throw (e);
     }
     std::cout.flush();
   }
@@ -534,25 +535,22 @@ namespace tagslam {
     rosbag::View view(bag, rosbag::TopicQuery(flatTopics), startTime);
     ros::WallTime t0 = ros::WallTime::now();
     if (hasCompressedImages_) {
-      flex_sync::Sync<TagArray, CompressedImage, Odometry>
-        sync3c(topics, std::bind(&TagSlam::syncCallbackCompressed, this,
-                                 std::placeholders::_1, std::placeholders::_2,
-                                 std::placeholders::_3), syncQueueSize_);
-      processBag(&sync3c, &view);
-      if (sync3c.getNumberDropped() != 0) {
-        ROS_WARN_STREAM("sync dropped messages: " << sync3c.getNumberDropped());
-        sync3c.clearNumberDropped();
-      }
+      std::function<void(const std::vector<TagArray::ConstPtr> &,
+                         const std::vector<CompressedImage::ConstPtr> &,
+                         const std::vector<Odometry::ConstPtr> &)> cb =
+        std::bind(&TagSlam::syncCallbackCompressed, this,
+                  std::placeholders::_1, std::placeholders::_2,
+                  std::placeholders::_3);
+      processBag<TagArray, CompressedImage, Odometry>(
+        &view, topics, cb);
     } else {
-      flex_sync::Sync<TagArray, Image, Odometry>
-        sync3(topics, std::bind(&TagSlam::syncCallback, this,
-                                std::placeholders::_1, std::placeholders::_2,
-                                std::placeholders::_3), syncQueueSize_);
-      processBag(&sync3, &view);
-      if (sync3.getNumberDropped() != 0) {
-        ROS_WARN_STREAM("sync dropped messages: " << sync3.getNumberDropped());
-        sync3.clearNumberDropped();
-      }
+      std::function<void(const std::vector<TagArray::ConstPtr> &,
+                         const std::vector<Image::ConstPtr> &,
+                         const std::vector<Odometry::ConstPtr> &)> cb =
+        std::bind(&TagSlam::syncCallback, this,
+                  std::placeholders::_1, std::placeholders::_2,
+                  std::placeholders::_3);
+      processBag<TagArray, Image, Odometry>(&view, topics, cb);
     }
     bag.close();
     ROS_INFO_STREAM("done processing bag, total wall time: " <<

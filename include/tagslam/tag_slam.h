@@ -63,22 +63,33 @@ namespace tagslam {
     void subscribe();
     bool runOnline() const { return (inBagFile_.empty()); }
 
-    template<typename S>
-    void processBag(S *sync, rosbag::View *view) {
+    template<typename T1, typename T2, typename T3>
+    void processBag(rosbag::View *view,
+                    const std::vector<std::vector<string>> &topics,
+                    std::function<void(
+                      const std::vector<typename T1::ConstPtr> &,
+                      const std::vector<typename T2::ConstPtr> &,
+                      const std::vector<typename T3::ConstPtr> &)> &cb) {
+      flex_sync::Sync<T1, T2, T3> sync(topics, cb, syncQueueSize_);
       for (const rosbag::MessageInstance &m: *view) {
-         typename S::Type1::ConstPtr t1 = m.instantiate<typename S::Type1>();
-        if (t1) {    sync->process(m.getTopic(), t1); } else {
-          typename S::Type2::ConstPtr t2 = m.instantiate<typename S::Type2>();
-          if (t2) {  sync->process(m.getTopic(), t2); } else {
-            typename S::Type3::ConstPtr t3 =m.instantiate<typename S::Type3>();
-            if (t3) { sync->process(m.getTopic(), t3); }
+         typename T1::ConstPtr t1 = m.instantiate<T1>();
+        if (t1) {    sync.process(m.getTopic(), t1); } else {
+          typename T2::ConstPtr t2 = m.instantiate<T2>();
+          if (t2) {  sync.process(m.getTopic(), t2); } else {
+            typename T3::ConstPtr t3 =m.instantiate<T3>();
+            if (t3) { sync.process(m.getTopic(), t3); }
           }
         }
         if (frameNum_ > maxFrameNum_ || !ros::ok()) {
           break;
         }
       }
+      if (sync.getNumberDropped() != 0) {
+        ROS_WARN_STREAM("sync dropped messages: " << sync.getNumberDropped());
+        sync.clearNumberDropped();
+      }
     }
+
     void syncCallback(const std::vector<TagArrayConstPtr> &msgvec1,
                       const std::vector<ImageConstPtr> &msgvec2,
                       const std::vector<OdometryConstPtr> &msgvec3);
@@ -121,7 +132,7 @@ namespace tagslam {
     void processTagsAndOdom(const std::vector<TagArrayConstPtr> &tagmsgs,
                             const std::vector<OdometryConstPtr> &odommsgs);
     void publishTagAndBodyTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
-    void publishOriginalTagTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
+    void publishOriginalTagTransforms(const ros::Time &t,tf::tfMessage *tfMsg);
     void publishCameraTransforms(const ros::Time &t, tf::tfMessage *tfMsg);
 
     void publishTransforms(const ros::Time &t, bool orig = false);
@@ -146,7 +157,8 @@ namespace tagslam {
     void writeTimeDiagnostics(const string &fname) const;
     void writeDistanceDiagnostics(const string &fname) const;
     void writeErrorMap(const string &fname) const;
-    void writeTagCorners(const ros::Time &t, int camIdx, const TagConstPtr &tag,
+    void writeTagCorners(const ros::Time &t, int camIdx,
+                         const TagConstPtr &tag,
                          const geometry_msgs::Point *img_corners);
 
     void remapAndSquash(std::vector<TagArrayConstPtr> *remapped,

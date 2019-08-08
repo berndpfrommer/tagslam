@@ -20,8 +20,13 @@ int main(int argc, char** argv) {
       node.subscribe();
       ros::spin();
     } else {
-      node.run();
-      node.finalize();
+      try {
+        node.run();
+        node.finalize();
+      } catch (const tagslam::OptimizerException &e) {
+        ROS_ERROR_STREAM("exited with error!");
+        return (-1);
+      }
       bool exitWhenDone;
       pnh.param<bool>("exit_when_done", exitWhenDone, false);
       if (!exitWhenDone) {
@@ -30,5 +35,7 @@ int main(int argc, char** argv) {
     }
   } catch (const std::exception& e) {
     ROS_ERROR("%s: %s", pnh.getNamespace().c_str(), e.what());
+    return (-1);
   }
+  return (0);
 }
