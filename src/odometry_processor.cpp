@@ -11,14 +11,17 @@
 namespace tagslam {
   using Odometry = nav_msgs::Odometry;
   using OdometryConstPtr = nav_msgs::OdometryConstPtr;
+  //std::ofstream debug_file("odom_debug.txt");
 
   OdometryProcessor::OdometryProcessor(ros::NodeHandle &nh,
                                        const BodyConstPtr &body) :
     body_(body) {
     pub_ =
       nh.advertise<nav_msgs::Odometry>("raw_odom/body_"+body->getName(), 5);
-    acceleration_ = body->getOdomAcceleration();
-    angularAcceleration_ = body->getOdomAngularAcceleration();
+    accelerationNoiseMin_ = body->getOdomAccelerationNoiseMin();
+    angularAccelerationNoiseMin_ = body->getOdomAngularAccelerationNoiseMin();
+    accelerationNoiseMax_ = body->getOdomAccelerationNoiseMax();
+    angularAccelerationNoiseMax_ = body->getOdomAngularAccelerationNoiseMax();
     rotationNoise_ = body->getOdomRotationNoise();
     translationNoise_ = body->getOdomTranslationNoise();
     T_body_odom_ = body->getTransformBodyOdom();
@@ -58,18 +61,56 @@ namespace tagslam {
     // thereby reducing the weight of the odometry measurement.
     // This addresses situations where the odometry jumps.
     //
-    // The "acceleration" and "angularAcceleration" parameters
-    // are the minimum noise that is assumed, i.e. they should be
-    // set to what is expected to be a typical maximum acceleration.
-    // They set a floor on the uncertainty. Without such a floor,
-    // the noise could go to zero if the position update is zero,
+    // There are parameters that clamp the noise, i.e. they set a floor
+    // and ceiling on the position and angle uncertainty. Without a floor,
+    // the noise could go to zero if the position update is zero (no motion),
     // meaning the odometry measurements are trusted completely, causing
     // the optimizer to bomb out.
-    PoseNoiseConstPtr pn(
-      new PoseNoise(PoseNoise::make(
-                      std::max(dang, angularAcceleration_ * dt2),
-                      std::max(dpos, acceleration_ * dt2))));
+    
+    const double angNoise =
+      std::min(std::max(dang,angularAccelerationNoiseMin_ * dt2),
+               angularAccelerationNoiseMax_ * dt2);
+    const double posNoise =
+      std::min(std::max(dpos, accelerationNoiseMin_ * dt2),
+               accelerationNoiseMax_ * dt2);
+    
+    //debug_file <<  t  << " " << posNoise << " " << accelerationNoiseMin_ * dt2
+    //<< " " << accelerationNoiseMax_ * dt2 << std::endl;
+    PoseNoiseConstPtr pn(new PoseNoise(PoseNoise::make(angNoise, posNoise)));
     return (pn);
+  }
+
+
+  void
+  OdometryProcessor::updateStatistics(const ros::Time &t, const Transform &d) {
+    const double l2 = d.translation().squaredNorm();
+    Eigen::AngleAxisd aa; // angle-axis
+    aa.fromRotationMatrix(d.rotation());
+    const double a = aa.angle();
+    const double l = std::sqrt(l2);
+    lenSum_  += l;
+    len2Sum_ += l2;
+    if (l >= lenMax_) {
+      lenMax_ = l;
+      lenMaxT_ = t;
+    }
+    angSum_  += a;
+    ang2Sum_ += a * a;
+    count_++;
+    ROS_DEBUG_STREAM("odom: " << a << " l: " << l);
+  }
+
+  void
+  OdometryProcessor::finalize() const {
+    const double cinv = (count_ > 0) ? (1.0/(double)count_) : 0.0;
+    const double lavg = lenSum_ * cinv;
+    const double cov  = cinv * (len2Sum_ - lavg * lavg * (double)count_);
+    const double aavg = angSum_ * cinv;
+    const double acov = cinv * (ang2Sum_ - aavg * aavg * (double)count_);
+    ROS_INFO_STREAM("---- odom statistics: ");
+    ROS_INFO_STREAM("translation: " << lavg << " +- " << std::sqrt(cov));
+    ROS_INFO_STREAM("max: " << lenMax_ << " at time: " << lenMaxT_);
+    ROS_INFO_STREAM("rotation: " << aavg << " +- " << std::sqrt(acov));
   }
 
   void
@@ -94,6 +135,7 @@ namespace tagslam {
           new PoseNoise(PoseNoise::make(rotationNoise_, translationNoise_)));
       }
       const PoseWithNoise pwn(deltaPose, *pn, true);
+      updateStatistics(t, deltaPose);
       auto fac = add_body_pose_delta(graph, time_, msg->header.stamp,
                                      body_, pwn);
       factors->push_back(fac);

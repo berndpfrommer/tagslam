@@ -25,21 +25,31 @@ namespace tagslam {
     static VertexDesc add_body_pose_delta(
       Graph *graph, const ros::Time &tPrev, const ros::Time &tCurr,
       const BodyConstPtr &body, const PoseWithNoise &deltaPose);
+    void finalize() const;
   private:
     PoseNoiseConstPtr makeAdaptiveNoise(const ros::Time &t,
                                         const Transform &deltaPose);
-
+    void updateStatistics(const ros::Time &t, const Transform &d);
     // ---- variables
     BodyConstPtr    body_;
     Transform       pose_;
     ros::Time       time_{0};
     ros::Publisher  pub_;
     Transform       T_body_odom_;
-    double          acceleration_{5.0}; // m/s^2
-    double          angularAcceleration_{5.0}; // rad/sec^2
+    double          accelerationNoiseMin_{5.0}; // m/s^2
+    double          angularAccelerationNoiseMin_{5.0}; // rad/sec^2
+    double          accelerationNoiseMax_{50.0}; // m/s^2
+    double          angularAccelerationNoiseMax_{50.0}; // rad/sec^2
     double          translationNoise_{-1.0}; // m
     double          rotationNoise_{-1.0}; // rads
     Eigen::Vector3d lastOmega_;
     Eigen::Vector3d lastVelocity_;
+    double          lenSum_{0};
+    double          len2Sum_{0};
+    double          angSum_{0};
+    double          ang2Sum_{0};
+    unsigned int    count_{0};
+    double          lenMax_{0};
+    ros::Time       lenMaxT_{0};
   };
 }

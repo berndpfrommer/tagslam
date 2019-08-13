@@ -45,10 +45,14 @@ namespace tagslam {
       return (odomTranslationNoise_); }
     double getOdomRotationNoise() const {
       return (odomRotationNoise_); }
-    double getOdomAcceleration() const {
-      return (odomAcceleration_); }
-    double getOdomAngularAcceleration() const {
-      return (odomAngularAcceleration_); }
+    double getOdomAccelerationNoiseMin() const {
+      return (odomAccelerationNoiseMin_); }
+    double getOdomAccelerationNoiseMax() const {
+      return (odomAccelerationNoiseMax_); }
+    double getOdomAngularAccelerationNoiseMin() const {
+      return (odomAngularAccelerationNoiseMin_); }
+    double getOdomAngularAccelerationNoiseMax() const {
+      return (odomAngularAccelerationNoiseMax_); }
     double getFakeOdomTranslationNoise() const {
       return (fakeOdomTranslationNoise_); }
     double getFakeOdomRotationNoise() const {
@@ -107,8 +111,10 @@ namespace tagslam {
     string              odomFrameId_;
     double              odomTranslationNoise_{-1.0};
     double              odomRotationNoise_{-1.0};
-    double              odomAcceleration_{5.0}; // m/s^2
-    double              odomAngularAcceleration_{5.0}; // rad/sec^2
+    double              odomAccelerationNoiseMin_{5.0}; // m/s^2
+    double              odomAngularAccelerationNoiseMin_{5.0}; // rad/sec^2
+    double              odomAccelerationNoiseMax_{50.0}; // m/s^2
+    double              odomAngularAccelerationNoiseMax_{50.0}; // rad/sec^2
     Transform           T_body_odom_;
     // -------- static functions
     static BodyPtr parse_body(const string &name, XmlRpc::XmlRpcValue config);

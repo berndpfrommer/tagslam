@@ -54,9 +54,22 @@ namespace tagslam {
         body, "odom_translation_noise", -1.0);
       odomRotationNoise_ = xml::parse<double>(
         body, "odom_rotation_noise", -1.0);
-      odomAcceleration_ = xml::parse<double>(body, "odom_acceleration", 5.0);
-      odomAngularAcceleration_=
-        xml::parse<double>(body, "odom_angular_acceleration", 5.0);
+      // first read old tag, then new one if provided
+      const double oanm = xml::parse<double>(body, "odom_acceleration", 5.0);
+      odomAccelerationNoiseMin_ =
+        xml::parse<double>(body, "odom_acceleration_noise_min", oanm);
+      
+      const double oaanm = xml::parse<double>(body, "odom_angular_acceleration",5.0);
+      odomAngularAccelerationNoiseMin_=
+        xml::parse<double>(body, "odom_angular_acceleration_noise_min", oaanm);
+      
+      odomAccelerationNoiseMax_ =
+        xml::parse<double>(body, "odom_acceleration_noise_max",
+                           10 * odomAccelerationNoiseMin_);
+      odomAngularAccelerationNoiseMax_ =
+        xml::parse<double>(body, "odom_angular_acceleration_noise_max",
+                           10 * odomAngularAccelerationNoiseMin_);
+      
       ignoreTags_ = xml::parse_container<std::set<int>>(body, "ignore_tags",
                                                         std::set<int>());
       poseWithNoise_ = xml::parse<PoseWithNoise>(body, "pose",

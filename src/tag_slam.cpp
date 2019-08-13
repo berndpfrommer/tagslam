@@ -248,6 +248,9 @@ namespace tagslam {
   void TagSlam::finalize(bool optimize) {
     doDump(optimize);
     tagCornerFile_.close();
+    for (auto const &op: odomProcessors_) {
+      op.finalize();
+    }
   }
 
   void TagSlam::readBodies(XmlRpc::XmlRpcValue config) {
