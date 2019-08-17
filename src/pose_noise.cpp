@@ -30,8 +30,8 @@ namespace tagslam {
 
   // static method
   PoseNoise PoseNoise::makeFromR(const Matrix6d &R) {
-    const Matrix6d sigmasq = sqrt_info_to_sigma(R);
-    return (PoseNoise(sigmasq, false /*isdiag*/));
+    const Matrix6d sigma = sqrt_info_to_sigma(R);
+    return (PoseNoise(sigma, false /*isdiag*/));
   }
 
   Eigen::Matrix<double, 6, 1> PoseNoise::getDiagonal() const {
@@ -39,7 +39,7 @@ namespace tagslam {
   }
 
   const PoseNoise::Matrix6d  PoseNoise::getCovarianceMatrix() const {
-    return (noise_.transpose() * noise_);
+    return (noise_);
   }
 
   PoseNoise::Matrix6d PoseNoise::convertToR() const {
