@@ -1,3 +1,23 @@
+tagslam_parameters:
+# optimizer mode: full (full optimization, no iSAM2 used)
+#                 slow (use iSAM2, but test for error and use full if error is large)
+#                 fast (iSAM2 only, no test for error)
+# default: slow
+  optimizer_mode: fast
+# minimum angle [in degrees] between optical axis and tag surface
+  minimum_viewing_angle: 12.0
+# number of incremental updates before running
+# a full graph optimization (default: 50)
+  max_num_incremental_opt: 50
+# estimated error of tag corner detector
+  pixel_noise: 1.0
+# maximum allowed subgraph error. If error is above that,
+# the frame is thrown away, the measurement ignored.
+  max_subgraph_error: 50.0
+# Noise with which the subgraph absolute priors will be
+# pinned down. This parameter usually does not need to be touched.
+  subgraph_abs_prior_position_noise: 0.1
+  subgraph_abs_prior_rotation_noise: 0.1
 body_defaults:
   position_noise: 0.05
   rotation_noise: 0.01
