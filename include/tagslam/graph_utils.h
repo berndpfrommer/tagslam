@@ -29,7 +29,9 @@ namespace tagslam {
     // those factors, and pin them down with an absolute pose prior to
     // be their current values.
     void copy_subgraph(Graph *dest, const Graph &src,
-                       const std::deque<VertexDesc> &srcfacs);
+                       const std::deque<VertexDesc> &srcfacs,
+                       double absPriorPositionNoise,
+                       double absPriorRotationNoise);
     // Look through the source graph for any values that are not yet
     // optimized in the destination graph. Initialize those values
     // in the destination graph, and add them to the optimizer.

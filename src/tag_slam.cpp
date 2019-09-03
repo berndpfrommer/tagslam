@@ -102,7 +102,6 @@ namespace tagslam {
   void TagSlam::readParams() {
     nh_.param<string>("outbag", outBagName_, "out.bag");
     nh_.param<double>("playback_rate", playbackRate_, 5.0);
-    nh_.param<double>("pixel_noise", pixelNoise_, 1.0);
     nh_.param<string>("output_directory", outDir_, ".");
     nh_.param<string>("bag_file", inBagFile_, "");
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
@@ -111,31 +110,34 @@ namespace tagslam {
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("publish_ack", publishAck_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
-    // --- graph updater params ---
-    
-    int    maxIncOpt;
-    double maxSubgraphError, angleLimit;
-    nh_.param<double>("minimum_viewing_angle", angleLimit, 20);
-    graphUpdater_.setMinimumViewingAngle(angleLimit);
-    nh_.param<double>("max_subgraph_error", maxSubgraphError, 50.0);
-    graphUpdater_.setMaxSubgraphError(maxSubgraphError);
-    nh_.param<int>("max_num_incremental_opt", maxIncOpt, 100);
-    graphUpdater_.setMaxNumIncrementalOpt(maxIncOpt);
-    nh_.param<string>("optimizer_mode", optimizerMode_, "slow");
-    graphUpdater_.setOptimizerMode(optimizerMode_);
-    const auto ommi = optModeMap.find(optimizerMode_);
+  }
+
+  void TagSlam::testForOldLaunchParameters() {
+    std::vector<string> oldParams =
+      {"pixel_noise", "minimum_viewing_angle", "max_subgraph_error",
+       "max_num_incremental_opt", "optimizer_mode"};
+    for (const auto &p: oldParams) {
+      if (nh_.hasParam(p)) {
+        BOMB_OUT("error to specify " << p <<
+                 " as launch param, must be in " << "tagslam.yaml file now");
+      }
+    }
+  }
+
+  bool TagSlam::initialize() {
+    testForOldLaunchParameters();
+    readParams();
+    XmlRpc::XmlRpcValue config, camConfig, camPoses;
+    nh_.getParam("tagslam_config", config);
+    graphUpdater_.parse(config);
+    const auto ommi = optModeMap.find(graphUpdater_.getOptimizerMode());
     if (ommi == optModeMap.end()) {
       BOMB_OUT("invalid optimizer mode: " << optimizerMode_);
     } else {
       graph_->getOptimizer()->setMode(ommi->second);
     }
-    ROS_INFO_STREAM("optimizer mode: " << optimizerMode_);
-  }
+    ROS_INFO_STREAM("optimizer mode: " << graphUpdater_.getOptimizerMode());
 
-  bool TagSlam::initialize() {
-    readParams();
-    XmlRpc::XmlRpcValue config, camConfig, camPoses;
-    nh_.getParam("tagslam_config", config);
     readSquash(config);
     readRemap(config);
     readBodies(config);
@@ -989,7 +991,8 @@ namespace tagslam {
         if (tagPtr) {
           const geometry_msgs::Point *corners = &(tag.corners[0]);
           TagProjectionFactorPtr fp(
-            new factor::TagProjection(t, cam, tagPtr, corners, pixelNoise_,
+            new factor::TagProjection(t, cam, tagPtr, corners,
+                                      graphUpdater_.getPixelNoise(),
                                       cam->getName() + "-" +
                                       Graph::tag_name(tagPtr->getId())));
           auto fac = fp->addToGraph(fp, graph_.get());

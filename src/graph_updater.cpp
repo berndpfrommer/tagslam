@@ -10,6 +10,7 @@
 #include "tagslam/tag.h"
 #include "tagslam/logging.h"
 #include "tagslam/graph_utils.h"
+#include "tagslam/xml.h"
 
 #include <boost/range/irange.hpp>
 #include <boost/graph/graph_utility.hpp>
@@ -71,7 +72,7 @@ namespace tagslam {
   }
 
   void GraphUpdater::setOptimizerMode(const std::string &mode) {
-    if (mode == "FULL") {
+    if (mode == "FULL" || mode == "full") {
       optimizeFullGraph_ = true;
     }
   }
@@ -311,10 +312,6 @@ namespace tagslam {
     }
   }
 
-  void GraphUpdater::setMinimumViewingAngle(double angDeg) {
-    minimumViewingAngle_ = angDeg;
-  }
-
   static double viewing_angle(const Transform &tf) {
     // viewing angle is determined by position of camera in tag coord
     Eigen::Vector3d camPositionInObjFrame = tf.inverse().translation();
@@ -446,12 +443,15 @@ namespace tagslam {
 
   static bool try_initialization(const Graph &g, const VertexDeque &factors,
                                  int ord, double minViewAngle, double errLimit,
+                                 double absPriorPositionNoise,
+                                 double absPriorRotationNoise,
                                  double *errMin, GraphPtr *bestGraph,
                                  Profiler *profiler) {
     GraphPtr sg(new Graph());
     Graph &subGraph = *sg;
     // populate the subgraph with factors from the full graph
-    graph_utils::copy_subgraph(sg.get(), g, factors);
+    graph_utils::copy_subgraph(sg.get(), g, factors, absPriorPositionNoise,
+                               absPriorRotationNoise);
     //subGraph.print("init subgraph");
     if (initialize_subgraph(&subGraph, minViewAngle)) {
       profiler->reset("subgraphOpt");
@@ -504,9 +504,11 @@ namespace tagslam {
       for (const auto &ordering: orderings) {
         ord++;
         if (try_initialization(*graph, ordering, ord, minimumViewingAngle_,
-                               maxSubgraphError_, &errMin, &bestGraph,
-                               &profiler_)) {
-          // found a good-enough error value!
+                               maxSubgraphError_,
+                               subGraphAbsPriorPositionNoise_,
+                               subGraphAbsPriorRotationNoise_,
+                               &errMin, &bestGraph, &profiler_)) {
+          // found a good-enough error value!x
           break;
         }
       }
@@ -664,6 +666,29 @@ namespace tagslam {
   void GraphUpdater::printPerformance() {
     ROS_INFO_STREAM("updater performance:");
     std::cout << profiler_ << std::endl;
+  }
+
+  void GraphUpdater::parse(XmlRpc::XmlRpcValue config) {
+    if (!config.hasMember("tagslam_parameters")) {
+      BOMB_OUT("tagslam config file must have tagslam_parameters!");
+    }
+    XmlRpc::XmlRpcValue cfg = config["tagslam_parameters"];
+    try {
+      pixelNoise_ = xml::parse<double>(cfg, "pixel_noise", 1.0);
+      minimumViewingAngle_ =
+        xml::parse<double>(cfg, "minimum_viewing_angle", 20.0);
+      maxSubgraphError_ = xml::parse<double>(cfg, "max_subgraph_error", 50.0);
+      subGraphAbsPriorPositionNoise_ =
+        xml::parse<double>(cfg, "subgraph_abs_prior_position_noise", 0.001);
+      subGraphAbsPriorRotationNoise_ =
+        xml::parse<double>(cfg, "subgraph_abs_prior_rotation_noise", 0.001);
+      maxNumIncrementalOpt_ =
+        xml::parse<int>(cfg, "max_num_incremental_opt", 100);
+      optimizerMode_ = xml::parse<string>(cfg, "optimizer_mode", "slow");
+      setOptimizerMode(optimizerMode_);
+    } catch (const XmlRpc::XmlRpcException &e) {
+      BOMB_OUT("error parsing tagslam_parameters!");
+    }
   }
 
 }  // end of namespace

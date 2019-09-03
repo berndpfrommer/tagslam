@@ -98,7 +98,6 @@ namespace tagslam {
       const std::vector<CompressedImageConstPtr> &msgvec2,
       const std::vector<OdometryConstPtr> &msgvec3);
   private:
-    void readParams();
     struct ReMap {
       ReMap(int i, const string &cam, ros::Time ts, ros::Time te) :
         remappedId(i), camera(cam), startTime(ts), endTime(te) {
@@ -110,6 +109,8 @@ namespace tagslam {
     };
     typedef std::unordered_map<int, TagConstPtr> TagMap;
 
+    void testForOldLaunchParameters();
+    void readParams();
     void readBodies(XmlRpc::XmlRpcValue config);
     void readGlobalParameters(XmlRpc::XmlRpcValue config);
     void readCameras(XmlRpc::XmlRpcValue config);

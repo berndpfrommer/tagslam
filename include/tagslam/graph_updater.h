@@ -33,13 +33,12 @@ namespace tagslam {
     typedef std::deque<VertexDesc> VertexDeque;
     // ---------------------
     void setOptimizerMode(const std::string &mode);
-    void setMaxSubgraphError(double e) { maxSubgraphError_ = e; }
-    void setMaxNumIncrementalOpt(int n) { maxNumIncrementalOpt_ = n; }
-    void setMinimumViewingAngle(double angDeg);
-
     void processNewFactors(Graph *g,
                            const ros::Time &t, const VertexVec &facs);
     void printPerformance();
+    double getPixelNoise() const { return (pixelNoise_); }
+    const string &getOptimizerMode() const { return (optimizerMode_); }
+    void parse(XmlRpc::XmlRpcValue config);
   private:
     typedef std::map<ros::Time, VertexVec> TimeToVertexesMap;
     void examine(Graph *graph, const ros::Time &t, VertexDesc fac,
@@ -60,14 +59,19 @@ namespace tagslam {
                             const SubGraph::FactorCollection &covered);
     double optimize(Graph *g, double thresh);
     // ------ variables --------------
-    bool               optimizeFullGraph_{false};
     TimeToVertexesMap  oldFactors_;
     Profiler           profiler_;
-    double             maxSubgraphError_{15.0};
     int                numIncrementalOpt_{0};
-    int                maxNumIncrementalOpt_{100};
     double             subgraphError_{0};
-    double             minimumViewingAngle_{0};
     double             lastIncError_{0};
+    bool               optimizeFullGraph_{false};
+
+    string             optimizerMode_{"slow"};
+    double             maxSubgraphError_{15.0};
+    double             subGraphAbsPriorPositionNoise_{0.001};
+    double             subGraphAbsPriorRotationNoise_{0.001};
+    double             pixelNoise_{0.001};
+    int                maxNumIncrementalOpt_{100};
+    double             minimumViewingAngle_{0};
   };
 }

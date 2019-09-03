@@ -87,7 +87,9 @@ namespace tagslam {
     }
     
     void copy_subgraph(Graph *dest, const Graph &src,
-                       const std::deque<VertexDesc> &srcfacs) {
+                       const std::deque<VertexDesc> &srcfacs,
+                       double absPriorPositionNoise,
+                       double absPriorRotationNoise) {
       // first copy the values
       std::set<VertexDesc> copiedVals; // track which values have been copied
       for (const auto &srcf: srcfacs) { // loop through factors
@@ -112,8 +114,10 @@ namespace tagslam {
               PoseValuePtr srcpp =
                 std::dynamic_pointer_cast<value::Pose>(srcvp);
               Transform pose = src.getOptimizedPose(srcv);
-              double ns = srcpp->isCameraPose() ? 0.05 : 0.001;
-              PoseWithNoise pwn(pose, PoseNoise::make(ns, ns), true);
+              const PoseNoise n =
+                srcpp->isCameraPose() ? PoseNoise::make(0.05, 0.05) :
+                PoseNoise::make(absPriorRotationNoise, absPriorPositionNoise);
+              PoseWithNoise pwn(pose, n, true);
               AbsolutePosePriorFactorPtr
                 pp(new factor::AbsolutePosePrior(destvp->getTime(), pwn,
                                                  destvp->getName()));
