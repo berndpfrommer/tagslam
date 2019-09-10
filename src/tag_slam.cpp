@@ -277,6 +277,9 @@ namespace tagslam {
         nonstaticBodies_.push_back(body);
         odomPub_.push_back(
           nh_.advertise<nav_msgs::Odometry>("odom/body_"+body->getName(),QSZ));
+        
+        trajectoryPub_.push_back(nh_.advertise<nav_msgs::Path>("path/body_"+body->getName(),QSZ));
+        trajectory_.push_back(nav_msgs::Path());
       }
     }
   }
@@ -609,6 +612,16 @@ namespace tagslam {
           outBag_.write<nav_msgs::Odometry>(
             "/tagslam/odom/body_" + body->getName(), t, msg);
         }
+        
+        geometry_msgs::PoseStamped pose_msg;
+        pose_msg.header.stamp = t;
+        pose_msg.header.frame_id = body->getOdomFrameId();
+        pose_msg.pose = msg.pose.pose;
+
+        trajectory_[body_idx].header.stamp = t;
+        trajectory_[body_idx].header.frame_id = fixedFrame_;
+        trajectory_[body_idx].poses.push_back(pose_msg);
+        trajectoryPub_[body_idx].publish(trajectory_[body_idx]);
       }
     }
   }
