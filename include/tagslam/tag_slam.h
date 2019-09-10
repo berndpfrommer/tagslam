@@ -23,6 +23,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
 #include <std_srvs/Trigger.h>
 
 
@@ -180,6 +181,8 @@ namespace tagslam {
     ros::Publisher       clockPub_;
     ros::Publisher       ackPub_;
     std::vector<ros::Publisher> odomPub_;
+    std::vector<ros::Publisher> trajectoryPub_;
+    std::vector<nav_msgs::Path> trajectory_;
     string               fixedFrame_;
     bool                 writeDebugImages_;
     bool                 hasCompressedImages_;
