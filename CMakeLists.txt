@@ -106,6 +106,8 @@ src/vertex.cpp
 src/camera_intrinsics.cpp
 src/odometry_processor.cpp
 src/init_pose.cpp
+src/rpp.cpp
+src/quartic.cpp
 src/profiler.cpp
 src/graph_updater.cpp
 src/gtsam_distortion/Cal3FS2.cpp
@@ -125,6 +127,11 @@ add_dependencies(tagslam_nodelet ${catkin_EXPORTED_TARGETS})
 # -- node ---
 add_executable(tagslam_node src/tagslam_node.cpp)
 target_link_libraries(tagslam_node tagslam ${catkin_LIBRARIES})
+
+# -- rpp test ---
+add_executable(rpp_test src/rpp_test.cpp src/rpp.cpp src/quartic.cpp)
+target_link_libraries(rpp_test ${catkin_LIBRARIES})
+
 #cotire(tagslam_node)
 
 install(FILES nodelet_plugins.xml

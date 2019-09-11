@@ -312,14 +312,6 @@ namespace tagslam {
     }
   }
 
-  static double viewing_angle(const Transform &tf) {
-    // viewing angle is determined by position of camera in tag coord
-    Eigen::Vector3d camPositionInObjFrame = tf.inverse().translation();
-    camPositionInObjFrame.normalize();
-    const double sina = camPositionInObjFrame(2); // z component = sin(angle);
-    return (std::asin(sina) / M_PI * 180);
-  }
-
   static bool init_from_abs_pose_prior(Graph *g, const VertexDesc &v) {
     AbsolutePosePriorFactorConstPtr ap =
       std::dynamic_pointer_cast<const factor::AbsolutePosePrior>((*g)[v]);
@@ -365,30 +357,22 @@ namespace tagslam {
     ROS_DEBUG_STREAM("computing pose for factor " << g->info(v));
     auto rv = init_pose::pose_from_4(
       fp->getImageCorners(), fp->getTag()->getObjectCorners(),
-      ci.getK(), ci.getDistortionModel(), ci.getD());
+      ci.getK(), ci.getDistortionModel(), ci.getD(), minAngle);
     if (rv.second) { // got valid homography
-      // viewing angle is determined by position of camera in tag coord
       const Transform &tf = rv.first;
-      double ang = viewing_angle(tf);
-      if (ang > minAngle) {
-        ROS_DEBUG_STREAM("homography view angle: " << ang << std::endl << tf);
-        if (set_value_from_tag_projection(g, v, tf)) {
-          if (!g->isOptimized(v)) {
-            // add factor to optimizer. The values are already there.
-            fp->addToOptimizer(g);
-          } else {
-            BOMB_OUT("SHOULD NEVER HAPPEN: " << g->info(v));
-            return (false);
-          }
+      if (set_value_from_tag_projection(g, v, tf)) {
+        if (!g->isOptimized(v)) {
+          // add factor to optimizer. The values are already there.
+          fp->addToOptimizer(g);
         } else {
-          return (false); // not enough info to pin down pose!
+          BOMB_OUT("SHOULD NEVER HAPPEN: " << g->info(v));
+          return (false);
         }
       } else {
-        ROS_INFO_STREAM("drop " << g->info(v) << " small angle: " << ang);
-        return (false);
+        return (false); // not enough info to pin down pose!
       }
     } else {
-      ROS_WARN_STREAM("could not find valid homography!!");
+      ROS_INFO_STREAM("could not find valid homography!");
       return (false);
     }
     return (true);

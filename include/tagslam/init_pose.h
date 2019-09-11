@@ -17,6 +17,9 @@ namespace tagslam {
       const Eigen::Matrix<double, 4,2> & imgPoints,
       const Eigen::Matrix<double, 4,3> & objPoints,
       const cv::Mat &K, DistortionModel distModel,
-      const cv::Mat &D);
+      const cv::Mat &D, double minViewingAngle);
+    std::string cv_type_to_str(int type);
+    std::string cv_info(const cv::Mat &m);
+    std::string print_as_python_mat(const cv::Mat &m);
   }
 }
