@@ -380,7 +380,7 @@ namespace tagslam {
     pose_from_4(const Eigen::Matrix<double, 4, 2> &imgPoints,
                 const Eigen::Matrix<double, 4, 3> &objPoints,
                 const cv::Mat &K, DistortionModel distModel,
-                const cv::Mat &D, double minViewingAngle) {
+                const cv::Mat &D, const Params &params) {
       std::pair<Transform, bool> tf;
       cv::Mat ip(4, 2, CV_64F);
       cv::Mat wp(4, 3, CV_64F);
@@ -419,20 +419,23 @@ namespace tagslam {
       constexpr double RAD_2_DEG = 180.0 / M_PI;
       const double view_angle =
         std::abs(beta_orig + ((beta_orig >= 0) ? (-M_PI_2) : M_PI_2));
-      constexpr double CUTOFF_RATIO = 0.3;
-      if (std::abs(beta_orig - beta_min) > 0.1 && qr < CUTOFF_RATIO) {
+      if (std::abs(beta_orig - beta_min) > 0.1 &&
+          qr < params.maxAmbiguityRatio) {
         // warn if the original homography angle is not the actual
         // minimum, and the new minimum has significantly lower error
         ROS_WARN_STREAM("original rot: " << beta_orig << " is off from min: "
                         << beta_min << " view angle: " <<
                         view_angle * RAD_2_DEG << ", qr: " << qr );
       }
-      if (view_angle * RAD_2_DEG < minViewingAngle) {
+      if (view_angle * RAD_2_DEG < params.minViewingAngle) {
         ROS_INFO_STREAM("dropping tag with low viewing angle: "
                         << view_angle * RAD_2_DEG);
         tf.second = false;
       }
-      if (view_angle < 1.0 && qr > CUTOFF_RATIO) {
+      if (view_angle < params.ambiguityAngleThreshold
+          && qr > params.maxAmbiguityRatio) {
+        // if viewed more shallow than 60 degrees, the pose better
+        // be robust to flipping
         ROS_INFO_STREAM("drop tag at view angle " << view_angle * RAD_2_DEG <<
                         " with risk of flip: " << qr);
         tf.second = false;

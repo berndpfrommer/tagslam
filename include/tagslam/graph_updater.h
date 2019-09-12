@@ -5,6 +5,7 @@
 #include "tagslam/graph.h"
 #include "tagslam/value/pose.h"
 #include "tagslam/profiler.h"
+#include "tagslam/init_pose.h"
 
 #include <ros/ros.h>
 #include <memory>
@@ -72,6 +73,9 @@ namespace tagslam {
     double             subGraphAbsPriorRotationNoise_{0.001};
     double             pixelNoise_{0.001};
     int                maxNumIncrementalOpt_{100};
+    init_pose::Params  poseInitParams_;
     double             minimumViewingAngle_{0};
+    double             maxAmbiguityRation_{0.3};
+    double             ambiguityAngleThreshold_{1.0};
   };
 }

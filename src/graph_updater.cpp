@@ -347,7 +347,7 @@ namespace tagslam {
   }
 
   static bool init_from_proj_factor(Graph *g, const VertexDesc &v,
-                                    double minAngle) {
+                                    const init_pose::Params &poseInitParams) {
     auto fp = std::dynamic_pointer_cast<factor::TagProjection>((*g)[v]);
     if (!fp) {
       return (false);
@@ -357,7 +357,7 @@ namespace tagslam {
     ROS_DEBUG_STREAM("computing pose for factor " << g->info(v));
     auto rv = init_pose::pose_from_4(
       fp->getImageCorners(), fp->getTag()->getObjectCorners(),
-      ci.getK(), ci.getDistortionModel(), ci.getD(), minAngle);
+      ci.getK(), ci.getDistortionModel(), ci.getD(), poseInitParams);
     if (rv.second) { // got valid homography
       const Transform &tf = rv.first;
       if (set_value_from_tag_projection(g, v, tf)) {
@@ -378,7 +378,7 @@ namespace tagslam {
     return (true);
   }
 
-  static bool initialize_subgraph(Graph *g, double minViewAngle) {
+  static bool initialize_subgraph(Graph *g, const init_pose::Params &params) {
     // first intialize poses from absolute pose priors since
     // those are the most reliable.
     VertexVec unhandled1;
@@ -403,7 +403,7 @@ namespace tagslam {
     // camera calibration!) to become useful in determining the
     // camera-to-rig pose.
     for (const auto &v: unhandled2) {
-      if (init_from_proj_factor(g, v, minViewAngle)) {
+      if (init_from_proj_factor(g, v, params)) {
         continue;
       }
       if (init_from_rel_pose_prior(g, v)) {
@@ -426,7 +426,9 @@ namespace tagslam {
   }
 
   static bool try_initialization(const Graph &g, const VertexDeque &factors,
-                                 int ord, double minViewAngle, double errLimit,
+                                 int ord,
+                                 const init_pose::Params &poseInitParams,
+                                 double errLimit,
                                  double absPriorPositionNoise,
                                  double absPriorRotationNoise,
                                  double *errMin, GraphPtr *bestGraph,
@@ -437,7 +439,7 @@ namespace tagslam {
     graph_utils::copy_subgraph(sg.get(), g, factors, absPriorPositionNoise,
                                absPriorRotationNoise);
     //subGraph.print("init subgraph");
-    if (initialize_subgraph(&subGraph, minViewAngle)) {
+    if (initialize_subgraph(&subGraph, poseInitParams)) {
       profiler->reset("subgraphOpt");
       double err    = subGraph.optimizeFull();
       profiler->record("subgraphOpt");
@@ -487,7 +489,7 @@ namespace tagslam {
       double errMin = 1e10;
       for (const auto &ordering: orderings) {
         ord++;
-        if (try_initialization(*graph, ordering, ord, minimumViewingAngle_,
+        if (try_initialization(*graph, ordering, ord, poseInitParams_,
                                maxSubgraphError_,
                                subGraphAbsPriorPositionNoise_,
                                subGraphAbsPriorRotationNoise_,
@@ -659,8 +661,12 @@ namespace tagslam {
     XmlRpc::XmlRpcValue cfg = config["tagslam_parameters"];
     try {
       pixelNoise_ = xml::parse<double>(cfg, "pixel_noise", 1.0);
-      minimumViewingAngle_ =
+      poseInitParams_.minViewingAngle =
         xml::parse<double>(cfg, "minimum_viewing_angle", 20.0);
+      poseInitParams_.ambiguityAngleThreshold =
+        xml::parse<double>(cfg, "ambiguity_angle_threshold", 60.0)/180.0*M_PI;
+      poseInitParams_.maxAmbiguityRatio =
+        xml::parse<double>(cfg, "max_ambiguity_ratio", 0.3);
       maxSubgraphError_ = xml::parse<double>(cfg, "max_subgraph_error", 50.0);
       subGraphAbsPriorPositionNoise_ =
         xml::parse<double>(cfg, "subgraph_abs_prior_position_noise", 0.001);
