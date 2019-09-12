@@ -63,7 +63,7 @@ namespace tagslam {
     int numMissing = numEdges - numValid;
 
     if (!fp->establishesValues() && numMissing == 1) {
-      // some factors cannot establish if a factor cannot establish a full pose (e.g. a distance
+      // if a factor cannot establish a full pose (e.g. a distance
       // measurement), then it can at best serve as a duplicate
       // measurement.
       numMissing = 2;
@@ -494,7 +494,7 @@ namespace tagslam {
                                subGraphAbsPriorPositionNoise_,
                                subGraphAbsPriorRotationNoise_,
                                &errMin, &bestGraph, &profiler_)) {
-          // found a good-enough error value!x
+          // found a good-enough error value
           break;
         }
       }
