@@ -378,6 +378,25 @@ namespace tagslam {
     return (true);
   }
 
+  static std::pair<std::set<VertexDesc>,std::set<VertexDesc>>
+  find_vertexes_to_remove(const Graph &g) {
+    std::pair<std::set<VertexDesc>, std::set<VertexDesc>> vertexesToRemove;
+    for (const auto &fac: g.getFactors()) {
+      VertexVec values = g.getConnected(fac);
+      for (const auto &v: values) {
+        if (!g.isOptimized(v)) {
+          ROS_DEBUG_STREAM("found unopt factor: " << g.info(v));
+          vertexesToRemove.second.insert(v); // must remove this value
+          if (g.getConnected(v).size() <= 1) {
+            // only connected to the network by this factor, safe to remove!
+            vertexesToRemove.first.insert(fac); // can remove this factor
+          }
+        }
+      }
+    }
+    return (vertexesToRemove);
+  }
+
   static bool initialize_subgraph(Graph *g, const init_pose::Params &params) {
     // first intialize poses from absolute pose priors since
     // those are the most reliable.
@@ -410,19 +429,16 @@ namespace tagslam {
         continue;
       }
     }
-    // test that all values have been covered
-    bool allOptimized(true);
-    for (const auto &fac: g->getFactors()) {
-      VertexVec values = g->getConnected(fac);
-      for (const auto &v: values) {
-        if (!g->isOptimized(v)) {
-          allOptimized = false;
-          ROS_DEBUG_STREAM("found unopt factor: " << g->info(v));
-          break;
-        }
-      }
+    // remove from subgraph any tag poses (and only those!) that
+    // could not be reliably determined
+    auto toRemove = find_vertexes_to_remove(*g);
+    bool initSuccessful = toRemove.second.empty();
+    if (!initSuccessful && (toRemove.first.size() == toRemove.second.size())) {
+      // every uninit value has exactly one factor connected, can filter
+      graph_utils::filter_graph(g, toRemove.first, toRemove.second);
+      initSuccessful = true;
     }
-    return (allOptimized);
+    return (initSuccessful);
   }
 
   static bool try_initialization(const Graph &g, const VertexDeque &factors,

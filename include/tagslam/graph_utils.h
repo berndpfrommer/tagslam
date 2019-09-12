@@ -39,6 +39,13 @@ namespace tagslam {
     // they can now be optimized
     void initialize_from(Graph *destg, const Graph &srcg);
 
+    // Removes from graph all factors and values listed. Optimized values
+    // are kept! Caller must make sure that the graph is not
+    // ill determined afterwards!
+    void filter_graph(Graph *g,
+                      const std::set<VertexDesc> &factorsToRemove,
+                      const std::set<VertexDesc> &valuesToRemove);
+
     // convenience functions for retrieval of optimized poses
     bool get_optimized_pose(const Graph &g, const ros::Time &t,
                             const string &name, Transform *tf);

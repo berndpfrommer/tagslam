@@ -85,6 +85,49 @@ namespace tagslam {
       ROS_INFO_STREAM("added body " << body.getName() << " with "
                       << body.getTags().size() << " tags");
     }
+
+    void filter_graph(Graph *src,
+                      const std::set<VertexDesc> &factorsToRemove,
+                      const std::set<VertexDesc> &valuesToRemove) {
+      Graph dest;
+      std::set<VertexDesc> copiedValues;
+      // first copy all values
+      for (const auto &fac: src->getFactors()) {
+        if (factorsToRemove.count(fac) == 0) { // 
+          VertexVec values = src->getConnected(fac);
+          for (const auto &v: values) {
+            if (valuesToRemove.count(v) == 0 && copiedValues.count(v) == 0) {
+              copiedValues.insert(v);
+              // add value to dst graph
+              GraphVertex destvp = src->getVertex(v)->clone();
+              destvp->addToGraph(destvp, &dest); // add new value to graph
+              // add initial values
+              if (!src->isOptimized(v)) {
+                BOMB_OUT("src value not optimized: " << src->info(v));
+              }
+              PoseValuePtr pdp= std::dynamic_pointer_cast<value::Pose>(destvp);
+              if (!pdp) {
+                BOMB_OUT("value is not a pose: " << src->info(v));
+              }
+              pdp->addToOptimizer(src->getOptimizedPose(v), &dest);
+            }
+          }
+        }
+      }
+      // Then copy factors
+      for (const auto &fac: src->getFactors()) {
+        if (factorsToRemove.count(fac) == 0) { //
+          FactorPtr fp =
+            std::dynamic_pointer_cast<factor::Factor>(src->getVertex(fac));
+          if (fp) {
+            GraphVertex destfp = fp->clone();
+            destfp->addToGraph(destfp, &dest); // will make connections also
+          }
+        }
+      }
+      *src = dest; // copy over source graph
+    }
+                      
     
     void copy_subgraph(Graph *dest, const Graph &src,
                        const std::deque<VertexDesc> &srcfacs,
