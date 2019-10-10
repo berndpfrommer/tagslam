@@ -308,7 +308,7 @@ namespace tagslam {
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
       gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);
-      double prevErr = *res.errorAfter;
+      double prevErr = hasValidError ? *res.errorAfter : -1.0;
       for (int i = 0; i < maxIter_ - 1; i++) {
         res = isam2_->update();
         if (!hasValidError) {
@@ -331,7 +331,7 @@ namespace tagslam {
         }
         prevErr = *res.errorAfter;
       }
-      lastError_ = *res.errorAfter;
+      lastError_ = hasValidError ? *res.errorAfter : -1.0;
       values_ = isam2_->calculateEstimate();
 //#define DEBUG_BEFORE_AFTER      
 #ifdef DEBUG_BEFORE_AFTER   

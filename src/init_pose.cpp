@@ -401,7 +401,7 @@ namespace tagslam {
       cv2eigen(rvec, rvecT);
       cv2eigen(tvec, tvecT);
       Eigen::Map<const Eigen::Matrix<double, 4, 2, Eigen::RowMajor>>
-        imuE(imu.ptr<double>(), imu.rows, imu.cols);
+        imuE(imu.ptr<double>(), imu.rows, 2);
       tf.first = make_transform(rvecT, tvecT);
       tf.second = rc;
 #ifdef DEBUG_POSE      
