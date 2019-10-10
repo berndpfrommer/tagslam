@@ -196,7 +196,8 @@ namespace tagslam {
     double               playbackRate_{1.0};
     double               pixelNoise_{1.0};
     std::vector<cv::Mat> images_;
-    std::vector<OdometryProcessor> odomProcessors_;
+    std::vector<OdometryProcessor,
+                Eigen::aligned_allocator<OdometryProcessor>> odomProcessors_;
     tf::TransformBroadcaster tfBroadcaster_;
     ros::ServiceServer   plotService_;
     ros::ServiceServer   replayService_;
