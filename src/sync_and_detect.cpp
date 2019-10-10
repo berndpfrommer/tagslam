@@ -99,8 +99,9 @@ namespace tagslam {
 
   SyncAndDetect::View::View(
     ImageTransport *it, const std::string &topic,
-    ImageOdometrySync* sync) : topic_(topic), sync_(sync) {
-    image_transport::TransportHints th("compressed");
+    ImageOdometrySync* sync, bool useCompressed) : topic_(topic), sync_(sync) {
+    
+    image_transport::TransportHints th(useCompressed ? "compressed" : "raw");
     sub_ = it->subscribe(topic, 10, &View::callback, this, th);
   }
 
@@ -120,11 +121,11 @@ namespace tagslam {
                                  std::placeholders::_2)));
     for (const auto &i: irange(0ul, imageTopics_.size())) {
       views_.emplace_back(new View(imageTransport_.get(),
-                                   imageTopics_[i], sync_.get()));
+                                   imageTopics_[i], sync_.get(),
+                                   imagesAreCompressed_));
       pubs_.push_back(nh_.advertise<apriltag_msgs::ApriltagArrayStamped>(
                         tagTopics_[i], 10));
     }
-    // warning: never tested odom code!
     for (const auto &topic: odometryTopics_) {
       odoms_.emplace_back(new Odom(nh_, topic, sync_.get()));
     }

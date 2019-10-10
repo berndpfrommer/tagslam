@@ -42,7 +42,7 @@ namespace tagslam {
     class View {
     public:
       View(ImageTransport *it, const std::string &topic,
-           ImageOdometrySync* sync);
+           ImageOdometrySync* sync, bool useCompressed);
     private:
       std::string       topic_;
       ImageOdometrySync *sync_;
