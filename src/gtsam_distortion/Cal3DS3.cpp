@@ -80,7 +80,7 @@ D2dcalibration(double x,   double y,
   const double mnumdeninv2 = -num * deninv * deninv;
   double xdinv(x * deninv),   ydinv(y * deninv);
   double xf(x * mnumdeninv2), yf(y * mnumdeninv2);
-  gtsam::Matrix24 DR2;
+  gtsam::Matrix28 DR2;
   // p1       p2      k1        k2       k3       k4    k5     k6
   DR2 <<
     2*xy,  R+2*x2, xdinv*R, xdinv*R2, xdinv*R3,  xf*R, xf*R2, xf*R3, // u
