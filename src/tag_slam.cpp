@@ -685,6 +685,10 @@ namespace tagslam {
     const auto &header = tagmsgs.empty() ?
       odommsgs[0]->header : tagmsgs[0]->header;
     const ros::Time t = header.stamp;
+    if (!times_.empty() && t <= times_.back()) {
+      ROS_WARN_STREAM("received old time stamp: " << t);
+      return;
+    }
     const bool hasOdom = !odommsgs.empty() || useFakeOdom_;
     if (anyTagsVisible(tagmsgs) || hasOdom) {
       // if we have any new valid observations,
