@@ -16,14 +16,14 @@ namespace tagslam {
 
 #define FMT(X, Y) std::fixed << std::setw(X) << std::setprecision(Y)
 
-    void Distance::writeDiagnostics() {
+    void Distance::writeDiagnostics(const GraphPtr &graph) {
       std::ofstream f("distance_diagnostics.txt");
       for (const auto &v: vertexes_) {
-        const auto p = factor::Distance::cast_const((*graph_)[v]);
-        if (graph_->isOptimized(v)) {
-          const double l = factor::Distance::getOptimized(v, *graph_);
+        const auto p = factor::Distance::cast_const((*graph)[v]);
+        if (graph->isOptimized(v)) {
+          const double l = factor::Distance::getOptimized(v, *graph);
           const double diff = l - p->getDistance();
-          f << FMT(6, 3) << graph_->getError(v)
+          f << FMT(6, 3) << graph->getError(v)
             << " diff: " << FMT(6, 3) << diff
             << " opt: "  << FMT(6, 3) << l << " meas: "
             << FMT(6, 3) << p->getDistance() << " " << *p << std::endl;

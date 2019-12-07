@@ -150,7 +150,7 @@ namespace tagslam {
     // apply measurements
     for (auto &m: measurements_) {
       m->addToGraph(graph_);
-      m->tryAddToOptimizer();
+      m->tryAddToOptimizer(graph_);
     }
     if (!runOnline()) {
       clockPub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", QSZ);
@@ -212,7 +212,7 @@ namespace tagslam {
     }
     graph_->printUnoptimized();
     for (auto &m: measurements_) {
-      m->printUnused();
+      m->printUnused(graph_);
     }
     publishTransforms(times_.empty() ? ros::Time(0) :
                       *(times_.rbegin()), true);
@@ -240,7 +240,7 @@ namespace tagslam {
     profiler_.record("writeTimeDiagnostics");
     profiler_.reset("writeMeasurementDiagnostics");
     for (auto &m: measurements_) {
-      m->writeDiagnostics();
+      m->writeDiagnostics(graph_);
     }
     profiler_.record("writeMeasurementDiagnostics");
     std::cout << profiler_ << std::endl;

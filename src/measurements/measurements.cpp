@@ -31,25 +31,24 @@ namespace tagslam {
     }
 
     void Measurements::addToGraph(const GraphPtr &graph) {
-      graph_ = graph;
       for (const auto &f: factors_) {
         vertexes_.push_back(f->addToGraph(f, graph.get()));
       }
     }
 
-    void Measurements::tryAddToOptimizer() {
+    void Measurements::tryAddToOptimizer(const GraphPtr &graph) {
       for (const auto &v: vertexes_) {
-        if (graph_->isOptimizableFactor(v) && !graph_->isOptimized(v)) {
-          auto fp = std::dynamic_pointer_cast<factor::Factor>((*graph_)[v]);
-          fp->addToOptimizer(graph_.get());
+        if (graph->isOptimizableFactor(v) && !graph->isOptimized(v)) {
+          auto fp = std::dynamic_pointer_cast<factor::Factor>((*graph)[v]);
+          fp->addToOptimizer(graph.get());
         }
       }
     }
 
-    void Measurements::printUnused() {
+    void Measurements::printUnused(const GraphConstPtr &graph) {
       for (const auto &f: vertexes_) {
-        if (!graph_->isOptimized(f)) {
-          ROS_INFO_STREAM("unused distance factor: " << (*graph_)[f]);
+        if (!graph->isOptimized(f)) {
+          ROS_INFO_STREAM("unused measurement: " << (*graph)[f]);
         }
       }
     }

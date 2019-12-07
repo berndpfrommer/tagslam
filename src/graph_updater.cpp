@@ -62,7 +62,7 @@ namespace tagslam {
     }
     int numMissing = numEdges - numValid;
 
-    if (!fp->establishesValues() && numMissing == 1) {
+    if (!fp->establishesValues() && numMissing >= 1) {
       // if a factor cannot establish a full pose (e.g. a distance
       // measurement), then it can at best serve as a duplicate
       // measurement.
@@ -81,6 +81,8 @@ namespace tagslam {
   GraphUpdater::examine(Graph *graph, const ros::Time &t, VertexDesc fac,
                         VertexDeque *factorsToExamine,
                         SubGraph *covered, SubGraph *newSubGraph) {
+    // "covered" has the factors and values that are already contained
+    // in one of the subgraphs explored previously
     //ROS_DEBUG_STREAM("examining factor: " << graph->info(fac));
     VertexDesc valueVertex;
     VertexDeque values;
@@ -91,7 +93,8 @@ namespace tagslam {
       // establishes new value, let's explore the new
       VertexConstPtr vt = graph->getVertex(valueVertex);
       ValueConstPtr vp = std::dynamic_pointer_cast<const value::Value>(vt);
-      ROS_DEBUG_STREAM(" factor " << graph->info(fac) << " establishes new value: " << vp->getLabel());
+      ROS_DEBUG_STREAM(" factor " << graph->info(fac) <<
+                       " establishes new value: " << vp->getLabel());
       auto &ff = covered->factors;
       if (std::find(ff.begin(), ff.end(), fac) == ff.end()) {
         ff.push_back(fac);
@@ -168,6 +171,8 @@ namespace tagslam {
       VertexDesc exFac = factorsToExamine.front();
       factorsToExamine.pop_front();
       // examine() may append new factors to factorsToExamine
+      // "covered" has the factors and values that are already contained
+      // in one of the subgraphs explored previously
       examine(graph, t, exFac, &factorsToExamine, covered, subGraph);
     }
   }

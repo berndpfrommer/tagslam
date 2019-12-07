@@ -19,12 +19,10 @@ namespace tagslam {
       typedef std::shared_ptr<const Measurements> MeasurementsConstPtr;
 
       virtual void addToGraph(const GraphPtr &graph);
-      virtual void tryAddToOptimizer();
-      virtual void printUnused();
+      virtual void tryAddToOptimizer(const GraphPtr &graph);
+      virtual void printUnused(const GraphConstPtr &graph);
       
-      virtual VertexDesc addFactorToGraph(const FactorPtr &factor) = 0;
-      virtual void addFactorToOptimizer(const FactorPtr &factor) = 0;
-      virtual void writeDiagnostics() = 0;
+      virtual void writeDiagnostics(const GraphPtr &graph) = 0;
 
     protected:
       template <typename T>
@@ -37,7 +35,6 @@ namespace tagslam {
         }
         return (fp);
       }
-      GraphPtr graph_;
       std::vector<VertexDesc> vertexes_;
       std::vector<FactorPtr>  factors_;
     };

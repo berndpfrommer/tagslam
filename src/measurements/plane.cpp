@@ -18,14 +18,14 @@ namespace tagslam {
     
 #define FMT(X, Y) std::fixed << std::setw(X) << std::setprecision(Y)
 
-    void Plane::writeDiagnostics() {
+    void Plane::writeDiagnostics(const GraphPtr &graph) {
       std::ofstream f("plane_diagnostics.txt");
       for (const auto &v: vertexes_) {
-        if (graph_->isOptimized(v)) {
-          const auto p = factor::Coordinate::cast_const((*graph_)[v]);
-          const double l = factor::Coordinate::getOptimized(v, *graph_);
+        if (graph->isOptimized(v)) {
+          const auto p = factor::Coordinate::cast_const((*graph)[v]);
+          const double l = factor::Coordinate::getOptimized(v, *graph);
           const double diff = l - p->getLength();
-          f << FMT(6, 3) << graph_->getError(v)
+          f << FMT(6, 3) << graph->getError(v)
             << " diff: " << FMT(6, 3) << diff
             << " opt: " << FMT(6, 3) << l << " meas: "
             << FMT(6, 3) << p->getLength() << " " << *p << std::endl;

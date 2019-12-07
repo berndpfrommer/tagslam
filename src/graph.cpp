@@ -73,6 +73,9 @@ namespace tagslam {
     if (graph_[v]->isValue()) {
       BOMB_OUT("vertex is no factor: " << graph_[v]->getLabel());
     }
+    // check if all values connected to this factor are already
+    // optimized, i.e. pinned down by other factors. This means
+    // that the factor can be safely entered into the graph
     for (const auto &vv: getConnected(v)) {
       if (!isOptimized(vv)) {
         return (false);

@@ -15,14 +15,7 @@ namespace tagslam {
     public:
       typedef std::shared_ptr<Plane> PlaneMeasurementsPtr;
       
-      VertexDesc addFactorToGraph(const FactorPtr &factor) override {
-        return (factor->addToGraph(factor, graph_.get()));
-      }
-      void addFactorToOptimizer(const FactorPtr &factor) override {
-        factor->addToOptimizer(graph_.get());
-      }
-
-      void writeDiagnostics() override;
+      void writeDiagnostics(const GraphPtr &graph) override;
 
       // static functions
       static PlaneMeasurementsPtr read(XmlRpc::XmlRpcValue config,
