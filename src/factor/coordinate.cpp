@@ -83,7 +83,8 @@ namespace tagslam {
       if (tag >= 0 && c >= 0 && len > -1e10 && noise > 0) {
         TagConstPtr tagPtr = tagFactory->findTag(tag);
         if (!tagPtr) {
-          BOMB_OUT("measured tag is not valid: " << name);
+          ROS_WARN_STREAM("ignoring unknown measured tag: " << name);
+          return CoordinateFactorPtr();
         }
         fp.reset(new factor::Coordinate(len, noise, dir, c, tagPtr,
                                         name));

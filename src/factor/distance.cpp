@@ -83,7 +83,9 @@ namespace tagslam {
         TagConstPtr tag1Ptr = tagFactory->findTag(tag1);
         TagConstPtr tag2Ptr = tagFactory->findTag(tag2);
         if (!tag1Ptr || !tag2Ptr) {
-          BOMB_OUT("measured tags are not valid: " << name);
+          ROS_WARN_STREAM("ignoring distance factor with invalid "
+                          " tags: " << name);
+          return DistanceFactorPtr();
         }
         const DistanceFactorPtr fp(
           new factor::Distance(d, noise, c1, tag1Ptr, c2, tag2Ptr, name));
