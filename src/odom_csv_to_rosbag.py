@@ -49,22 +49,28 @@ def make_tf_msg(seq, parent_frame_id, child_frame_id, t, q, p):
 def main(args):
     print 'opening bag: ', args.out_bag, ' for writing'
     out_bag = rosbag.Bag(args.out_bag, mode = 'w')
-    
-    with open(args.csv_file) as csv_file:
-        seq = 0
-        for line in csv_file:
-            line = line.strip().split()
-            ts = line[0]
-            p  = line[1:4]
-            q  = line[4:8]
-            t = rospy.Time(float(ts))
-            odom_msg = make_odom_msg(seq, args.parent_frame_id,
-                                     args.child_frame_id, t, q, p)
-            out_bag.write(args.odom_topic, odom_msg, t)
-            tf_msg = make_tf_msg(seq, args.parent_frame_id,
-                                 args.child_frame_id, t, q, p)
-            out_bag.write('/tf', tf_msg, t)
-            seq = seq + 1
+
+    for fname in args.csv_files:
+        label = fname.split('.')[0].split('_')[1]
+        print 'writing data for label: ', label
+        parent_frame = args.parent_frame_id
+        child_frame = args.child_frame_id + '_' + label
+        odom_topic = args.odom_topic + '_' + label
+        with open(fname) as csv_file:
+            seq = 0
+            for line in csv_file:
+                line = line.strip().split()
+                ts = line[0]
+                p  = line[1:4]
+                q  = line[4:8]
+                t = rospy.Time(float(ts))
+                odom_msg = make_odom_msg(seq, parent_frame,
+                                         child_frame, t, q, p)
+                out_bag.write(odom_topic, odom_msg, t)
+                tf_msg = make_tf_msg(seq, parent_frame,
+                                     child_frame, t, q, p)
+                out_bag.write('/tf', tf_msg, t)
+                seq = seq + 1
     out_bag.close()
 
 
@@ -81,7 +87,7 @@ if __name__ == '__main__':
                         required=False,  help='child frame id.')
     parser.add_argument('--parent_frame_id', '-p', action='store', default='parent',
                         required=False,  help='parent frame id.')
-    parser.add_argument('csv_file')
+    parser.add_argument('csv_files', nargs='*')
 
     args = parser.parse_args(rospy.myargv()[1:])
     main(args)
