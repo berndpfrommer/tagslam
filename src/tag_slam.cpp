@@ -30,6 +30,7 @@
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <unordered_set>
 
 const int QSZ = 1000;
 
@@ -1003,9 +1004,13 @@ namespace tagslam {
         VertexDesc v = fac->addToGraph(fac, graph_.get());
         sortedFactors.insert(MMap::value_type(1e10, v));
       }
+      std::unordered_set<int> tagsFound;
       for (const auto &tag: tagMsgs[i]->apriltags) {
         TagConstPtr tagPtr = findTag(tag.id);
-        if (tagPtr) {
+        if (!tagPtr) {
+          continue;
+        }
+        if (tagsFound.count(tag.id) == 0) {
           const geometry_msgs::Point *corners = &(tag.corners[0]);
           TagProjectionFactorPtr fp(
             new factor::TagProjection(t, cam, tagPtr, corners,
@@ -1016,6 +1021,9 @@ namespace tagslam {
           double sz = find_size_of_tag(corners);
           sortedFactors.insert(MMap::value_type(sz, fac));
           writeTagCorners(t, cam->getIndex(), tagPtr, corners);
+          tagsFound.insert(tag.id);
+        } else {
+          ROS_ERROR_STREAM("dropping DUPLICATE TAG: " << tag.id);
         }
       }
       std::stringstream ss;
