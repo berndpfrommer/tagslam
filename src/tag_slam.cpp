@@ -1140,7 +1140,11 @@ namespace tagslam {
           // try to parse as time squash
           const ros::Time t = xml::parse<ros::Time>(sq, "time", ros::Time(0));
           if (t != ros::Time(0)) {
-            squash_[t] = tags;
+            if (squash_.count(t) == 0) {
+              squash_[t] = tags;
+            } else {
+              squash_[t].insert(tags.begin(), tags.end());
+            }
           } else {
             const string cam = xml::parse<std::string>(sq, "camera");
             camSquash_[cam] = tags;
