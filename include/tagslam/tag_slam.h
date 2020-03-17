@@ -119,7 +119,9 @@ namespace tagslam {
     void readDistanceMeasurements();
     void readRemap(XmlRpc::XmlRpcValue config);
     void readSquash(XmlRpc::XmlRpcValue config);
- 
+    void parseTimeSquash(XmlRpc::XmlRpcValue sq, const ros::Time &t,
+                         const std::set<int> &tags);
+
     void playFromBag(const std::string &fname);
     void fakeOdom(const ros::Time &tCurr, std::vector<VertexDesc> *factors);
 
@@ -216,7 +218,7 @@ namespace tagslam {
     std::shared_ptr<SubSync> subSync_;
     
     std::unordered_map<int, std::vector<ReMap>>  tagRemap_;
-    std::map<ros::Time, std::set<int>> squash_;
+    std::vector<std::map<ros::Time, std::set<int>>> squash_;
     std::map<std::string, std::set<int>> camSquash_;
     std::vector<MeasurementsPtr> measurements_;
   };

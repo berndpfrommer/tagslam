@@ -139,12 +139,12 @@ namespace tagslam {
     }
     ROS_INFO_STREAM("optimizer mode: " << graphUpdater_.getOptimizerMode());
 
-    readSquash(config);
-    readRemap(config);
     readBodies(config);
     readGlobalParameters(config);
     nh_.getParam("cameras", camConfig);
     readCameras(camConfig);
+    readSquash(config);
+    readRemap(config);
     nh_.getParam("camera_poses", camPoses);
     readCameraPoses(camPoses);
     measurements_ = measurements::read_all(config, this);
@@ -1053,7 +1053,7 @@ namespace tagslam {
       const ros::Time t = o->header.stamp;
       TagArrayPtr p(new TagArray());
       p->header = o->header;
-      const auto sq = squash_.find(t);
+      const auto sq = squash_[i].find(t);
       for (const auto &tag: o->apriltags) {
         if (tag.hamming > maxHammingDistance_) {
           ROS_WARN_STREAM("dropped tag " << tag.id <<
@@ -1061,7 +1061,7 @@ namespace tagslam {
                           << " > " << maxHammingDistance_);
           continue;
         }
-        if (sq != squash_.end() && sq->second.count(tag.id) != 0) {
+        if (sq != squash_[i].end() && sq->second.count(tag.id) != 0) {
           ROS_INFO_STREAM("time " << t << " squashed tag: " <<  tag.id);
         } else{
           if (!sqc || sqc->count(tag.id) == 0) { // no camera squash?
@@ -1126,7 +1126,37 @@ namespace tagslam {
     }
   }
 
+  static void insert_into(std::map<ros::Time, std::set<int>> *map,
+                          const ros::Time &t,
+                          const std::set<int> &tags) {
+    if (map->count(t) == 0) {
+      (*map)[t] = tags;
+    } else {
+      (*map)[t].insert(tags.begin(), tags.end());
+    }
+  }
+
+  void TagSlam::parseTimeSquash(XmlRpc::XmlRpcValue sq, const ros::Time &t,
+                                const std::set<int> &tags) {
+    const string cam = xml::parse<std::string>(sq, "camera", "");
+    if (cam.empty()) { // squash all from given camera
+      for (const auto i: irange(0ul, cameras_.size())) {
+        insert_into(&squash_[i], t, tags);
+      }
+    } else {
+      for (const auto i: irange(0ul, cameras_.size())) {
+        if (cameras_[i]->getName() == cam) {
+          insert_into(&squash_[i], t, tags);
+        }
+      }
+    }
+  }
+
   void TagSlam::readSquash(XmlRpc::XmlRpcValue config) {
+    for (const auto i: irange(0ul, cameras_.size())) {
+      (void )i;
+      squash_.push_back(std::map<ros::Time, std::set<int>>());
+    }
     if (!config.hasMember("squash")) {
       return;
     }
@@ -1137,15 +1167,11 @@ namespace tagslam {
           auto sq = squash[i];
           const std::set<int> tags =
             xml::parse_container<std::set<int>>(sq, "tags", std::set<int>());
-          // try to parse as time squash
+          // try to parse as time squash first
           const ros::Time t = xml::parse<ros::Time>(sq, "time", ros::Time(0));
           if (t != ros::Time(0)) {
-            if (squash_.count(t) == 0) {
-              squash_[t] = tags;
-            } else {
-              squash_[t].insert(tags.begin(), tags.end());
-            }
-          } else {
+            parseTimeSquash(sq, t, tags);
+          } else { // squash all tags for this camera
             const string cam = xml::parse<std::string>(sq, "camera");
             camSquash_[cam] = tags;
           }
