@@ -971,8 +971,6 @@ namespace tagslam {
       TagConstPtr tagPtr = findTag(tag.id);
       if (tagPtr) {
         tpv.push_back(tagPtr);
-      } else {
-        ROS_INFO_STREAM("ignoring tag as requested in config: " << tag.id);
       }
     }
     return (tpv);
@@ -1030,8 +1028,8 @@ namespace tagslam {
       for (const auto &tag: tagMsgs[i]->apriltags) {
         ss << " " << tag.id;
       }
-      ROS_INFO_STREAM("frame " << frameNum_ << " " << cam->getName()
-                      << " sees tags: " << ss.str());
+      ROS_INFO_STREAM("frame " << frameNum_ << " [" << t << "] cam: "
+                      << cam->getName() << " sees tags: " << ss.str());
     }
     for (auto it = sortedFactors.rbegin(); it != sortedFactors.rend(); ++it) {
       factors->push_back(it->second);

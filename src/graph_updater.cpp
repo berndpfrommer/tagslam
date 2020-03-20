@@ -377,7 +377,7 @@ namespace tagslam {
         return (false); // not enough info to pin down pose!
       }
     } else {
-      ROS_INFO_STREAM("could not find valid homography!");
+      //ROS_INFO_STREAM("could not find valid homography!");
       return (false);
     }
     return (true);
@@ -604,10 +604,10 @@ namespace tagslam {
     subgraphError_ += serr;
     const double err = optimize(graph, serr);
     if (err >= 0) {
-      ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_ <<
+      ROS_INFO_STREAM("[" << t << "] subgraph err: " << serr << ", subgraph sum: " << subgraphError_ << 
                       ", full graph error: " << err);
     } else {
-      ROS_INFO_STREAM("sum of subgraph err: " << subgraphError_);
+      ROS_INFO_STREAM("[" << t << "] subgraph err: " << serr << ", subgraph sum: " << subgraphError_);
     }
     eraseStoredFactors(t, covered->factors);
     return (true);
