@@ -428,20 +428,20 @@ namespace tagslam {
                         view_angle * RAD_2_DEG << ", qr: " << qr );
       }
       if (view_angle * RAD_2_DEG < params.minViewingAngle) {
-        ROS_INFO_STREAM("dropping tag with low viewing angle: "
+        ROS_INFO_STREAM("drop tag with low viewing angle: "
                         << view_angle * RAD_2_DEG);
         tf.second = false;
-      }
-      if (view_angle < params.ambiguityAngleThreshold
-          && qr > params.maxAmbiguityRatio) {
+      } else if (view_angle < params.ambiguityAngleThreshold
+                 && qr > params.maxAmbiguityRatio) {
         // if viewed more shallow than 60 degrees, the pose better
         // be robust to flipping
         ROS_INFO_STREAM("drop tag at view angle " << view_angle * RAD_2_DEG <<
                         " with risk of flip: " << qr);
         tf.second = false;
+      } else {
+        ROS_DEBUG_STREAM("homography view angle: " << view_angle
+                         << " qr: " << qr);
       }
-      ROS_DEBUG_STREAM("homography view angle: " << view_angle
-                       << " qr: " << qr);
       return (tf);
     }
   } // end of namespace pnp
