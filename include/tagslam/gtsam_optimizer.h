@@ -15,6 +15,7 @@
 namespace tagslam {
   class GTSAMOptimizer: public Optimizer {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     using string = std::string;
     GTSAMOptimizer();
     ~GTSAMOptimizer();

@@ -170,11 +170,11 @@ namespace tagslam {
     gtsam::Expression<gtsam::Pose3>  T_b_o_2(T_b2_o);
     gtsam::Expression<gtsam::Point3> X_o_1(corner1);
     gtsam::Expression<gtsam::Point3> X_w_1 =
-      gtsam::transform_from(T_w_b_1, gtsam::transform_from(T_b_o_1, X_o_1));
+      gtsam::transformFrom(T_w_b_1, gtsam::transformFrom(T_b_o_1, X_o_1));
     
     gtsam::Expression<gtsam::Point3> X_o_2(corner2);
     gtsam::Expression<gtsam::Point3> X_w_2 =
-      gtsam::transform_from(T_w_b_2, gtsam::transform_from(T_b_o_2, X_o_2));
+      gtsam::transformFrom(T_w_b_2, gtsam::transformFrom(T_b_o_2, X_o_2));
     gtsam::Expression<double> dist =
       gtsam::Expression<double>(&distance, X_w_1, X_w_2);
     newGraph_.addExpressionFactor(
@@ -191,7 +191,7 @@ namespace tagslam {
     gtsam::Expression<gtsam::Pose3>  T_b_o(T_b_o_key);
     gtsam::Expression<gtsam::Point3> X_o(corner);
     gtsam::Expression<gtsam::Point3> X_w =
-      gtsam::transform_from(T_w_b, gtsam::transform_from(T_b_o, X_o));
+      gtsam::transformFrom(T_w_b, gtsam::transformFrom(T_b_o, X_o));
     gtsam::Expression<gtsam::Point3> n(direction);
     gtsam::Expression<double> coord = gtsam::Expression<double>(&proj, X_w, n);
     
@@ -226,14 +226,14 @@ namespace tagslam {
     for (const auto i: irange(0, 4)) { // iterate over 4 corners
       const gtsam::Point2 imgPoint(imgCorners(i,0), imgCorners(i,1));
       gtsam::Expression<gtsam::Point3> X_o(objCorners.row(i));
-      // transform_from does X_A = T_AB * X_B
-      // transform_to   does X_A = T_BA * X_B
+      // transformFrom does X_A = T_AB * X_B
+      // transformTo   does X_A = T_BA * X_B
       gtsam::Expression<gtsam::Point2> xp =
         gtsam::project(
-          gtsam::transform_to(T_r_c_fac,
-             gtsam::transform_to(T_w_r_fac,
-                gtsam::transform_from(T_w_b_fac,
-                   gtsam::transform_from(T_b_o_fac, X_o)))));
+          gtsam::transformTo(T_r_c_fac,
+             gtsam::transformTo(T_w_r_fac,
+                gtsam::transformFrom(T_w_b_fac,
+                   gtsam::transformFrom(T_b_o_fac, X_o)))));
       switch (ci.getDistortionModel()) {
       case RADTAN: {
         auto distModel = getRadTanModel(camName, ci);
