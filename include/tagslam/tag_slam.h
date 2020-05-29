@@ -214,6 +214,7 @@ namespace tagslam {
     std::string          optimizerMode_;
     std::string          outDir_;
     std::string          inBagFile_;
+    bool                 warnIgnoreTags_{false};
     std::shared_ptr<SubSyncCompressed> subSyncCompressed_;
     std::shared_ptr<SubSync> subSync_;
     

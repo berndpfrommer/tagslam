@@ -287,6 +287,8 @@ namespace tagslam {
 
   void TagSlam::readGlobalParameters(XmlRpc::XmlRpcValue config) {
     const string defbody = xml::parse<std::string>(config, "default_body", "");
+    warnIgnoreTags_ = xml::parse<bool>(config, "warn_ignore_tags", false);
+
     if (defbody.empty()) {
       ROS_WARN_STREAM("no default body specified!");
     } else {
@@ -822,7 +824,9 @@ namespace tagslam {
     TagPtr p;
     if (it == tagMap_.end()) {
       if (!defaultBody_) {
-        ROS_WARN_STREAM("no default body, ignoring tag: " << tagId);
+        if (warnIgnoreTags_) {
+          ROS_WARN_STREAM("no default body, ignoring tag: " << tagId);
+        }
         return (p);
       } else {
         p = addTag(tagId, defaultBody_);
