@@ -13,6 +13,7 @@ namespace tagslam {
     using std::string;
     class RelativePosePrior: public Factor {
     public:
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       RelativePosePrior(const ros::Time     &t    = ros::Time(0),
                         const ros::Time     &tm1  = ros::Time(0),
                         const PoseWithNoise &p  = PoseWithNoise(),

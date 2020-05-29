@@ -71,6 +71,9 @@ namespace tagslam {
     return (numMissing);
   }
 
+  GraphUpdater::GraphUpdater() {
+  }
+
   void GraphUpdater::setOptimizerMode(const std::string &mode) {
     if (mode == "FULL" || mode == "full") {
       optimizeFullGraph_ = true;

@@ -31,6 +31,8 @@ namespace tagslam {
   class GraphUpdater {
     using string = std::string;
   public:
+    GraphUpdater(const GraphUpdater &) = delete;
+    GraphUpdater();
     typedef std::deque<VertexDesc> VertexDeque;
     // ---------------------
     void setOptimizerMode(const std::string &mode);

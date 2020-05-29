@@ -115,18 +115,18 @@ src/gtsam_distortion/Cal3DS3.cpp
 )
 
 target_link_libraries(tagslam ${catkin_LIBRARIES}  ${Boost_LIBRARIES}
-${GTSAM_LIBRARIES})
+gtsam)
 #cotire(tagslam)
 
 # -- nodelet ---
 add_library(tagslam_nodelet src/tagslam_nodelet.cpp)
-target_link_libraries(tagslam_nodelet tagslam ${catkin_LIBRARIES})
+target_link_libraries(tagslam_nodelet tagslam ${catkin_LIBRARIES} gtsam)
 add_dependencies(tagslam_nodelet ${catkin_EXPORTED_TARGETS})
 #cotire(tagslam_nodelet)
 
 # -- node ---
 add_executable(tagslam_node src/tagslam_node.cpp)
-target_link_libraries(tagslam_node tagslam ${catkin_LIBRARIES})
+target_link_libraries(tagslam_node tagslam ${catkin_LIBRARIES} gtsam)
 
 # -- rpp test ---
 add_executable(rpp_test src/rpp_test.cpp src/rpp.cpp src/quartic.cpp)
