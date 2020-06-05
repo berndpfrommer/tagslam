@@ -249,16 +249,15 @@ namespace tagslam {
                                  Graph::tag_name(tag.getId()), tf));
     }
     
-    PoseWithNoise get_optimized_pose_with_noise(const Graph &g,
-                                                const string &name) {
+    PoseWithNoise get_optimized_pose_with_noise(
+      const Graph &g, const ros::Time &t, const string &name) {
       PoseWithNoise pwn;
-      const VertexDesc v = g.findPose(ros::Time(0), name);
+      const VertexDesc v = g.findPose(t, name);
       if (!Graph::is_valid(v) || !g.isOptimized(v)) {
         return (PoseWithNoise());
       }
       return (PoseWithNoise(g.getOptimizedPose(v), g.getPoseNoise(v), true));
     }
- 
 
   }  // end of namespace
 }  // end of namespace

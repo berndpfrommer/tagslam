@@ -595,27 +595,37 @@ namespace tagslam {
   static nav_msgs::Odometry make_odom(const ros::Time &t,
                                       const std::string &fixed_frame,
                                       const std::string &child_frame,
-                                      const Transform &pose) {
+                                      const PoseWithNoise &pwn) {
     nav_msgs::Odometry odom;
     odom.header.stamp = t;
     odom.header.frame_id = fixed_frame;
     odom.child_frame_id = child_frame;
-    tf::poseEigenToMsg(pose, odom.pose.pose);
+    tf::poseEigenToMsg(pwn.getPose(), odom.pose.pose);
+    memcpy(&odom.pose.covariance[0], &pwn.getNoise().getCovarianceMatrix()(0),
+           sizeof(odom.pose.covariance));
     return (odom);
   }
 
   void TagSlam::publishBodyOdom(const ros::Time &t) {
     for (const auto body_idx: irange(0ul, nonstaticBodies_.size())) {
       const auto body = nonstaticBodies_[body_idx];
-      Transform pose;
-      if (graph_utils::get_optimized_pose(*graph_, t, *body, &pose)) {
-        auto msg = make_odom(t, fixedFrame_, body->getOdomFrameId(), pose);
+      PoseWithNoise pwn;
+      if (body->publishCovariance()) {
+        pwn = graph_utils::get_optimized_pose_with_noise(
+          *graph_, t, Graph::body_name(body->getName()));
+      } else {
+        Transform pose;
+        const bool isValid =
+          graph_utils::get_optimized_pose(*graph_, t, *body, &pose);
+        pwn = PoseWithNoise(pose, PoseNoise(), isValid);
+      }
+      if (pwn.isValid()) {
+        auto msg = make_odom(t, fixedFrame_, body->getOdomFrameId(), pwn);
         odomPub_[body_idx].publish(msg);
         if (writeToBag_) {
           outBag_.write<nav_msgs::Odometry>(
             "/tagslam/odom/body_" + body->getName(), t, msg);
         }
-        
         geometry_msgs::PoseStamped pose_msg;
         pose_msg.header.stamp = t;
         pose_msg.header.frame_id = body->getOdomFrameId();
@@ -840,13 +850,13 @@ namespace tagslam {
     return (it->second);
   }
   
-  void TagSlam::writeCameraPoses(const string &fname) const {
+  void TagSlam::writeCameraPoses(const string &fname) {
     std::ofstream f(fname);
     for (const auto &cam : cameras_) {
       f << cam->getName() << ":" << std::endl;
       try {
-        PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
-          *graph_, Graph::cam_name(cam->getName()));
+        PoseWithNoise pwn = getOptimizedPoseWithNoise(
+          Graph::cam_name(cam->getName()));
         if (pwn.isValid()) {
           f << "  pose:" << std::endl;
           yaml_utils::write_pose_with_covariance(f, "    ", pwn.getPose(),
@@ -856,6 +866,24 @@ namespace tagslam {
         ROS_WARN_STREAM("no optimized pose for: " << cam->getName());
       }
     }
+  }
+
+  PoseWithNoise TagSlam::getOptimizedPoseWithNoise(const string &name) {
+    if (times_.back() > poseCacheTime_) {
+      // if new data has come in, invalidate the pose cache
+      poseCache_.clear();
+      poseCacheTime_ = times_.back();
+    }
+    const auto it = poseCache_.find(name);
+    if (it == poseCache_.end()) {
+      const PoseWithNoise pwn =
+        graph_utils::get_optimized_pose_with_noise(*graph_, ros::Time(0), name);
+      if (pwn.isValid()) {
+        poseCache_.insert(PoseCacheMap::value_type(name, pwn));
+      }
+      return (pwn);
+    }
+    return (it->second);
   }
 
   void TagSlam::writeFullCalibration(const string &fname) const {
@@ -874,7 +902,7 @@ namespace tagslam {
     }
   }
 
-  void TagSlam::writePoses(const string &fname) const {
+  void TagSlam::writePoses(const string &fname) {
     std::ofstream f(fname);
     f << "bodies:" << std::endl;
     const std::string idn = "       ";
@@ -883,8 +911,8 @@ namespace tagslam {
       body->write(f, " ");
       if (body->isStatic()) {
         try {
-          PoseWithNoise pwn = graph_utils::get_optimized_pose_with_noise(
-            *graph_, Graph::body_name(body->getName()));
+          PoseWithNoise pwn =
+            getOptimizedPoseWithNoise(Graph::body_name(body->getName()));
           if (pwn.isValid()) {
             f << "     pose:" << std::endl;
             yaml_utils::write_pose(f, "       ", pwn.getPose(),
@@ -899,11 +927,13 @@ namespace tagslam {
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
           try {
-            if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
+            const auto pwn = graph_utils::get_optimized_pose_with_noise(
+              *graph_, ros::Time(0), Graph::tag_name(tag->getId()));
+            if (pwn.isValid()) {
               f << idn << "- id: "   << tag->getId() << std::endl;
               f << idn << "  size: " << tag->getSize() << std::endl;
               f << idn << "  pose:" << std::endl;
-              const auto &pwn = tag->getPoseWithNoise();
+              //const auto &pwn = tag->getPoseWithNoise(); // orig noise
               yaml_utils::write_pose(f, idn + "    ", tagTF, pwn.getNoise(),
                                      true);
             }

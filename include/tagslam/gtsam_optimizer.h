@@ -87,8 +87,5 @@ namespace tagslam {
     EquiModelMap                  equiModelMap_;
     PixelNoiseMap                 pixelNoiseMap_;
     OptimizerMode                 mode_{SLOW};
-    std::map<OptimizerKey, gtsam::Matrix, std::less<OptimizerKey>,
-             Eigen::aligned_allocator<std::pair<const OptimizerKey,
-                                                gtsam::Matrix>>> covariances_;
   };
 }

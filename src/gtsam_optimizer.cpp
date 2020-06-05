@@ -436,14 +436,7 @@ namespace tagslam {
     
   PoseNoise GTSAMOptimizer::getMarginal(const ValueKey k)  {
     try {
-      auto it = covariances_.find(k);
-      if (it == covariances_.end()) {
-        gtsam::Marginals marginals(fullGraph_, values_);
-        it = covariances_.insert(
-          std::map<OptimizerKey,
-          gtsam::Matrix>::value_type(k, marginals.marginalCovariance(k))).first;
-      }
-      const PoseNoise::Matrix6d mat = it->second;
+      const PoseNoise::Matrix6d mat = isam2_->marginalCovariance(k);
       return (PoseNoise(mat));
     } catch (const gtsam::ValuesKeyDoesNotExist &e) {
       throw (OptimizerException(e.what()));

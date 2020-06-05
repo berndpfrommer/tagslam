@@ -62,6 +62,7 @@ namespace tagslam {
     double getOverrideTagPositionNoise() const {
       return (overrideTagPositionNoise_); }
     bool   isStatic() const { return (isStatic_); }
+    bool   publishCovariance() const { return (publishCovariance_); }
 
     // setters
 
@@ -96,6 +97,7 @@ namespace tagslam {
     string              frameId_;
     int                 id_{-1};
     bool                isStatic_{true};
+    bool                publishCovariance_{true};
     string              type_;
     int                 maxHammingDistance_{2};
     TagMap             tags_; // tags that are hanging off of it

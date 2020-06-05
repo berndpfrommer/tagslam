@@ -54,6 +54,8 @@ namespace tagslam {
         body, "odom_translation_noise", -1.0);
       odomRotationNoise_ = xml::parse<double>(
         body, "odom_rotation_noise", -1.0);
+      publishCovariance_ = xml::parse<bool>(
+        body, "publish_covariance", true);
       // first read old tag, then new one if provided
       const double oanm = xml::parse<double>(body, "odom_acceleration", 5.0);
       odomAccelerationNoiseMin_ =

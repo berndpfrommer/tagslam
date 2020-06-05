@@ -6,6 +6,7 @@
 
 #include "tagslam/tag_factory.h"
 #include "tagslam/graph_updater.h"
+#include "tagslam/pose_with_noise.h"
 #include "tagslam/graph.h"
 #include "tagslam/camera.h"
 #include "tagslam/profiler.h"
@@ -49,6 +50,11 @@ namespace tagslam {
     typedef flex_sync::SubscribingSync<TagArray, CompressedImage, Odometry>
     SubSyncCompressed;
     typedef flex_sync::SubscribingSync<TagArray, Image, Odometry> SubSync;
+
+    typedef std::map<
+      std::string, PoseWithNoise, std::less<std::string>,
+      Eigen::aligned_allocator<std::pair<std::string,
+                                         PoseWithNoise>>> PoseCacheMap;
 
   public:
     TagSlam(const ros::NodeHandle &nh);
@@ -154,9 +160,9 @@ namespace tagslam {
     bool dump(std_srvs::Trigger::Request& req,
               std_srvs::Trigger::Response &res);
     void doDump(bool optimize);
-    void writeCameraPoses(const string &fname) const;
+    void writeCameraPoses(const string &fname);
     void writeFullCalibration(const string &fname) const;
-    void writePoses(const string &fname) const;
+    void writePoses(const string &fname);
     void writeTagDiagnostics(const string &fname) const;
     void writeTimeDiagnostics(const string &fname) const;
     void writeDistanceDiagnostics(const string &fname) const;
@@ -171,6 +177,7 @@ namespace tagslam {
     void doReplay(double rate);
     void copyPosesAndReset();
     TagPtr addTag(int tagId, const BodyPtr &body) const;
+    PoseWithNoise getOptimizedPoseWithNoise(const string &name);
     // ------ variables --------
     ros::NodeHandle      nh_;
     GraphPtr             graph_;
@@ -222,5 +229,7 @@ namespace tagslam {
     std::vector<std::map<ros::Time, std::set<int>>> squash_;
     std::map<std::string, std::set<int>> camSquash_;
     std::vector<MeasurementsPtr> measurements_;
+    PoseCacheMap poseCache_;
+    ros::Time poseCacheTime_{0};
   };
 }

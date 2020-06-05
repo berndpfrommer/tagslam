@@ -55,7 +55,7 @@ namespace tagslam {
     bool get_optimized_pose(const Graph &g, const Tag &tag, Transform *tf);
 
     PoseWithNoise get_optimized_pose_with_noise(
-      const Graph &g, const string &name);
+      const Graph &g, const ros::Time &t, const string &name);
     // graph plotting 
     void plot(const string &fname, const Graph *g);
     void plot_debug(const ros::Time &t, const string &tag, const Graph &g);
