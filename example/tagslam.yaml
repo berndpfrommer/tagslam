@@ -67,3 +67,4 @@ bodies:
  - rig:
      is_static: false
      type: simple
+     odom_frame_id: body_rig
