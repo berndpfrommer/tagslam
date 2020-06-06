@@ -925,7 +925,6 @@ namespace tagslam {
       if (body->printTags()) {
         f << "     tags:" << std::endl;
         for (const auto &tag: body->getTags()) {
-          Transform tagTF;
           try {
             const auto pwn = graph_utils::get_optimized_pose_with_noise(
               *graph_, ros::Time(0), Graph::tag_name(tag->getId()));
@@ -934,8 +933,8 @@ namespace tagslam {
               f << idn << "  size: " << tag->getSize() << std::endl;
               f << idn << "  pose:" << std::endl;
               //const auto &pwn = tag->getPoseWithNoise(); // orig noise
-              yaml_utils::write_pose(f, idn + "    ", tagTF, pwn.getNoise(),
-                                     true);
+              yaml_utils::write_pose(
+                f, idn + "    ", pwn.getPose(), pwn.getNoise(), true);
             }
           } catch (const OptimizerException &e) {
             ROS_WARN_STREAM("cannot find pose for tag " << tag->getId());
