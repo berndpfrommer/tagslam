@@ -1,0 +1,9 @@
+<launch>
+  <node pkg="tagslam" type="approx_image_sync_node" name="approx_image_sync" clear_params="true"
+	output="screen">
+    <param name="queue_size" type="int" value="5"/>
+    <rosparam param="in_topics"> ["/t265/fisheye1/image_raw", "/left_tof/stream/1/mono8"] </rosparam>
+    <rosparam param="out_topics">["/t265/fisheye1/synced/image_raw", "/left_tof/synced/mono8"]</rosparam>
+  </node>
+
+</launch>

@@ -134,6 +134,16 @@ target_link_libraries(rpp_test ${catkin_LIBRARIES})
 
 #cotire(tagslam_node)
 
+# -- approx image sync nodelet ---
+add_library(approx_image_sync_nodelet src/approx_image_sync.cpp src/approx_image_sync_nodelet.cpp)
+target_link_libraries(approx_image_sync_nodelet ${catkin_LIBRARIES})
+add_dependencies(approx_image_sync_nodelet ${catkin_EXPORTED_TARGETS})
+
+# -- node ---
+add_executable(approx_image_sync_node src/approx_image_sync_node.cpp src/approx_image_sync.cpp)
+target_link_libraries(approx_image_sync_node ${catkin_LIBRARIES})
+add_dependencies(approx_image_sync_node ${catkin_EXPORTED_TARGETS})
+
 install(FILES nodelet_plugins.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

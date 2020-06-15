@@ -6,3 +6,11 @@
     </description>
   </class>
 </library>
+<library path="lib/libapprox_image_sync_nodelet">
+  <class name="tagslam/ApproxImageSync" type="tagslam::ApproxImageSyncNodelet"
+         base_class_type="nodelet::Nodelet">
+    <description>
+      nodelet for approximate image sync
+    </description>
+  </class>
+</library>

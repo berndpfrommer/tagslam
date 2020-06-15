@@ -1,0 +1,20 @@
+<launch>
+  <arg name="manager_name" default="approx_image_sync_manager"/>
+
+  <!-- manager node -->
+  <node pkg="nodelet" type="nodelet"
+	name="$(arg manager_name)" args="manager" clear_params="true"
+	output="screen"/>
+
+  <!-- nodelet -->
+  <node pkg="nodelet" type="nodelet"
+        name="approx_image_sync" args="load tagslam/ApproxImageSync $(arg manager_name)"
+        clear_params="true" output="screen">
+    <param name="queue_size" type="int" value="5"/>
+    <rosparam param="in_topics">
+      ["cam0/image_raw", "cam1/image_raw"]
+    </rosparam>
+    <rosparam param="out_topics">["cam0/synced/image_raw", "cam1/synced/image_raw"]</rosparam>
+  </node>
+
+</launch>
