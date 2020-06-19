@@ -132,6 +132,10 @@ target_link_libraries(tagslam_node tagslam ${catkin_LIBRARIES} gtsam)
 add_executable(rpp_test src/rpp_test.cpp src/rpp.cpp src/quartic.cpp)
 target_link_libraries(rpp_test ${catkin_LIBRARIES})
 
+# -- gtsam test ---
+add_executable(gtsam_test src/gtsam_test.cpp)
+target_link_libraries(gtsam_test gtsam)
+
 #cotire(tagslam_node)
 
 install(FILES nodelet_plugins.xml
