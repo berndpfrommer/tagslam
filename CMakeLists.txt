@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(tagslam)
 
-add_definitions(-std=c++11 -g -Wall -Wno-misleading-indentation -Wno-int-in-bool-context)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_definitions(-g -Wall -Wno-misleading-indentation -Wno-int-in-bool-context)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 find_package(catkin REQUIRED COMPONENTS
