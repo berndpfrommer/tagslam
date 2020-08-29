@@ -5,6 +5,7 @@
   <arg name="start_time" default="0.0"/>
   <arg name="duration" default="-1.0"/>
   <arg name="images_are_compressed" default="true"/>
+  <arg name="use_approximate_sync" default="false"/>
   <arg name="annotate_images" default="true"/>
   <!-- for list of valid tag families, see apriltag_detector.h
        0 = 36h11
@@ -34,5 +35,6 @@
     <param name="duration" value="$(arg duration)"/>
     <param name="output_bag_file" value="$(arg bag)_output.bag"/>
     <param name="max_number_frames" value="1000000"/>
+    <param name="use_approximate_sync" value="$(arg use_approximate_sync)"/>
   </node>
 </launch>

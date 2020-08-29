@@ -114,13 +114,13 @@ namespace tagslam {
   }
 
   void
-  OdometryProcessor::process(Graph *graph, const OdometryConstPtr &msg,
+  OdometryProcessor::process(const ros::Time &t,
+                             Graph *graph, const OdometryConstPtr &msg,
                              std::vector<VertexDesc> *factors) {
     auto msg2 = *msg;
     msg2.header.frame_id = "map";
     pub_.publish(msg2);
     Transform newPose = to_pose(msg);
-    const ros::Time &t = msg->header.stamp;
     if (time_ == ros::Time(0)) {
       lastOmega_ = Eigen::Vector3d(0, 0, 0);
       lastVelocity_ = Eigen::Vector3d(0, 0, 0);

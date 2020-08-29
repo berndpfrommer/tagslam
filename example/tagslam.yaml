@@ -18,6 +18,11 @@ tagslam_parameters:
 # pinned down. This parameter usually does not need to be touched.
   subgraph_abs_prior_position_noise: 0.1
   subgraph_abs_prior_rotation_noise: 0.1
+# if the time stamps (header.stamp) of your data messages are not
+# identical (hardware synced), set this option to true, and
+# tagslam tries to line them up as well as possible. Expect larger errors
+# because the data is not truly synchronous.
+  use_approximate_sync: false
 body_defaults:
   position_noise: 0.05
   rotation_noise: 0.01

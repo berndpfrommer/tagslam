@@ -20,7 +20,7 @@ namespace tagslam {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     OdometryProcessor(ros::NodeHandle &nh, const BodyConstPtr &body);
-    void process(Graph *g, const OdometryConstPtr &msgs,
+    void process(const ros::Time &t, Graph *g, const OdometryConstPtr &msgs,
                  std::vector<VertexDesc> *factors);
     static VertexDesc add_body_pose_delta(
       Graph *graph, const ros::Time &tPrev, const ros::Time &tCurr,

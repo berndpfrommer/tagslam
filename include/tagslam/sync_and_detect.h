@@ -6,13 +6,16 @@
 
 #include "tagslam/profiler.h"
 
-#include <flex_sync/sync.h>
-#include <image_transport/image_transport.h>
+#include <flex_sync/exact_sync.h>
+#include <flex_sync/approximate_sync.h>
+
+#include <apriltag_ros/apriltag_detector.h>
+
 #include <ros/ros.h>
+#include <image_transport/image_transport.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <nav_msgs/Odometry.h>
-#include <apriltag_ros/apriltag_detector.h>
 #include <rosbag/bag.h>
 #include <vector>
 #include <memory>
@@ -26,7 +29,6 @@ namespace tagslam {
   using Odometry = nav_msgs::Odometry;
   using OdometryConstPtr = nav_msgs::OdometryConstPtr;
   using ImageTransport = image_transport::ImageTransport;
-  typedef flex_sync::Sync<Image, Odometry> ImageOdometrySync;
 
   class SyncAndDetect {
   public:
@@ -39,51 +41,108 @@ namespace tagslam {
     bool initialize();
 
   private:
-    class View {
+    typedef flex_sync::ExactSync<Image, Odometry> ExactSync;
+    typedef flex_sync::ApproximateSync<Image, Odometry> ApproximateSync;
+    typedef flex_sync::ExactSync<CompressedImage, Odometry>
+    ExactCompressedSync;
+    typedef flex_sync::ApproximateSync<CompressedImage, Odometry>
+    ApproximateCompressedSync;
+
+    template<class SyncT>
+    class Subscriber {
     public:
-      View(ImageTransport *it, const std::string &topic,
-           ImageOdometrySync* sync, bool useCompressed);
+      //
+      // the subscriber class deals with live ros node subscriptions
+      //
+      Subscriber(const std::vector<std::string> &imageTopics,
+                 const std::vector<std::string> &odomTopics,
+                 SyncAndDetect *sand, ros::NodeHandle &nh,
+                 int syncQueueSize, int subQueueSize,
+                 bool imagesAreCompressed) {
+        const std::vector<std::vector<std::string>> tpv = {
+          imageTopics, odomTopics};
+        auto cb =  std::bind(&SyncAndDetect::processImages,
+                             sand, std::placeholders::_1,
+                             std::placeholders::_2);
+        sync_.reset(new SyncT(tpv, cb, syncQueueSize));
+        imageTransport_.reset(new image_transport::ImageTransport(nh));
+        for (size_t i = 0; i < imageTopics.size(); i++) {
+          views_.emplace_back(new View<SyncT>(imageTransport_.get(),
+                                              imageTopics[i], sync_.get(),
+                                              subQueueSize,
+                                              imagesAreCompressed));
+        }
+        for (const auto &topic: odomTopics) {
+          odoms_.emplace_back(new Odom<SyncT>(
+                                nh, topic, sync_.get(), subQueueSize));
+        }
+      }
     private:
-      std::string       topic_;
-      ImageOdometrySync *sync_;
-      image_transport::Subscriber sub_;
-      void callback(const ImageConstPtr &image);
+      template<class VSyncT>
+      class View {
+      public:
+        View(ImageTransport *it, const std::string &topic,
+             VSyncT* sync, int qs, bool useCompressed) :
+          topic_(topic), sync_(sync) {
+          image_transport::TransportHints th(
+            useCompressed ? "compressed" : "raw");
+          sub_ = it->subscribe(topic, qs, &View::callback, this, th);
+        }
+      private:
+        void callback(const ImageConstPtr &image) {
+          sync_->process(topic_, image);
+        }
+        std::string       topic_;
+        VSyncT            *sync_;
+        image_transport::Subscriber sub_;
+      };
+
+      template<class OSyncT>
+      class Odom {
+      public:
+        Odom(ros::NodeHandle &nh, const std::string &topic,
+             OSyncT* sync, int qs) : topic_(topic), sync_(sync) {
+          sub_ = nh.subscribe(topic, qs, &Odom::callback, this);
+        }
+      private:
+        void callback(const OdometryConstPtr &odom) {
+          sync_->process(topic_, odom);
+        }
+        std::string       topic_;
+        OSyncT           *sync_;
+        ros::Subscriber   sub_;
+      };
+      // ------ variables
+      std::shared_ptr<ImageTransport>     imageTransport_;
+      std::shared_ptr<SyncT>              sync_;
+      std::vector<std::shared_ptr<View<SyncT>>>  views_;
+      std::vector<std::shared_ptr<Odom<SyncT>>>  odoms_;
     };
 
-    class Odom {
-    public:
-      Odom(ros::NodeHandle &nh, const std::string &topic,
-           ImageOdometrySync *sync);
-    private:
-      std::string       topic_;
-      ImageOdometrySync *sync_;
-      ros::Subscriber   sub_;
-      void callback(const OdometryConstPtr &odom);
-    };
-
-    void subscribe();
     bool runOnline() const { return (bagFile_.empty()); }
     void processImages(const std::vector<ImageConstPtr> &msgvec,
                        const std::vector<OdometryConstPtr> &odomvec);
-    void processCompressedImages(const std::vector<CompressedImageConstPtr> &mv,
-                                 const std::vector<OdometryConstPtr> &odomvec);
+    void processCompressedImages(
+      const std::vector<CompressedImageConstPtr> &mv,
+      const std::vector<OdometryConstPtr> &odomvec);
     void processCVMat(const std::vector<std_msgs::Header> &headers,
                       const std::vector<cv::Mat> &grey,
                       const std::vector<cv::Mat> &imgs);
     void processBag(const std::string &fname);
-    template<typename T>
+    template<typename SyncT, typename T>
     void iterate_through_bag(
       const std::vector<std::string> &topics,
       const std::vector<std::string> &odomTopics,
       rosbag::View *view,
       rosbag::Bag *bag,
-      const std::function<void(const std::vector<boost::shared_ptr<T const>> &,
-                               const std::vector<OdometryConstPtr> &)> &cb)  {
-
+      size_t qs,
+      const std::function<
+      void(const std::vector<boost::shared_ptr<T const>> &,
+           const std::vector<OdometryConstPtr> &)> &cb)  {
       std::vector<std::vector<std::string>> tpv;
       tpv.push_back(topics);
       tpv.push_back(odomTopics);
-      flex_sync::Sync<T, Odometry> sync(tpv, cb);
+      SyncT sync(tpv, cb, qs);
       for (const rosbag::MessageInstance &m: *view) {
         OdometryConstPtr odom = m.instantiate<Odometry>();
         if (odom) {
@@ -108,21 +167,21 @@ namespace tagslam {
     unsigned int                        fnum_{0};
     std::string                         bagFile_;
     rosbag::Bag                         outbag_;
-    std::vector<std::string>            tagTopics_;
     std::vector<std::string>            imageTopics_;
     std::vector<std::string>            odometryTopics_;
     std::vector<std::string>            imageOutputTopics_;
+    std::vector<std::string>            tagTopics_;
     bool                                imagesAreCompressed_{false};
     bool                                annotateImages_{false};
+    bool                                useApproximateSync_{false};
+    int                                 syncQueueSize_;
     int                                 maxFrameNumber_;
     int                                 skip_{1};
     std::vector<apriltag_ros::ApriltagDetector::Ptr> detectors_;
     std::string                         detectorType_;
     Profiler                            profiler_;
-    std::shared_ptr<ImageTransport>     imageTransport_;
-    std::shared_ptr<ImageOdometrySync>  sync_;
-    std::vector<std::shared_ptr<View>>  views_;
-    std::vector<std::shared_ptr<Odom>>  odoms_;
+    std::shared_ptr<Subscriber<ApproximateSync>>  approxSubscriber_;
+    std::shared_ptr<Subscriber<ExactSync>>  exactSubscriber_;
     std::vector<ros::Publisher>         pubs_;
   };
 }

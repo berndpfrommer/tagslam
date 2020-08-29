@@ -14,8 +14,6 @@
 #include "tagslam/graph_utils.h"
 #include "tagslam/factor/distance.h"
 
-#include <flex_sync/sync.h>
-
 #include <cv_bridge/cv_bridge.h>
 #include <rosbag/view.h>
 
@@ -107,7 +105,6 @@ namespace tagslam {
     nh_.param<string>("bag_file", inBagFile_, "");
     nh_.param<string>("fixed_frame_id", fixedFrame_, "map");
     nh_.param<int>("max_number_of_frames", maxFrameNum_, 1000000);
-    nh_.param<int>("sync_queue_size", syncQueueSize_, 100);
     nh_.param<bool>("write_debug_images", writeDebugImages_, false);
     nh_.param<bool>("publish_ack", publishAck_, false);
     nh_.param<bool>("has_compressed_images", hasCompressedImages_, false);
@@ -174,17 +171,37 @@ namespace tagslam {
   void TagSlam::subscribe() {
     std::vector<std::vector<std::string>> topics = makeTopics();
     if (hasCompressedImages_) {
-      subSyncCompressed_.reset(
-        new flex_sync::SubscribingSync<TagArray, CompressedImage, Odometry>(
-          nh_, topics, std::bind(&TagSlam::syncCallbackCompressed, this,
-                                 std::placeholders::_1, std::placeholders::_2,
-                                 std::placeholders::_3), 5));
+      if (useApproximateSync_) {
+        liveApproximateCompressedSync_.reset(
+          new LiveApproximateCompressedSync(
+            nh_, topics, std::bind(
+              &TagSlam::syncCallbackCompressed, this,
+              std::placeholders::_1, std::placeholders::_2,
+              std::placeholders::_3), 5));
+      } else {
+        liveExactCompressedSync_.reset(
+          new LiveExactCompressedSync(
+            nh_, topics, std::bind(
+              &TagSlam::syncCallbackCompressed, this,
+              std::placeholders::_1, std::placeholders::_2,
+              std::placeholders::_3), 5));
+      }
     } else {
-      subSync_.reset(
-        new flex_sync::SubscribingSync<TagArray, Image, Odometry>(
-          nh_, topics, std::bind(&TagSlam::syncCallback, this,
-                                 std::placeholders::_1, std::placeholders::_2,
-                                 std::placeholders::_3), 5));
+      if (useApproximateSync_) {
+        liveApproximateSync_.reset(
+          new LiveApproximateSync(
+            nh_, topics, std::bind(
+              &TagSlam::syncCallback, this,
+              std::placeholders::_1, std::placeholders::_2,
+              std::placeholders::_3), 5));
+      } else {
+        liveExactSync_.reset(
+          new LiveExactSync(
+            nh_, topics, std::bind(
+              &TagSlam::syncCallback, this,
+              std::placeholders::_1, std::placeholders::_2,
+              std::placeholders::_3), 5));
+      }
     }
   }
 
@@ -288,7 +305,10 @@ namespace tagslam {
   void TagSlam::readGlobalParameters(XmlRpc::XmlRpcValue config) {
     const string defbody = xml::parse<std::string>(config, "default_body", "");
     warnIgnoreTags_ = xml::parse<bool>(config, "warn_ignore_tags", false);
-
+    useApproximateSync_ = xml::parse<bool>(config["tagslam_parameters"],
+                                           "use_approximate_sync", false);
+    syncQueueSize_ = xml::parse<int>(config["tagslam_parameters"],
+                                           "sync_queue_size", 100);
     if (defbody.empty()) {
       ROS_WARN_STREAM("no default body specified!");
     } else {
@@ -552,8 +572,14 @@ namespace tagslam {
         std::bind(&TagSlam::syncCallbackCompressed, this,
                   std::placeholders::_1, std::placeholders::_2,
                   std::placeholders::_3);
-      processBag<TagArray, CompressedImage, Odometry>(
-        &view, topics, cb);
+      if (useApproximateSync_) {
+        processBag<flex_sync::ApproximateSync<TagArray,
+                                              CompressedImage, Odometry>,
+                   TagArray, CompressedImage, Odometry>(&view, topics, cb);
+      } else {
+        processBag<flex_sync::ExactSync<TagArray, CompressedImage, Odometry>,
+                   TagArray, CompressedImage, Odometry>(&view, topics, cb);
+      }
     } else {
       std::function<void(const std::vector<TagArray::ConstPtr> &,
                          const std::vector<Image::ConstPtr> &,
@@ -561,7 +587,13 @@ namespace tagslam {
         std::bind(&TagSlam::syncCallback, this,
                   std::placeholders::_1, std::placeholders::_2,
                   std::placeholders::_3);
-      processBag<TagArray, Image, Odometry>(&view, topics, cb);
+      if (useApproximateSync_) {
+        processBag<flex_sync::ApproximateSync<TagArray, Image, Odometry>,
+                   TagArray, Image, Odometry>(&view, topics, cb);
+      } else {
+        processBag<flex_sync::ExactSync<TagArray, Image, Odometry>,
+                   TagArray, Image, Odometry>(&view, topics, cb);
+      }
     }
     bag.close();
     ROS_INFO_STREAM("done processing bag, total wall time: " <<
@@ -688,16 +720,21 @@ namespace tagslam {
     if (amnesia_ && !times_.empty()) {
       copyPosesAndReset();
     }
-    std::vector<TagArrayConstPtr> tagmsgs;
-    remapAndSquash(&tagmsgs, origtagmsgs);
-    if (tagmsgs.empty() && odommsgs.empty()) {
-      ROS_WARN_STREAM("neither tags nor odom!");
+    if (origtagmsgs.empty() && odommsgs.empty()) {
+      ROS_WARN_STREAM("got called with neither tags nor odom!");
       return;
     }
-
-    const auto &header = tagmsgs.empty() ?
-      odommsgs[0]->header : tagmsgs[0]->header;
+    // the first odom or tag message determines the time stamp
+    const auto &header = origtagmsgs.empty() ?
+      odommsgs[0]->header : origtagmsgs[0]->header;
     const ros::Time t = header.stamp;
+
+    std::vector<TagArrayConstPtr> tagmsgs;
+    remapAndSquash(t, &tagmsgs, origtagmsgs);
+    if (tagmsgs.empty() && odommsgs.empty()) {
+      ROS_WARN_STREAM("squashed hard: have neither tags nor odom!");
+      return;
+    }
     if (!times_.empty() && t <= times_.back()) {
       ROS_WARN_STREAM("received old time stamp: " << t);
       return;
@@ -712,13 +749,13 @@ namespace tagslam {
     }
     std::vector<VertexDesc> factors;
     if (odommsgs.size() != 0) {
-      processOdom(odommsgs, &factors);
+      processOdom(t, odommsgs, &factors);
     } else if (useFakeOdom_) {
       fakeOdom(t, &factors);
     }
     profiler_.record("processOdom");
     profiler_.reset("processTags");
-    processTags(tagmsgs, &factors);
+    processTags(t, tagmsgs, &factors);
     profiler_.record("processTags");
     profiler_.reset("processNewFactors");
     try {
@@ -801,15 +838,16 @@ namespace tagslam {
   }
 
   void
-  TagSlam::processOdom(const std::vector<OdometryConstPtr> &odomMsgs,
-                        std::vector<VertexDesc> *factors) {
+  TagSlam::processOdom(const ros::Time &t,
+                       const std::vector<OdometryConstPtr> &odomMsgs,
+                       std::vector<VertexDesc> *factors) {
     if (odomProcessors_.empty()) {
       setupOdom(odomMsgs);
     }
     // from odom child frame id, deduce bodies
     for (const auto odomIdx: irange(0ul, odomMsgs.size())) {
       const auto &msg = odomMsgs[odomIdx];
-      odomProcessors_[odomIdx].process(graph_.get(), msg, factors);
+      odomProcessors_[odomIdx].process(t, graph_.get(), msg, factors);
       //graph_.test();
     }
   }
@@ -1009,8 +1047,9 @@ namespace tagslam {
     return (tpv);
   }
 
-  void TagSlam::processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
-                             std::vector<VertexDesc> *factors) {
+  void TagSlam::processTags(const ros::Time &t,
+                            const std::vector<TagArrayConstPtr> &tagMsgs,
+                            std::vector<VertexDesc> *factors) {
     if (tagMsgs.size() != cameras_.size()) {
       BOMB_OUT("tag msgs size mismatch: " << tagMsgs.size()
                << " " << cameras_.size());
@@ -1019,7 +1058,6 @@ namespace tagslam {
     MMap sortedFactors;
 
     for (const auto i: irange(0ul, cameras_.size())) {
-      const ros::Time &t = tagMsgs[i]->header.stamp;
       const auto &cam = cameras_[i];
       const auto tags = findTags(tagMsgs[i]->apriltags);
       if (!tags.empty()) {
@@ -1069,8 +1107,9 @@ namespace tagslam {
     }
   }
 
-  void TagSlam::remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
-                                const std::vector<TagArrayConstPtr> &orig) {
+  void TagSlam::remapAndSquash(const ros::Time &t,
+                               std::vector<TagArrayConstPtr> *remapped,
+                               const std::vector<TagArrayConstPtr> &orig) {
     //
     // Sometimes there are tags with duplicate ids in the data set.
     // In this case, remap the tag ids of the detected tags dependent
@@ -1081,9 +1120,9 @@ namespace tagslam {
       const std::set<int> *sqc = (it != camSquash_.end()) ?
         &(it->second) : NULL;
       const auto &o = orig[i];
-      const ros::Time t = o->header.stamp;
       TagArrayPtr p(new TagArray());
       p->header = o->header;
+      p->header.stamp = t;
       const auto sq = squash_[i].find(t);
       for (const auto &tag: o->apriltags) {
         if (tag.hamming > maxHammingDistance_) {

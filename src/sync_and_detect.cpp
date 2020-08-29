@@ -1,9 +1,11 @@
-/* -*-c++-*--------------------------------------------------------------------
+/*-*-c++-*--------------------------------------------------------------------
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
 #include "tagslam/sync_and_detect.h"
 #include "tagslam/logging.h"
+
+#include <apriltag_msgs/ApriltagArrayStamped.h>
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -12,7 +14,6 @@
 #include <opencv2/imgcodecs.hpp>
 #include <eigen_conversions/eigen_msg.h>
 #include <boost/range/irange.hpp>
-#include <apriltag_msgs/ApriltagArrayStamped.h>
 #include <math.h>
 #include <fstream>
 #include <iomanip>
@@ -75,61 +76,40 @@ namespace tagslam {
     nh_.param<int>("skip", skip_, 1);
     nh_.param<bool>("images_are_compressed", imagesAreCompressed_, false);
     nh_.param<bool>("annotate_images", annotateImages_, false);
+    nh_.param<bool>("use_approximate_sync", useApproximateSync_, false);
+    nh_.param<int>("sync_queue_size", syncQueueSize_, 100);
+    int subQueueSize, pubQueueSize;
+    nh_.param<int>("subscribe_queue_size", subQueueSize, 10);
+    nh_.param<int>("publish_queue_size", pubQueueSize, 10);
+
     nh_.param<std::string>("bag_file", bagFile_, "");
     std::string outfname;
     nh_.param<std::string>("output_bag_file", outfname, "output.bag");
     outbag_.open(outfname, rosbag::bagmode::Write);
     if (runOnline()) {
-      subscribe();
+      if (useApproximateSync_) {
+        approxSubscriber_.reset(
+          new Subscriber<ApproximateSync>(
+            imageTopics_, odometryTopics_, this, nh_,
+            syncQueueSize_, subQueueSize,
+            imagesAreCompressed_));
+      } else {
+        exactSubscriber_.reset(
+          new Subscriber<ExactSync>(
+            imageTopics_, odometryTopics_, this, nh_,
+            syncQueueSize_, subQueueSize,
+            imagesAreCompressed_));
+      }
+      for (const auto &topic: tagTopics_) {
+        pubs_.push_back(nh_.advertise<apriltag_msgs::ApriltagArrayStamped>(
+                          topic, pubQueueSize));
+      }
     } else {
       processBag(bagFile_);
     }
     return (true);
   }
 
-  SyncAndDetect::Odom::Odom(
-    ros::NodeHandle &nh, const std::string &topic,
-    ImageOdometrySync* sync) : topic_(topic), sync_(sync) {
-    sub_ = nh.subscribe(topic, 10, &Odom::callback, this);
-  }
-
-  void SyncAndDetect::Odom::callback(const OdometryConstPtr &odom) {
-    sync_->process(topic_, odom);
-  }
-
-  SyncAndDetect::View::View(
-    ImageTransport *it, const std::string &topic,
-    ImageOdometrySync* sync, bool useCompressed) : topic_(topic), sync_(sync) {
-    
-    image_transport::TransportHints th(useCompressed ? "compressed" : "raw");
-    sub_ = it->subscribe(topic, 10, &View::callback, this, th);
-  }
-
-  void SyncAndDetect::View::callback(const ImageConstPtr &image) {
-    sync_->process(topic_, image);
-  }
-
-  void
-  SyncAndDetect::subscribe() {
-    std::vector<std::vector<std::string>> tpv;
-    tpv.push_back(imageTopics_);
-    tpv.push_back(odometryTopics_);
-    imageTransport_.reset(new image_transport::ImageTransport(nh_));
-    sync_.reset(new flex_sync::Sync<Image, Odometry>(
-                  tpv, std::bind(&SyncAndDetect::processImages,
-                                 this, std::placeholders::_1,
-                                 std::placeholders::_2)));
-    for (const auto &i: irange(0ul, imageTopics_.size())) {
-      views_.emplace_back(new View(imageTransport_.get(),
-                                   imageTopics_[i], sync_.get(),
-                                   imagesAreCompressed_));
-      pubs_.push_back(nh_.advertise<apriltag_msgs::ApriltagArrayStamped>(
-                        tagTopics_[i], 10));
-    }
-    for (const auto &topic: odometryTopics_) {
-      odoms_.emplace_back(new Odom(nh_, topic, sync_.get()));
-    }
-  }
 
   void
   SyncAndDetect::processCVMat(const std::vector<std_msgs::Header> &headers,
@@ -280,15 +260,29 @@ namespace tagslam {
     }
 
     if (imagesAreCompressed_) {
-      iterate_through_bag<CompressedImage>(
-        imageTopics_, odometryTopics_, &view, &outbag_,
-        std::bind(&SyncAndDetect::processCompressedImages,
-                  this, std::placeholders::_1, std::placeholders::_2));
+      if (useApproximateSync_) {
+        iterate_through_bag<ApproximateCompressedSync, CompressedImage>(
+          imageTopics_, odometryTopics_, &view, &outbag_, syncQueueSize_,
+          std::bind(&SyncAndDetect::processCompressedImages,
+                    this, std::placeholders::_1, std::placeholders::_2));
+      } else {
+        iterate_through_bag<ExactCompressedSync, CompressedImage>(
+          imageTopics_, odometryTopics_, &view, &outbag_,  syncQueueSize_,
+          std::bind(&SyncAndDetect::processCompressedImages,
+                    this, std::placeholders::_1, std::placeholders::_2));
+      }
     } else {
-      iterate_through_bag<sensor_msgs::Image>(
-        imageTopics_, odometryTopics_, &view, &outbag_,
-        std::bind(&SyncAndDetect::processImages,
-                  this, std::placeholders::_1, std::placeholders::_2));
+      if (useApproximateSync_) {
+        iterate_through_bag<ApproximateSync, sensor_msgs::Image>(
+          imageTopics_, odometryTopics_, &view, &outbag_,  syncQueueSize_,
+          std::bind(&SyncAndDetect::processImages,
+                    this, std::placeholders::_1, std::placeholders::_2));
+      } else {
+        iterate_through_bag<ExactSync, sensor_msgs::Image>(
+          imageTopics_, odometryTopics_, &view, &outbag_,  syncQueueSize_,
+          std::bind(&SyncAndDetect::processImages,
+                    this, std::placeholders::_1, std::placeholders::_2));
+      }
     }
     bag.close();
     outbag_.close();

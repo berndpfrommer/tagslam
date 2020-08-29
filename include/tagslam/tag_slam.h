@@ -14,7 +14,9 @@
 #include "tagslam/measurements/measurements.h"
 
 #include <apriltag_msgs/ApriltagArrayStamped.h>
-#include <flex_sync/subscribing_sync.h>
+#include <flex_sync/exact_sync.h>
+#include <flex_sync/approximate_sync.h>
+#include <flex_sync/live_sync.h>
 
 
 #include <tf/transform_broadcaster.h>
@@ -47,9 +49,21 @@ namespace tagslam {
     using CompressedImage = sensor_msgs::CompressedImage;
     using CompressedImageConstPtr = sensor_msgs::CompressedImageConstPtr;
     using string = std::string;
-    typedef flex_sync::SubscribingSync<TagArray, CompressedImage, Odometry>
-    SubSyncCompressed;
-    typedef flex_sync::SubscribingSync<TagArray, Image, Odometry> SubSync;
+
+    typedef flex_sync::ExactSync<TagArray, Image, Odometry> ExactSync;
+    typedef flex_sync::ApproximateSync<TagArray, Image, Odometry>
+    ApproximateSync;
+    typedef flex_sync::LiveSync<ExactSync> LiveExactSync;
+    typedef flex_sync::LiveSync<ApproximateSync> LiveApproximateSync;
+    
+    typedef flex_sync::ExactSync<TagArray, CompressedImage, Odometry>
+    ExactCompressedSync;
+    typedef flex_sync::ApproximateSync<TagArray, CompressedImage, Odometry>
+    ApproximateCompressedSync;
+    typedef flex_sync::LiveSync<ExactCompressedSync> LiveExactCompressedSync;
+    typedef flex_sync::LiveSync<ApproximateCompressedSync>
+    LiveApproximateCompressedSync;
+ 
 
     typedef std::map<
       std::string, PoseWithNoise, std::less<std::string>,
@@ -70,14 +84,14 @@ namespace tagslam {
     void subscribe();
     bool runOnline() const { return (inBagFile_.empty()); }
 
-    template<typename T1, typename T2, typename T3>
+    template<typename SyncType, typename T1, typename T2, typename T3>
     void processBag(rosbag::View *view,
                     const std::vector<std::vector<string>> &topics,
                     std::function<void(
                       const std::vector<typename T1::ConstPtr> &,
                       const std::vector<typename T2::ConstPtr> &,
                       const std::vector<typename T3::ConstPtr> &)> &cb) {
-      flex_sync::Sync<T1, T2, T3> sync(topics, cb, syncQueueSize_);
+      SyncType sync(topics, cb, syncQueueSize_);
       for (const rosbag::MessageInstance &m: *view) {
          typename T1::ConstPtr t1 = m.instantiate<T1>();
         if (t1) {    sync.process(m.getTopic(), t1); } else {
@@ -131,7 +145,8 @@ namespace tagslam {
     void playFromBag(const std::string &fname);
     void fakeOdom(const ros::Time &tCurr, std::vector<VertexDesc> *factors);
 
-    void processOdom(const std::vector<OdometryConstPtr> &odomMsg,
+    void processOdom(const ros::Time &t,
+                     const std::vector<OdometryConstPtr> &odomMsg,
                      std::vector<VertexDesc> *factors);
     std::vector<std::vector<std::string>> makeTopics() const;
     void
@@ -148,7 +163,8 @@ namespace tagslam {
     void publishTransforms(const ros::Time &t, bool orig = false);
     void publishBodyOdom(const ros::Time &t);
     void sleep(double dt) const;
-    void processTags(const std::vector<TagArrayConstPtr> &tagMsgs,
+    void processTags(const ros::Time &t,
+                     const std::vector<TagArrayConstPtr> &tagMsgs,
                      std::vector<VertexDesc> *factors);
     std::vector<TagConstPtr> findTags(const std::vector<Apriltag> &ta);
     bool anyTagsVisible(const std::vector<TagArrayConstPtr> &tagmsgs);
@@ -171,7 +187,8 @@ namespace tagslam {
                          const TagConstPtr &tag,
                          const geometry_msgs::Point *img_corners);
 
-    void remapAndSquash(std::vector<TagArrayConstPtr> *remapped,
+    void remapAndSquash(const ros::Time &t,
+                        std::vector<TagArrayConstPtr> *remapped,
                         const std::vector<TagArrayConstPtr> &orig);
     void applyDistanceMeasurements();
     void doReplay(double rate);
@@ -194,6 +211,7 @@ namespace tagslam {
     std::vector<nav_msgs::Path> trajectory_;
     string               fixedFrame_;
     bool                 writeDebugImages_;
+    bool                 useApproximateSync_;
     bool                 hasCompressedImages_;
     bool                 useFakeOdom_{false};
     bool                 publishAck_{false};
@@ -222,9 +240,12 @@ namespace tagslam {
     std::string          outDir_;
     std::string          inBagFile_;
     bool                 warnIgnoreTags_{false};
-    std::shared_ptr<SubSyncCompressed> subSyncCompressed_;
-    std::shared_ptr<SubSync> subSync_;
-    
+    std::shared_ptr<LiveExactSync> liveExactSync_;
+    std::shared_ptr<LiveApproximateSync>  liveApproximateSync_;
+    std::shared_ptr<LiveExactCompressedSync> liveExactCompressedSync_;
+    std::shared_ptr<LiveApproximateCompressedSync>
+    liveApproximateCompressedSync_;
+
     std::unordered_map<int, std::vector<ReMap>>  tagRemap_;
     std::vector<std::map<ros::Time, std::set<int>>> squash_;
     std::map<std::string, std::set<int>> camSquash_;
