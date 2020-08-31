@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.5)
 project(tagslam)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -29,7 +29,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(Eigen3 REQUIRED QUIET)
-find_package(OpenCV 3 REQUIRED QUIET)
+find_package(OpenCV REQUIRED QUIET)
 find_package(GTSAM REQUIRED QUIET)
 find_package(Boost REQUIRED COMPONENTS graph)
 find_package(apriltag REQUIRED)
