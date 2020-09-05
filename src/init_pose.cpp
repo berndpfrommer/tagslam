@@ -394,8 +394,7 @@ namespace tagslam {
       bool rc =  find_pose_by_homography(wp, imu, &rvec, &tvec);
       const cv::Mat D0  = cv::Mat::zeros(0, 4, CV_64F);
       const cv::Mat eye = cv::Mat::eye(3, 3, CV_64F);
-      rc = cv::solvePnP(wp, imu, eye, D0,
-                        rvec,  tvec, rc, CV_ITERATIVE);
+      rc = cv::solvePnP(wp, imu, eye, D0, rvec,  tvec, rc);
 
       Point3d rvecT, tvecT;
       cv2eigen(rvec, rvecT);
