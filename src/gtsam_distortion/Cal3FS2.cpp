@@ -174,7 +174,7 @@ gtsam::Point2 Cal3FS2::calibrate(const gtsam::Point2& pi, const double tol) cons
   int iteration;
   for (iteration = 0; iteration < maxIterations; ++iteration) {
     const gtsam::Point2 xpyp = uncalibrateNoIntrinsics(pn); 
-    if (distance2(xpyp, invKPi) <= tol) break;
+    if (gtsam::distance2(xpyp, invKPi) <= tol) break;
     pn = pn + invKPi -uncalibrateNoIntrinsics(pn);
   }
   if ( iteration >= maxIterations )
