@@ -21,7 +21,6 @@
   <depend>apriltag_ros</depend>
   <depend>apriltag_msgs</depend>
   <depend>geometry_msgs</depend>
-  <depend>standard_msgs</depend>
   <depend>rosgraph_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>flex_sync</depend>
