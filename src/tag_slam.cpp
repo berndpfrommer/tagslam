@@ -177,14 +177,14 @@ namespace tagslam {
             nh_, topics, std::bind(
               &TagSlam::syncCallbackCompressed, this,
               std::placeholders::_1, std::placeholders::_2,
-              std::placeholders::_3), 5));
+              std::placeholders::_3), syncQueueSize_));
       } else {
         liveExactCompressedSync_.reset(
           new LiveExactCompressedSync(
             nh_, topics, std::bind(
               &TagSlam::syncCallbackCompressed, this,
               std::placeholders::_1, std::placeholders::_2,
-              std::placeholders::_3), 5));
+              std::placeholders::_3), syncQueueSize_));
       }
     } else {
       if (useApproximateSync_) {
@@ -193,14 +193,14 @@ namespace tagslam {
             nh_, topics, std::bind(
               &TagSlam::syncCallback, this,
               std::placeholders::_1, std::placeholders::_2,
-              std::placeholders::_3), 5));
+              std::placeholders::_3), syncQueueSize_));
       } else {
         liveExactSync_.reset(
           new LiveExactSync(
             nh_, topics, std::bind(
               &TagSlam::syncCallback, this,
               std::placeholders::_1, std::placeholders::_2,
-              std::placeholders::_3), 5));
+              std::placeholders::_3), syncQueueSize_));
       }
     }
   }
