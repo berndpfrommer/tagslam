@@ -29,7 +29,7 @@ class AprilTagCodes:
             self.tagCodes = AprilTagCodes.TagFamilies[chosenTagFamiliy][0]
             self.totalBits = AprilTagCodes.TagFamilies[chosenTagFamiliy][1]
         except:
-            print "[ERROR]: Unknown tag familiy."
+            print("[ERROR]: Unknown tag familiy.")
             sys.exit(0)
 
 #borderBits must be consitent with the variable "blackBorder" in the detector code in file ethz_apriltag2/src/TagFamily.cc
@@ -38,7 +38,7 @@ def generateAprilTag(canvas, position, metricSize, tagSpacing, tagID, tagFamilil
     try:
         tagCode=tagFamililyData.tagCodes[tagID]
     except:
-        print "[ERROR]: Requested tag ID of {0} not available in the {1} TagFamiliy".format(tagID, tagFamililyData.chosenTagFamiliy)        
+        print("[ERROR]: Requested tag ID of {0} not available in the {1} TagFamiliy".format(tagID, tagFamililyData.chosenTagFamiliy))
 
     #calculate the bit size of the tag
     sqrtBits = (math.sqrt(tagFamililyData.totalBits))
@@ -74,7 +74,7 @@ def generateAprilTag(canvas, position, metricSize, tagSpacing, tagID, tagFamilil
                 
     #add squares to make corners symmetric (decreases the effect of motion blur in the subpix refinement...)
     if symmCorners:
-        print 'drawing corners!'
+        print('drawing corners!')
         metricSquareSize = tagSpacing*metricSize
         
         corners = [ 
@@ -91,7 +91,7 @@ def generateAprilTag(canvas, position, metricSize, tagSpacing, tagID, tagFamilil
 def generateAprilBoard(canvas, n_cols, n_rows, margx, margy, tagSize, tagSpacing=0.25, tagFamily="t36h11",
                        acolor = "Black", startid = 0,borderBits=2, symmCorners=False):
     if(tagSpacing<0 or tagSpacing>1.0):
-        print "[ERROR]: Invalid tagSpacing specified.  [0-1.0] of tagSize"
+        print("[ERROR]: Invalid tagSpacing specified.  [0-1.0] of tagSize")
         sys.exit(0)
         
     #convert to cm
