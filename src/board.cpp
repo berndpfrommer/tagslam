@@ -11,6 +11,7 @@
 namespace tagslam {
   using boost::irange;
   bool Board::parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) {
+    Transform T_board_body = Transform::Identity(); // defaults to identity
     try {
       const XmlRpc::XmlRpcValue board = body[type_];
       tagStartId_ = xml::parse<int>(board, "tag_start_id");
@@ -21,6 +22,9 @@ namespace tagslam {
       tagBits_    = xml::parse<int>(board, "tag_bits", 6);
       tagRotationNoise_ = xml::parse<double>(board, "tag_rotation_noise", 0.0);
       tagPositionNoise_ = xml::parse<double>(board, "tag_position_noise", 0.0);
+      if (board.hasMember("pose")) {
+        T_board_body = xml::parse<Transform>(board, "pose");
+      }
     } catch (const XmlRpc::XmlRpcException &e) {
       BOMB_OUT("error parsing board of body: " + name_);
     }
@@ -29,7 +33,8 @@ namespace tagslam {
       for (const int col: irange(0, tagColumns_)) {
         const Point3d center(col * tagSize_ * (1.0 + tagSpacing_),
                              row * tagSize_ * (1.0 + tagSpacing_), 0.0);
-        const Transform pose = make_transform(Point3d(0,0,0), center);
+        const Transform pose = T_board_body.inverse() *
+          make_transform(Point3d(0,0,0), center);
         const PoseNoise noise =
           PoseNoise::make(tagRotationNoise_, tagPositionNoise_);
         const PoseWithNoise pn(pose, noise, true);
