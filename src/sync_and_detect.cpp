@@ -66,6 +66,10 @@ namespace tagslam {
       } else if (detectorType_ == "Umich") {
         detectors_.push_back(apriltag_ros::ApriltagDetector::Create(
                                apriltag_ros::DetectorType::Umich, tagFamily));
+        const int decim = nh_.param<int>("decimate", 1);
+        if (decim > 1) {
+          detectors_.back()->set_decimate(decim);
+        }
       } else {
         BOMB_OUT("INVALID DETECTOR TYPE: " << detectorType_);
       }
