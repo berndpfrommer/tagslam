@@ -131,6 +131,6 @@ add_executable(approx_image_sync_node src/approx_image_sync_node.cpp src/approx_
 target_link_libraries(approx_image_sync_node ${catkin_LIBRARIES})
 add_dependencies(approx_image_sync_node ${catkin_EXPORTED_TARGETS})
 
-install(FILES nodelet_plugins.xml
+install(FILES nodelet_plugin.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
