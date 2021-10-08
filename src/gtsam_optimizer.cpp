@@ -354,7 +354,7 @@ namespace tagslam {
 
 
   void GTSAMOptimizer::setPose(ValueKey k, const Transform &pose) {
-    values_.at<gtsam::Pose3>(k) = gtsam_utils::to_gtsam(pose);
+    values_.update(k, gtsam_utils::to_gtsam(pose));
   }
 
 #ifdef DEBUG
