@@ -177,14 +177,14 @@ namespace tagslam {
             nh_, topics, std::bind(
               &TagSlam::syncCallbackCompressed, this,
               std::placeholders::_1, std::placeholders::_2,
-              std::placeholders::_3), 5));
+              std::placeholders::_3), syncQueueSize_));
       } else {
         liveExactCompressedSync_.reset(
           new LiveExactCompressedSync(
             nh_, topics, std::bind(
               &TagSlam::syncCallbackCompressed, this,
               std::placeholders::_1, std::placeholders::_2,
-              std::placeholders::_3), 5));
+              std::placeholders::_3), syncQueueSize_));
       }
     } else {
       if (useApproximateSync_) {
@@ -193,14 +193,14 @@ namespace tagslam {
             nh_, topics, std::bind(
               &TagSlam::syncCallback, this,
               std::placeholders::_1, std::placeholders::_2,
-              std::placeholders::_3), 5));
+              std::placeholders::_3), syncQueueSize_));
       } else {
         liveExactSync_.reset(
           new LiveExactSync(
             nh_, topics, std::bind(
               &TagSlam::syncCallback, this,
               std::placeholders::_1, std::placeholders::_2,
-              std::placeholders::_3), 5));
+              std::placeholders::_3), syncQueueSize_));
       }
     }
   }
@@ -232,8 +232,9 @@ namespace tagslam {
     for (auto &m: measurements_) {
       m->printUnused(graph_);
     }
+    // add a little delta to avoid duplicate time stamp warnings
     publishTransforms(times_.empty() ? ros::Time(0) :
-                      *(times_.rbegin()), true);
+                      *(times_.rbegin()) + ros::Duration(0.001), true);
     tagCornerFile_.flush();
     
     outBag_.open(outBagName_, rosbag::bagmode::Write);
@@ -475,7 +476,9 @@ namespace tagslam {
         const string &rigFrameId = cam->getRig()->getFrameId();
         auto ctf = tf::StampedTransform(
           to_tftf(camTF), t, rigFrameId, cam->getFrameId());
-        tfBroadcaster_.sendTransform(ctf);
+        if (!writeToBag_) {
+          tfBroadcaster_.sendTransform(ctf);
+        }
         tf::transformStampedTFToMsg(ctf, tfm);
         tfMsg->transforms.push_back(tfm);
         //ROS_DEBUG_STREAM("published transform for cam: " << cam->getName());
@@ -495,14 +498,18 @@ namespace tagslam {
           to_tftf(bodyTF), t, fixedFrame_, bodyFrameId);
         tf::transformStampedTFToMsg(btf, tfm);
         tfMsg->transforms.push_back(tfm);
-        tfBroadcaster_.sendTransform(btf);
+        if (!writeToBag_) {
+          tfBroadcaster_.sendTransform(btf);
+        }
         for (const auto &tag: body->getTags()) {
           Transform tagTF;
           if (graph_utils::get_optimized_pose(*graph_, *tag, &tagTF)) {
             const std::string frameId = "tag_" + std::to_string(tag->getId());
             auto ttf = tf::StampedTransform(
               to_tftf(tagTF), t, bodyFrameId, frameId);
-            tfBroadcaster_.sendTransform(ttf);
+            if (!writeToBag_) {
+              tfBroadcaster_.sendTransform(ttf);
+            }
             tf::transformStampedTFToMsg(ttf, tfm);
             tfMsg->transforms.push_back(tfm);
           }
@@ -525,7 +532,9 @@ namespace tagslam {
           const std::string frameId = "o_tag_" + std::to_string(tag->getId());
           auto ttf =
             tf::StampedTransform(to_tftf(tagTF), t, bodyFrameId, frameId);
-          tfBroadcaster_.sendTransform(ttf);
+          if (!writeToBag_) {
+            tfBroadcaster_.sendTransform(ttf);
+          }
           tf::transformStampedTFToMsg(ttf, tfm);
           tfMsg->transforms.push_back(tfm);
         }
@@ -561,7 +570,7 @@ namespace tagslam {
     rosbag::View dummyView(bag);
     const ros::Time startTime =
       dummyView.getBeginTime() + ros::Duration(deltaStartTime);
-    publishTransforms(startTime, false);
+    publishInitialTransforms_ = true;
 
     rosbag::View view(bag, rosbag::TopicQuery(flatTopics), startTime);
     ros::WallTime t0 = ros::WallTime::now();
@@ -653,20 +662,21 @@ namespace tagslam {
       }
       if (pwn.isValid()) {
         auto msg = make_odom(t, fixedFrame_, body->getOdomFrameId(), pwn);
-        odomPub_[body_idx].publish(msg);
         if (writeToBag_) {
           outBag_.write<nav_msgs::Odometry>(
             "/tagslam/odom/body_" + body->getName(), t, msg);
-        }
-        geometry_msgs::PoseStamped pose_msg;
-        pose_msg.header.stamp = t;
-        pose_msg.header.frame_id = body->getOdomFrameId();
-        pose_msg.pose = msg.pose.pose;
+        } else {
+          odomPub_[body_idx].publish(msg);
+          geometry_msgs::PoseStamped pose_msg;
+          pose_msg.header.stamp = t;
+          pose_msg.header.frame_id = body->getOdomFrameId();
+          pose_msg.pose = msg.pose.pose;
 
-        trajectory_[body_idx].header.stamp = t;
-        trajectory_[body_idx].header.frame_id = fixedFrame_;
-        trajectory_[body_idx].poses.push_back(pose_msg);
-        trajectoryPub_[body_idx].publish(trajectory_[body_idx]);
+          trajectory_[body_idx].header.stamp = t;
+          trajectory_[body_idx].header.frame_id = fixedFrame_;
+          trajectory_[body_idx].poses.push_back(pose_msg);
+          trajectoryPub_[body_idx].publish(trajectory_[body_idx]);
+        }
       }
     }
   }
@@ -728,7 +738,10 @@ namespace tagslam {
     const auto &header = origtagmsgs.empty() ?
       odommsgs[0]->header : origtagmsgs[0]->header;
     const ros::Time t = header.stamp;
-
+    if (publishInitialTransforms_) {
+      publishTransforms(t, false /*dont pub orig tf */);
+      publishInitialTransforms_ = false;
+    }
     std::vector<TagArrayConstPtr> tagmsgs;
     remapAndSquash(t, &tagmsgs, origtagmsgs);
     if (tagmsgs.empty() && odommsgs.empty()) {
@@ -789,7 +802,7 @@ namespace tagslam {
 
   void TagSlam::publishAll(const ros::Time &t) {
     publishBodyOdom(t);
-    if (!runOnline()) {
+    if (!runOnline() && !writeToBag_) {
       rosgraph_msgs::Clock clockMsg;
       clockMsg.clock = t;
       clockPub_.publish(clockMsg);

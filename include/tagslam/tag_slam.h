@@ -236,6 +236,7 @@ namespace tagslam {
     std::ofstream        tagCornerFile_;
     std::string          outBagName_;
     bool                 writeToBag_{false};
+    bool                 publishInitialTransforms_{false};
     std::string          optimizerMode_;
     std::string          outDir_;
     std::string          inBagFile_;

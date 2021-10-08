@@ -119,6 +119,7 @@ namespace tagslam {
                              std::vector<VertexDesc> *factors) {
     auto msg2 = *msg;
     msg2.header.frame_id = "map";
+    msg2.header.stamp = t;
     pub_.publish(msg2);
     Transform newPose = to_pose(msg);
     if (time_ == ros::Time(0)) {
@@ -136,7 +137,7 @@ namespace tagslam {
       }
       const PoseWithNoise pwn(deltaPose, *pn, true);
       updateStatistics(t, deltaPose);
-      auto fac = add_body_pose_delta(graph, time_, msg->header.stamp,
+      auto fac = add_body_pose_delta(graph, time_, t,
                                      body_, pwn);
       factors->push_back(fac);
     }

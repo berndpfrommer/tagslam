@@ -32,7 +32,6 @@ find_package(Eigen3 REQUIRED QUIET)
 find_package(OpenCV REQUIRED QUIET)
 find_package(GTSAM REQUIRED QUIET)
 find_package(Boost REQUIRED COMPONENTS graph)
-find_package(apriltag REQUIRED)
 
 find_package(OpenMP)
 IF(OPENMP_FOUND)
@@ -58,7 +57,7 @@ include_directories(
 
 add_executable(sync_and_detect_node src/sync_and_detect_node.cpp
 src/sync_and_detect.cpp src/profiler.cpp)
-target_link_libraries(sync_and_detect_node ${catkin_LIBRARIES} apriltag)
+target_link_libraries(sync_and_detect_node ${catkin_LIBRARIES})
 
 
 add_library(tagslam
