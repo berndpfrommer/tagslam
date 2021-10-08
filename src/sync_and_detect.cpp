@@ -85,6 +85,7 @@ namespace tagslam {
     int subQueueSize, pubQueueSize;
     nh_.param<int>("subscribe_queue_size", subQueueSize, 10);
     nh_.param<int>("publish_queue_size", pubQueueSize, 10);
+    nh_.param<bool>("parallelize_detection", parallelizeDetection_, true);
 
     nh_.param<std::string>("bag_file", bagFile_, "");
     std::string outfname;
@@ -122,21 +123,19 @@ namespace tagslam {
     int totTags(0);
     typedef std::vector<apriltag_msgs::Apriltag> TagVec;
     std::vector<TagVec> allTags(grey.size());
-    if (detectorType_ == "Umich") {
-      profiler_.reset("detect");
+    profiler_.reset("detect");
+    if (parallelizeDetection_) {
 #pragma omp parallel for
       for (int i = 0; i < (int)grey.size(); i++) {
         allTags[i] = detectors_[i]->Detect(grey[i]);
       }
-      profiler_.record("detect", grey.size());
     } else {
-      profiler_.reset("detect");
-#pragma omp parallel for
       for (int i = 0; i < (int)grey.size(); i++) {
         allTags[i] = detectors_[i]->Detect(grey[i]);
       }
-      profiler_.record("detect", grey.size());
     }
+    profiler_.record("detect", grey.size());
+
     sensor_msgs::CompressedImage msg;
     msg.format = "jpeg";
     std::vector<int> param(2);

@@ -183,5 +183,6 @@ namespace tagslam {
     std::shared_ptr<Subscriber<ApproximateSync>>  approxSubscriber_;
     std::shared_ptr<Subscriber<ExactSync>>  exactSubscriber_;
     std::vector<ros::Publisher>         pubs_;
+    bool                                parallelizeDetection_{true};
   };
 }
