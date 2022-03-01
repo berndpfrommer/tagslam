@@ -74,7 +74,6 @@ def generateAprilTag(canvas, position, metricSize, tagSpacing, tagID, tagFamilil
                 
     #add squares to make corners symmetric (decreases the effect of motion blur in the subpix refinement...)
     if symmCorners:
-        print('drawing corners!')
         metricSquareSize = tagSpacing*metricSize
         
         corners = [ 
@@ -89,7 +88,7 @@ def generateAprilTag(canvas, position, metricSize, tagSpacing, tagID, tagFamilil
 
 #tagSpaceing in % of tagSize
 def generateAprilBoard(canvas, n_cols, n_rows, margx, margy, tagSize, tagSpacing=0.25, tagFamily="t36h11",
-                       acolor = "Black", startid = 0,borderBits=2, symmCorners=False):
+                       acolor = "Black", startid = 0,borderBits=2, symmCorners=False, drawBox=False):
     if(tagSpacing<0 or tagSpacing>1.0):
         print("[ERROR]: Invalid tagSpacing specified.  [0-1.0] of tagSize")
         sys.exit(0)
@@ -104,17 +103,23 @@ def generateAprilBoard(canvas, n_cols, n_rows, margx, margy, tagSize, tagSpacing
     numTags = n_cols*n_rows
 
     # draw margins
-    xmax = 2 * margx * 100 + n_cols * (1+tagSpacing)*tagSize + tagSpacing * tagSize;
-    ymax = 2 * margy * 100 + n_rows * (1+tagSpacing)*tagSize + tagSpacing * tagSize;
-    boundrect = path.rect(0,0, xmax, ymax)
     ccolor = getattr(color.cmyk, acolor)
-    c.stroke(boundrect, [style.linewidth(0.000001*unit.w_cm), ccolor])
+    if drawBox:
+        # need to add to box space if symm corners are printed, subtract if not
+        fringeSpace = tagSize * (tagSpacing if symmCorners else -tagSpacing)
+        xmax = 2 * margx * 100 + n_cols * (1+tagSpacing)*tagSize + fringeSpace
+        ymax = 2 * margy * 100 + n_rows * (1+tagSpacing)*tagSize + fringeSpace
+        boundrect = path.rect(0, 0, xmax, ymax)
+        c.stroke(boundrect, [style.linewidth(0.000001*unit.w_cm), ccolor])
     
     #draw tags
     for y in range(0,n_rows):
         for x in range(0,n_cols):
             id = startid + n_cols * y + x
-            pos = ( margx*100 + x*(1+tagSpacing)*tagSize + tagSpacing*tagSize, margy*100 + y*(1+tagSpacing)*tagSize + tagSpacing*tagSize)
+            x_off = tagSpacing * (tagSize if symmCorners else 0)
+            y_off = x_off
+            pos = (margx*100 + x*(1+tagSpacing)*tagSize + x_off,
+                   margy*100 + y*(1+tagSpacing)*tagSize + y_off)
             generateAprilTag(canvas, pos, tagSize, tagSpacing, id, tagFamilyData, rotation=2, borderBits=borderBits, ccolor=ccolor, symmCorners=symmCorners)
             #c.text(pos[0]+0.45*tagSize, pos[1]-0.7*tagSize*tagSpacing, "{0}".format(id))
             
@@ -165,7 +170,13 @@ if __name__ == "__main__":
     aprilOptions.add_argument('--tfam', default='t36h11', dest='tagfamiliy', help='Familiy of April tags {0} (default: %(default)s)'.format(AprilTagCodes.TagFamilies.keys()))
     aprilOptions.add_argument('--startid', default=0, type=int, dest='startid', help='Start number for apriltag (default: %(default)s)')
     aprilOptions.add_argument('--borderbits', default=2, type=int, dest='borderBits', help='number of bits used for black border (default: %(default)s)')
-    aprilOptions.add_argument('--symm_corners', default=False, dest='symmCorners', action='store_true', help='add black corner squares (default: %(default)s)')
+    aprilOptions.add_argument('--symm_corners', dest='symmCorners', action='store_true', help='add black corner squares')
+    aprilOptions.add_argument('--no-symm_corners', dest='symmCorners', action='store_false', help='do not add black corner squares (default)')
+    aprilOptions.add_argument('--draw_box', dest='drawBox', action='store_true', help='draw thin black bounding box')
+    aprilOptions.add_argument('--no-draw_box', dest='drawBox', action='store_false', help='do not draw thin black bounding box (default)')
+    aprilOptions.set_defaults(symmCorners = False)
+    aprilOptions.set_defaults(drawBox = False)
+
     
     if len(sys.argv)==1:
         parser.print_help()
@@ -180,7 +191,7 @@ if __name__ == "__main__":
     #open a new canvas
     c = canvas.canvas()
 
-    generateAprilBoard(canvas, parsed.n_cols, parsed.n_rows, parsed.marginx, parsed.marginy, parsed.tsize, parsed.tagspacing, parsed.tagfamiliy, parsed.color, parsed.startid, borderBits=parsed.borderBits, symmCorners=parsed.symmCorners)
+    generateAprilBoard(canvas, parsed.n_cols, parsed.n_rows, parsed.marginx, parsed.marginy, parsed.tsize, parsed.tagspacing, parsed.tagfamiliy, parsed.color, parsed.startid, borderBits=parsed.borderBits, symmCorners=parsed.symmCorners, drawBox=parsed.drawBox)
             
     #write to file
     c.writePDFfile(parsed.output)
