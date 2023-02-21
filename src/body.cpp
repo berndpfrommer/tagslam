@@ -6,6 +6,7 @@
 #include "tagslam/logging.h"
 #include "tagslam/simple_body.h"
 #include "tagslam/board.h"
+#include "tagslam/staggered_board.h"
 #include "tagslam/body_defaults.h"
 #include "tagslam/yaml_utils.h"
 #include "tagslam/xml.h"
@@ -23,6 +24,8 @@ namespace tagslam {
     if (type == "board") {
       BoardPtr board(new Board(name));
       p = board;
+    } else  if (type == "staggered_board") {
+      p.reset(new StaggeredBoard(name));
     } else  if (type == "simple") {
       SimpleBodyPtr sb(new SimpleBody(name));
       p = sb;

@@ -71,7 +71,7 @@ src/pose_noise.cpp
 src/tag_slam.cpp
 src/yaml_utils.cpp
 src/xml.cpp
-src/simple_body.cpp src/board.cpp
+src/simple_body.cpp src/board.cpp src/staggered_board.cpp
 src/tag.cpp
 src/camera.cpp
 src/pose_with_noise.cpp
