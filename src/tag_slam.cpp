@@ -310,6 +310,8 @@ namespace tagslam {
                                            "use_approximate_sync", false);
     syncQueueSize_ = xml::parse<int>(config["tagslam_parameters"],
                                            "sync_queue_size", 100);
+    minTagArea_ = xml::parse<int>(config["tagslam_parameters"],
+                                  "minimum_tag_area", 0);
     if (defbody.empty()) {
       ROS_WARN_STREAM("no default body specified!");
     } else {
@@ -1101,6 +1103,10 @@ namespace tagslam {
                                       Graph::tag_name(tagPtr->getId())));
           auto fac = fp->addToGraph(fp, graph_.get());
           double sz = find_size_of_tag(corners);
+          if (sz < minTagArea_) {
+            ROS_WARN_STREAM("dropping tag: " << tagPtr->getId()
+                            << " due to small size: " << sz);
+          }
           sortedFactors.insert(MMap::value_type(sz, fac));
           writeTagCorners(t, cam->getIndex(), tagPtr, corners);
           tagsFound.insert(tag.id);

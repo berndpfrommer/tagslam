@@ -5,7 +5,9 @@ tagslam_parameters:
 # default: slow
   optimizer_mode: fast
 # minimum angle [in degrees] between optical axis and tag surface
-  minimum_viewing_angle: 12.0
+  minimum_viewing_angle: 15.0
+# minimum tag area in pixels^2. Any tags smaller than that are ignored
+  minimum_tag_area: 2000
 # number of incremental updates before running
 # a full graph optimization (default: 50)
   max_num_incremental_opt: 50
