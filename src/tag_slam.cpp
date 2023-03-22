@@ -18,8 +18,6 @@
 #include <rosbag/view.h>
 
 #include <rosgraph_msgs/Clock.h>
-#include <tf_conversions/tf_eigen.h>
-#include <eigen_conversions/eigen_msg.h>
 #include <geometry_msgs/Point.h>
 #include <XmlRpcException.h>
 
@@ -46,9 +44,33 @@ namespace tagslam {
   using std::setprecision;
 #define FMT(X, Y) fixed << setw(X) << setprecision(Y)
 
+
+  void poseEigenToMsg(const Eigen::Affine3d &e, geometry_msgs::Pose &m)
+  {
+    const auto &t = e.translation();
+    m.position.x = t[0];
+    m.position.y = t[1];
+    m.position.z = t[2];
+    const Eigen::Quaterniond q = (Eigen::Quaterniond)e.linear();
+    m.orientation.x = q.x();
+    m.orientation.y = q.y();
+    m.orientation.z = q.z();
+    m.orientation.w = q.w();
+    if (m.orientation.w < 0) {
+      m.orientation.x *= -1;
+      m.orientation.y *= -1;
+      m.orientation.z *= -1;
+      m.orientation.w *= -1;
+    }
+  }
+
   static tf::Transform to_tftf(const Transform &tf) {
     tf::Transform ttf;
-    tf::transformEigenToTF(tf, ttf);
+    const auto &m = tf.matrix();
+    ttf.setOrigin(tf::Vector3(m(0,3), m(1,3), m(2,3)));
+    ttf.setBasis(tf::Matrix3x3(m(0,0), m(0,1), m(0,2),
+                               m(1,0), m(1,1), m(1,2),
+                               m(2,0), m(2,1), m(2,2)));
     return (ttf);
   }
 
@@ -641,7 +663,7 @@ namespace tagslam {
     odom.header.stamp = t;
     odom.header.frame_id = fixed_frame;
     odom.child_frame_id = child_frame;
-    tf::poseEigenToMsg(pwn.getPose(), odom.pose.pose);
+    poseEigenToMsg(pwn.getPose(), odom.pose.pose);
     memcpy(&odom.pose.covariance[0], &pwn.getNoise().getCovarianceMatrix()(0),
            sizeof(odom.pose.covariance));
     return (odom);

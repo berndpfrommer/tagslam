@@ -12,7 +12,6 @@
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
-#include <eigen_conversions/eigen_msg.h>
 #include <boost/range/irange.hpp>
 #include <math.h>
 #include <fstream>

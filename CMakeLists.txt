@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.5)
 project(tagslam)
 
+set(USE_ADDRESS_SANITIZER OFF CACHE BOOL "compile with address sanitizer support")
+if(USE_ADDRESS_SANITIZER)
+  set(CMAKE_CXX_FLAGS "-fsanitize=address  -fsanitize=leak -g")
+  set(CMAKE_C_FLAGS "-fsanitize=leak -g")
+  set(CMAKE_EXE_LINKER_FLAGS "-fsanitize=address  -fsanitize=leak")
+  set(CMAKE_MODULE_LINKER_FLAGS "-fsanitize=address  -fsanitize=leak")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_definitions(-g -Wall -Wno-misleading-indentation -Wno-int-in-bool-context)
@@ -23,10 +31,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosgraph_msgs
   cv_bridge
   tf
-  tf_conversions
-  eigen_conversions
-  image_transport
-)
+  image_transport)
 
 find_package(Eigen3 REQUIRED QUIET)
 find_package(OpenCV REQUIRED QUIET)
@@ -42,7 +47,6 @@ ENDIF()
 
 catkin_package(
 	INCLUDE_DIRS include
-	CATKIN_DEPENDS geometry_msgs rosgraph_msgs roscpp flex_sync nodelet
 	DEPENDS OpenCV
 	)
 
