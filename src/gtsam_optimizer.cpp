@@ -22,13 +22,14 @@ namespace tagslam {
 
   static std::shared_ptr<gtsam::ISAM2> make_isam2(OptimizerMode mode) {
     gtsam::ISAM2Params p;
-    p.setEnableDetailedResults(true);
+    //p.setEnableDetailedResults(true);
+    p.enableDetailedResults = true;
     switch (mode) {
     case SLOW:
       // evaluation of nonlinear error is time consuming!
-      p.setEvaluateNonlinearError(true);
+      p.evaluateNonlinearError = true;
       // gtsam documentation says "use with caution"
-      p.setEnablePartialRelinearizationCheck(false);
+      p.enablePartialRelinearizationCheck = false;
       // lower from default of 0.1
       p.relinearizeThreshold = 0.01;
       // don't skip relinearization step
@@ -37,9 +38,9 @@ namespace tagslam {
     case FAST:
       // when we switch this off, the optimizer error
       // returned is bogus, but it's much faster
-      p.setEvaluateNonlinearError(false);
+      p.evaluateNonlinearError = false;
       // never mind the gtsam documentation "use with caution"
-      p.setEnablePartialRelinearizationCheck(true);
+      p.enablePartialRelinearizationCheck = true;
       // these are the default parameters
       p.relinearizeThreshold = 0.1;
       p.relinearizeSkip = 10;
@@ -304,7 +305,7 @@ namespace tagslam {
     ROS_DEBUG_STREAM("incremental optimize new values: " << newValues_.size()
                      << " factors: " << newGraph_.size()
                      << " delta: " << deltaError);
-    const bool hasValidError = isam2_->params().isEvaluateNonlinearError();
+    const bool hasValidError = isam2_->params().evaluateNonlinearError;
     if (newGraph_.size() > 0) {
       fullGraph_ += newGraph_;
       gtsam::ISAM2Result res = isam2_->update(newGraph_, newValues_);

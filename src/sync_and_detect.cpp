@@ -38,7 +38,9 @@ namespace tagslam {
     Family tagFamily = static_cast<Family>(tagF);
     if (tagFamily != Family::tf36h11 &&
         tagFamily != Family::tf25h9  &&
-        tagFamily != Family::tf16h5) {
+        tagFamily != Family::tf16h5 &&
+        tagFamily != Family::ts41h12 &&
+        tagFamily != Family::ts52h13) {
       BOMB_OUT("invalid tag family!");
     }
     nh_.getParam("odometry_topics", odometryTopics_);
