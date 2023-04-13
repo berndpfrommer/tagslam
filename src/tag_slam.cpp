@@ -1128,6 +1128,7 @@ namespace tagslam {
           if (sz < minTagArea_) {
             ROS_WARN_STREAM("dropping tag: " << tagPtr->getId()
                             << " due to small size: " << sz);
+            continue;
           }
           sortedFactors.insert(MMap::value_type(sz, fac));
           writeTagCorners(t, cam->getIndex(), tagPtr, corners);

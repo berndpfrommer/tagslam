@@ -40,7 +40,7 @@ namespace tagslam {
       checkIfValid(vbp, "no body pose found");
       const VertexDesc vrp = g->findBodyPose(
         rig->isStatic() ? ros::Time(0) : getTime(), rig->getName());
-      checkIfValid(vbp, "no rig pose found");
+      checkIfValid(vrp, "no rig pose found");
       const VertexDesc vcp =
         g->findCameraPose(getTime(), getCamera()->getName());
       checkIfValid(vcp, "no camera pose found");

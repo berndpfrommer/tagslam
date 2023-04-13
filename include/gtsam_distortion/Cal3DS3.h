@@ -22,7 +22,7 @@
 #include <boost/shared_ptr.hpp>
 
 /**
- * @brief Calibration of a camera with fisheye (radtan) radial distortion
+ * @brief Calibration of a camera with radtan distortion
  * @addtogroup geometry
  * \nosubgrouping
  *
@@ -35,7 +35,6 @@
  *         (1 + k_[3] * r^2 + k_[4] * r^4 + k_[5] * r^6)/
  * x' = x * f_rad + 2*p_1*x*y           +   p_2(r^2 + 2*x^2)
  * y' = y * f_rad +   p_1*(r^2 + 2y^2)  + 2*p_2*x*y
- * y' = theta_d/r * y
  * p  = K * p'
  */
 class Cal3DS3 {

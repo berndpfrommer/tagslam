@@ -17,7 +17,7 @@ namespace tagslam {
 
     StaggeredBoard(const string &n  = string(""), bool iS = false) :
       Body(n, iS) {
-      type_ = "board";
+      type_ = "staggered_board";
     }
     bool printTags() const override { return (false); }
     bool parse(XmlRpc::XmlRpcValue body, const BodyPtr &bp) override;
