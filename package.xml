@@ -1,33 +1,37 @@
 <?xml version="1.0"?>
-<package format="2">
+<package format="3">
   <name>tagslam</name>
   <version>1.0.0</version>
-  <description>slam with fiducial tags</description>
+  <description>software package for fiducial-marker based SLAM</description>
   <maintainer email="bernd.pfrommer@gmail.com">Bernd Pfrommer</maintainer>
+  <license>Apache2</license>
 
-  <license>Apache-2.0</license>
-  <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>cmake_modules</build_depend>
-  <exec_depend>message_runtime</exec_depend>
-  
-  <depend>roscpp</depend>
-  <depend>nodelet</depend>
-  <depend>tf</depend>
-  <depend>image_transport</depend>
-  <depend>cv_bridge</depend>
-  <depend>apriltag</depend>
-  <depend>apriltag_ros</depend>
+  <!-- ROS2 dependencies -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_ros</buildtool_depend>
+
   <depend>apriltag_msgs</depend>
-  <depend>geometry_msgs</depend>
-  <depend>rosgraph_msgs</depend>
-  <depend>nav_msgs</depend>
   <depend>flex_sync</depend>
-  <depend>eigen</depend>
-  <depend>rosbag</depend>
+  <depend>cv_bridge</depend>
+  <depend>gtsam</depend>
+  <depend>image_transport</depend>
+  <depend>nav_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>rosbag2_cpp</depend>
   <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
-  <depend>std_srvs</depend>
+  <depend>yaml-cpp</depend>
+
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_clang_format</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <exec_depend>apriltag_detector</exec_depend>
+
   <export>
-    <nodelet plugin="${prefix}/nodelet_plugin.xml"/>
+    <build_type>ament_cmake</build_type>
   </export>
+
 </package>

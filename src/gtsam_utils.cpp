@@ -1,24 +1,36 @@
-/* -*-c++-*--------------------------------------------------------------------
- * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
- */
+// -*-c++-*---------------------------------------------------------------------------------------
+// Copyright 2024 Bernd Pfrommer <bernd.pfrommer@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-#include <tagslam/gtsam_utils.h>
 #include <cmath>
+#include <tagslam/gtsam_utils.hpp>
 
-namespace tagslam {
-  namespace gtsam_utils {
-    using std::sqrt;
-    boost::shared_ptr<gtsam::noiseModel::Gaussian>
-    to_gtsam(const PoseNoise &pn) {
-      if (pn.getIsDiagonal()) {
-        const PoseNoise::Vector6d cov = pn.getDiagonal();
-        PoseNoise::Vector6d sig;
-        sig << sqrt(cov(0)), sqrt(cov(1)), sqrt(cov(2)),
-          sqrt(cov(3)), sqrt(cov(4)), sqrt(cov(5));
-        return (gtsam::noiseModel::Diagonal::Sigmas(sig));
-      }
-      return (gtsam::noiseModel::Gaussian::Covariance(
-                pn.getCovarianceMatrix()));
-    }
+namespace tagslam
+{
+namespace gtsam_utils
+{
+using std::sqrt;
+gtsam::noiseModel::Gaussian::shared_ptr to_gtsam(const PoseNoise & pn)
+{
+  if (pn.getIsDiagonal()) {
+    const PoseNoise::Vector6d cov = pn.getDiagonal();
+    PoseNoise::Vector6d sig;
+    sig << sqrt(cov(0)), sqrt(cov(1)), sqrt(cov(2)), sqrt(cov(3)), sqrt(cov(4)),
+      sqrt(cov(5));
+    return (gtsam::noiseModel::Diagonal::Sigmas(sig));
   }
+  return (gtsam::noiseModel::Gaussian::Covariance(pn.getCovarianceMatrix()));
 }
+}  // namespace gtsam_utils
+}  // namespace tagslam

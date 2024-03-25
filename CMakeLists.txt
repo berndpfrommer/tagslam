@@ -1,4 +1,19 @@
-cmake_minimum_required(VERSION 3.5)
+#
+# Copyright 2024 Bernd Pfrommer <bernd.pfrommer@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+cmake_minimum_required(VERSION 3.22)
 project(tagslam)
 
 set(USE_ADDRESS_SANITIZER OFF CACHE BOOL "compile with address sanitizer support")
@@ -11,129 +26,135 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-add_definitions(-g -Wall -Wno-misleading-indentation -Wno-int-in-bool-context)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
+add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
-find_package(catkin REQUIRED COMPONENTS
-  cmake_modules
-  roscpp
-  nodelet
-  rosbag
-  flex_sync
-  std_msgs
-  std_srvs
-  nav_msgs
-  geometry_msgs
-  sensor_msgs
-  apriltag_msgs
-  apriltag_ros
-  message_filters
-  rosgraph_msgs
-  cv_bridge
-  tf
-  image_transport)
-
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_ros REQUIRED)
+find_package(ament_cmake_auto REQUIRED)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d)
 find_package(Eigen3 REQUIRED QUIET)
-find_package(OpenCV REQUIRED QUIET)
-find_package(GTSAM REQUIRED QUIET)
+find_package(yaml-cpp REQUIRED)
 find_package(Boost REQUIRED COMPONENTS graph)
+find_package(GTSAM REQUIRED)
 
-find_package(OpenMP)
-IF(OPENMP_FOUND)
- SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
- SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
- SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_C_FLAGS}")
-ENDIF()
+set(ament_dependencies
+  "apriltag_msgs"
+  "cv_bridge"
+  "flex_sync"
+  "geometry_msgs"
+  "image_transport"
+  "nav_msgs"
+  "rclcpp"
+  "rclcpp_components"
+  "rosbag2_cpp"
+  "sensor_msgs"
+  "tf2_ros"
+  "std_srvs")
 
-catkin_package(
-	INCLUDE_DIRS include
-	DEPENDS OpenCV
-	)
+foreach(pkg ${ament_dependencies})
+  find_package(${pkg} REQUIRED)
+endforeach()
 
-include_directories(
-  include
-  ${Eigen_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
-  ${GTSAM_INCLUDE_DIRS}
-  ${Boost_INCLUDE_DIRS}
-  ${catkin_INCLUDE_DIRS}
+# find_package(OpenMP)
+# IF(OPENMP_FOUND)
+# SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+# SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+# SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_C_FLAGS}")
+# ENDIF()
+
+
+#
+# --------- library
+#
+add_library(${PROJECT_NAME} SHARED
+  src/tagslam.cpp
+  src/tag.cpp
+  src/body.cpp
+  src/pose_with_noise.cpp
+  src/pose_noise.cpp
+  src/board.cpp
+  src/graph_utils.cpp
+  src/graph.cpp
+  src/vertex.cpp
+  src/value/pose.cpp
+  src/factor/absolute_pose_prior.cpp
+  src/gtsam_optimizer.cpp
+  src/gtsam_utils.cpp
+  src/gtsam_distortion/Cal3DS3.cpp
+  src/gtsam_distortion/Cal3FS2.cpp
+  src/yaml_utils.cpp
+  src/simple_body.cpp
+  src/staggered_board.cpp
+  src/yaml.cpp
+  src/geometry.cpp
+  src/factor/tag_projection.cpp
 )
 
-add_executable(sync_and_detect_node src/sync_and_detect_node.cpp
-src/sync_and_detect.cpp src/profiler.cpp)
-target_link_libraries(sync_and_detect_node ${catkin_LIBRARIES})
+ament_target_dependencies(${PROJECT_NAME} ${ament_dependencies})
+target_link_libraries(${PROJECT_NAME} opencv_core opencv_imgproc opencv_calib3d yaml-cpp gtsam)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
+target_include_directories(
+    ${PROJECT_NAME}
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
 
-add_library(tagslam
-src/body.cpp
-src/body_defaults.cpp
-src/graph.cpp
-src/graph_utils.cpp
-src/gtsam_utils.cpp
-src/geometry.cpp
-src/pose_noise.cpp
-src/tag_slam.cpp
-src/yaml_utils.cpp
-src/xml.cpp
-src/simple_body.cpp src/board.cpp src/staggered_board.cpp
-src/tag.cpp
-src/camera.cpp
-src/pose_with_noise.cpp
-src/gtsam_optimizer.cpp
-src/value/pose.cpp
-src/factor/absolute_pose_prior.cpp
-src/factor/relative_pose_prior.cpp
-src/factor/tag_projection.cpp
-src/factor/distance.cpp
-src/factor/coordinate.cpp
-src/measurements/measurements.cpp
-src/measurements/distance.cpp
-src/measurements/coordinate.cpp
-src/measurements/plane.cpp
-src/graph_vertex.cpp
-src/graph_edge.cpp
-src/vertex.cpp
-src/camera_intrinsics.cpp
-src/odometry_processor.cpp
-src/init_pose.cpp
-src/rpp.cpp
-src/quartic.cpp
-src/profiler.cpp
-src/graph_updater.cpp
-src/gtsam_distortion/Cal3FS2.cpp
-src/gtsam_distortion/Cal3DS3.cpp
+rclcpp_components_register_nodes(${PROJECT_NAME} "${PROJECT_NAME}::TagSLAM")
+
+#
+# -------- node
+#
+add_executable(${PROJECT_NAME}_node src/tagslam_node.cpp)
+ament_target_dependencies(${PROJECT_NAME}_node ${ament_dependencies})
+target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME})
+target_include_directories(${PROJECT_NAME}_node PRIVATE include)
+target_compile_features(${PROJECT_NAME}_node PRIVATE cxx_std_17)
+
+# the node must go into the project specific lib directory or else
+# the launch file will not find it
+
+install(TARGETS
+  ${PROJECT_NAME}_node
+
+  DESTINATION lib/${PROJECT_NAME}/)
+
+# the shared library goes into the global lib dir so it can
+# be used as a composable node by other projects
+
+install(TARGETS
+  ${PROJECT_NAME}
+  DESTINATION lib
 )
+install(PROGRAMS
+  DESTINATION lib/${PROJECT_NAME}/)
+  
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
+  FILES_MATCHING PATTERN "*.py")
 
-target_link_libraries(tagslam ${catkin_LIBRARIES}  ${Boost_LIBRARIES}
-gtsam)
-#cotire(tagslam)
+if(BUILD_TESTING)
+  find_package(ament_cmake REQUIRED)
+  find_package(ament_cmake_copyright REQUIRED)
+  find_package(ament_cmake_cppcheck REQUIRED)
+  find_package(ament_cmake_cpplint REQUIRED)
+  find_package(ament_cmake_clang_format REQUIRED)
+  find_package(ament_cmake_flake8 REQUIRED)
+  find_package(ament_cmake_lint_cmake REQUIRED)
+  find_package(ament_cmake_pep257 REQUIRED)
+  find_package(ament_cmake_xmllint REQUIRED)
 
-# -- nodelet ---
-add_library(tagslam_nodelet src/tagslam_nodelet.cpp)
-target_link_libraries(tagslam_nodelet tagslam ${catkin_LIBRARIES} gtsam)
-add_dependencies(tagslam_nodelet ${catkin_EXPORTED_TARGETS})
-#cotire(tagslam_nodelet)
+  ament_copyright()
+  ament_cppcheck(LANGUAGE c++)
+  ament_cpplint(FILTERS "-build/include,-runtime/indentation_namespace")
+  ament_clang_format(CONFIG_FILE .clang-format)
+  ament_flake8()
+  ament_lint_cmake()
+  ament_pep257()
+  ament_xmllint()
 
-# -- node ---
-add_executable(tagslam_node src/tagslam_node.cpp)
-target_link_libraries(tagslam_node tagslam ${catkin_LIBRARIES} gtsam)
+endif()
 
-# -- rpp test ---
-add_executable(rpp_test src/rpp_test.cpp src/rpp.cpp src/quartic.cpp)
-target_link_libraries(rpp_test ${catkin_LIBRARIES})
-
-#cotire(tagslam_node)
-
-# -- approx image sync nodelet ---
-add_library(approx_image_sync_nodelet src/approx_image_sync.cpp src/approx_image_sync_nodelet.cpp)
-target_link_libraries(approx_image_sync_nodelet ${catkin_LIBRARIES})
-add_dependencies(approx_image_sync_nodelet ${catkin_EXPORTED_TARGETS})
-
-# -- node ---
-add_executable(approx_image_sync_node src/approx_image_sync_node.cpp src/approx_image_sync.cpp)
-target_link_libraries(approx_image_sync_node ${catkin_LIBRARIES})
-add_dependencies(approx_image_sync_node ${catkin_EXPORTED_TARGETS})
-
-install(FILES nodelet_plugin.xml
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-)
+ament_package()

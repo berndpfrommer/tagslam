@@ -1,46 +1,58 @@
-/*-*-c++-*--------------------------------------------------------------------
- * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
- */
+// -*-c++-*---------------------------------------------------------------------------------------
+// Copyright 2024 Bernd Pfrommer <bernd.pfrommer@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-#include "tagslam/sync_and_detect.h"
-#include "tagslam/logging.h"
-
-#include <apriltag_msgs/ApriltagArrayStamped.h>
-
+#include <tagslam/sync_and_detect.hpp>
+yStamped.h >
+#include <cv_bridge/cv_bridge.h>
+#include <math.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
-#include <cv_bridge/cv_bridge.h>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <boost/range/irange.hpp>
-#include <math.h>
-#include <fstream>
-#include <iomanip>
-#include <functional>
 
-namespace tagslam {
+#include <boost/range/irange.hpp>
+#include <fstream>
+#include <functional>
+#include <iomanip>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <tagslam/logging.hpp>
+#include <tagslam/sync_and_detect.hpp>
+
+  namespace tagslam
+{
   using boost::irange;
 
-  SyncAndDetect::SyncAndDetect(const ros::NodeHandle& pnh) :  nh_(pnh) {
-  }
+  SyncAndDetect::SyncAndDetect(const ros::NodeHandle & pnh) : nh_(pnh) {}
 
-  SyncAndDetect::~SyncAndDetect() {
+  SyncAndDetect::~SyncAndDetect()
+  {
     std::cout << profiler_ << std::endl;
-    for (const auto &d: detectors_) {
+    for (const auto & d : detectors_) {
       d->print_profiling_info();
     }
   }
 
   using Family = apriltag_ros::TagFamily;
-  bool SyncAndDetect::initialize() {
+  bool SyncAndDetect::initialize()
+  {
     int tagF;
     nh_.param<int>("tag_family", tagF, 0);
     Family tagFamily = static_cast<Family>(tagF);
-    if (tagFamily != Family::tf36h11 &&
-        tagFamily != Family::tf25h9  &&
-        tagFamily != Family::tf16h5 &&
-        tagFamily != Family::ts41h12 &&
-        tagFamily != Family::ts52h13) {
+    if (
+      tagFamily != Family::tf36h11 && tagFamily != Family::tf25h9 &&
+      tagFamily != Family::tf16h5 && tagFamily != Family::ts41h12 &&
+      tagFamily != Family::ts52h13) {
       BOMB_OUT("invalid tag family!");
     }
     nh_.getParam("odometry_topics", odometryTopics_);
@@ -59,14 +71,14 @@ namespace tagslam {
     nh_.param<std::string>("detector_type", detectorType_, "Mit");
     int borderWidth;
     nh_.param<int>("black_border_width", borderWidth, 1);
-    for (const auto &i: irange(0ul, imageTopics_.size())) {
+    for (const auto & i : irange(0ul, imageTopics_.size())) {
       (void)i;
       if (detectorType_ == "Mit") {
         detectors_.push_back(apriltag_ros::ApriltagDetector::Create(
-                              apriltag_ros::DetectorType::Mit, tagFamily));
+          apriltag_ros::DetectorType::Mit, tagFamily));
       } else if (detectorType_ == "Umich") {
         detectors_.push_back(apriltag_ros::ApriltagDetector::Create(
-                               apriltag_ros::DetectorType::Umich, tagFamily));
+          apriltag_ros::DetectorType::Umich, tagFamily));
         const int decim = nh_.param<int>("decimate", 1);
         if (decim > 1) {
           detectors_.back()->set_decimate(decim);
@@ -94,21 +106,17 @@ namespace tagslam {
     outbag_.open(outfname, rosbag::bagmode::Write);
     if (runOnline()) {
       if (useApproximateSync_) {
-        approxSubscriber_.reset(
-          new Subscriber<ApproximateSync>(
-            imageTopics_, odometryTopics_, this, nh_,
-            syncQueueSize_, subQueueSize,
-            imagesAreCompressed_));
+        approxSubscriber_.reset(new Subscriber<ApproximateSync>(
+          imageTopics_, odometryTopics_, this, nh_, syncQueueSize_,
+          subQueueSize, imagesAreCompressed_));
       } else {
-        exactSubscriber_.reset(
-          new Subscriber<ExactSync>(
-            imageTopics_, odometryTopics_, this, nh_,
-            syncQueueSize_, subQueueSize,
-            imagesAreCompressed_));
+        exactSubscriber_.reset(new Subscriber<ExactSync>(
+          imageTopics_, odometryTopics_, this, nh_, syncQueueSize_,
+          subQueueSize, imagesAreCompressed_));
       }
-      for (const auto &topic: tagTopics_) {
+      for (const auto & topic : tagTopics_) {
         pubs_.push_back(nh_.advertise<apriltag_msgs::ApriltagArrayStamped>(
-                          topic, pubQueueSize));
+          topic, pubQueueSize));
       }
     } else {
       processBag(bagFile_);
@@ -116,11 +124,10 @@ namespace tagslam {
     return (true);
   }
 
-
-  void
-  SyncAndDetect::processCVMat(const std::vector<std_msgs::Header> &headers,
-                              const std::vector<cv::Mat> &grey,
-                              const std::vector<cv::Mat> &imgs) {
+  void SyncAndDetect::processCVMat(
+    const std::vector<std_msgs::Header> & headers,
+    const std::vector<cv::Mat> & grey, const std::vector<cv::Mat> & imgs)
+  {
     int totTags(0);
     typedef std::vector<apriltag_msgs::Apriltag> TagVec;
     std::vector<TagVec> allTags(grey.size());
@@ -141,14 +148,14 @@ namespace tagslam {
     msg.format = "jpeg";
     std::vector<int> param(2);
     param[0] = cv::IMWRITE_JPEG_QUALITY;
-    param[1] = 80;//default(95) 0-100
+    param[1] = 80;  //default(95) 0-100
 
-    for (const auto i: irange(0ul, grey.size())) {
+    for (const auto i : irange(0ul, grey.size())) {
       const std::vector<apriltag_msgs::Apriltag> tags = allTags[i];
       totTags += tags.size();
       apriltag_msgs::ApriltagArrayStamped tagMsg;
       tagMsg.header = headers[i];
-      for (const auto &tag: tags) {
+      for (const auto & tag : tags) {
         tagMsg.apriltags.push_back(tag);
       }
       if (headers[i].stamp.toSec() != 0) {
@@ -163,24 +170,25 @@ namespace tagslam {
         if (!tags.empty()) {
           apriltag_ros::DrawApriltags(colorImg, tags);
         }
-        
+
         msg.header = headers[i];
         cv::imencode(".jpg", colorImg, msg.data, param);
 
-        if(headers[i].stamp.toSec() != 0)
+        if (headers[i].stamp.toSec() != 0)
           outbag_.write<sensor_msgs::CompressedImage>(
             imageOutputTopics_[i], headers[i].stamp, msg);
       }
     }
-    ROS_INFO_STREAM("frame " << fnum_ << " " << headers[0].stamp
-                    << " detected " << totTags << " tags with "
-                    << grey.size() << " cameras");
+    ROS_INFO_STREAM(
+      "frame " << fnum_ << " " << headers[0].stamp << " detected " << totTags
+               << " tags with " << grey.size() << " cameras");
     fnum_++;
   }
 
   void SyncAndDetect::processCompressedImages(
-    const std::vector<CompressedImageConstPtr> &msgvec,
-    const std::vector<OdometryConstPtr> &odom) {
+    const std::vector<CompressedImageConstPtr> & msgvec,
+    const std::vector<OdometryConstPtr> & odom)
+  {
     if (msgvec.empty()) {
       ROS_WARN("got empty image vector!");
       return;
@@ -192,10 +200,10 @@ namespace tagslam {
     }
     std::vector<cv::Mat> images, grey_images;
     std::vector<std_msgs::Header> headers;
-    for (const auto i: irange(0ul, msgvec.size())) {
-      const auto &img = msgvec[i];
-      cv::Mat im1 = cv_bridge::toCvCopy(
-        img, sensor_msgs::image_encodings::MONO8)->image;
+    for (const auto i : irange(0ul, msgvec.size())) {
+      const auto & img = msgvec[i];
+      cv::Mat im1 =
+        cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8)->image;
       cv::Mat im;
       cv::cvtColor(im1, im, cv::COLOR_BayerBG2BGR);
       images.push_back(im);
@@ -205,15 +213,16 @@ namespace tagslam {
       headers.push_back(img->header);
     }
     processCVMat(headers, grey_images, images);
-    for (const auto i: irange(0ul, odom.size())) {
-      outbag_.write<Odometry>(odometryTopics_[i],
-                              odom[i]->header.stamp, odom[i]);
+    for (const auto i : irange(0ul, odom.size())) {
+      outbag_.write<Odometry>(
+        odometryTopics_[i], odom[i]->header.stamp, odom[i]);
     }
   }
 
-  void
-  SyncAndDetect::processImages(const std::vector<ImageConstPtr> &msgvec,
-                               const std::vector<OdometryConstPtr> &odom) {
+  void SyncAndDetect::processImages(
+    const std::vector<ImageConstPtr> & msgvec,
+    const std::vector<OdometryConstPtr> & odom)
+  {
     if (msgvec.empty()) {
       ROS_WARN("got empty image vector!");
       return;
@@ -225,25 +234,26 @@ namespace tagslam {
     }
     std::vector<cv::Mat> images, grey_images;
     std::vector<std_msgs::Header> headers;
-    for (const auto i: irange(0ul, msgvec.size())) {
-      const auto &img = msgvec[i];
-      cv::Mat im = cv_bridge::toCvCopy(
-        img, sensor_msgs::image_encodings::BGR8)->image;
+    for (const auto i : irange(0ul, msgvec.size())) {
+      const auto & img = msgvec[i];
+      cv::Mat im =
+        cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8)->image;
       images.push_back(im);
-      cv::Mat im_grey = cv_bridge::toCvCopy(
-        img, sensor_msgs::image_encodings::MONO8)->image;
+      cv::Mat im_grey =
+        cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8)->image;
       grey_images.push_back(im_grey);
       headers.push_back(img->header);
     }
     processCVMat(headers, grey_images, images);
-        
-    for (const auto i: irange(0ul, odom.size())) {
-      outbag_.write<Odometry>(odometryTopics_[i],
-                              odom[i]->header.stamp, odom[i]);
+
+    for (const auto i : irange(0ul, odom.size())) {
+      outbag_.write<Odometry>(
+        odometryTopics_[i], odom[i]->header.stamp, odom[i]);
     }
   }
 
-  void SyncAndDetect::processBag(const std::string &fname) {
+  void SyncAndDetect::processBag(const std::string & fname)
+  {
     rosbag::Bag bag;
     bag.open(fname, rosbag::bagmode::Read);
     ROS_INFO_STREAM("playing from file: " << fname);
@@ -251,46 +261,50 @@ namespace tagslam {
     nh_.param<double>("start_time", start_time, 0);
     nh_.param<double>("duration", duration, -1);
     ros::Time t_start =
-      rosbag::View(bag).getBeginTime() + ros::Duration(start_time);
+      rosbag::View(bag).getBeginTime() + rclcpp::Duration(start_time);
     ros::Time t_end =
-      duration >= 0 ? t_start + ros::Duration(duration) : ros::TIME_MAX;
+      duration >= 0 ? t_start + rclcpp::Duration(duration) : ros::TIME_MAX;
     std::vector<std::string> allTopics = imageTopics_;
-    allTopics.insert(allTopics.end(),odometryTopics_.begin(),
-                     odometryTopics_.end());
+    allTopics.insert(
+      allTopics.end(), odometryTopics_.begin(), odometryTopics_.end());
     rosbag::View view(bag, rosbag::TopicQuery(allTopics), t_start, t_end);
-    for (const auto i: irange(0ul, tagTopics_.size())) {
-      ROS_INFO_STREAM("image topic: "  << imageTopics_[i]
-                      << " maps to: " << tagTopics_[i]);
+    for (const auto i : irange(0ul, tagTopics_.size())) {
+      ROS_INFO_STREAM(
+        "image topic: " << imageTopics_[i] << " maps to: " << tagTopics_[i]);
     }
 
     if (imagesAreCompressed_) {
       if (useApproximateSync_) {
         iterate_through_bag<ApproximateCompressedSync, CompressedImage>(
           imageTopics_, odometryTopics_, &view, &outbag_, syncQueueSize_,
-          std::bind(&SyncAndDetect::processCompressedImages,
-                    this, std::placeholders::_1, std::placeholders::_2));
+          std::bind(
+            &SyncAndDetect::processCompressedImages, this,
+            std::placeholders::_1, std::placeholders::_2));
       } else {
         iterate_through_bag<ExactCompressedSync, CompressedImage>(
-          imageTopics_, odometryTopics_, &view, &outbag_,  syncQueueSize_,
-          std::bind(&SyncAndDetect::processCompressedImages,
-                    this, std::placeholders::_1, std::placeholders::_2));
+          imageTopics_, odometryTopics_, &view, &outbag_, syncQueueSize_,
+          std::bind(
+            &SyncAndDetect::processCompressedImages, this,
+            std::placeholders::_1, std::placeholders::_2));
       }
     } else {
       if (useApproximateSync_) {
         iterate_through_bag<ApproximateSync, sensor_msgs::Image>(
-          imageTopics_, odometryTopics_, &view, &outbag_,  syncQueueSize_,
-          std::bind(&SyncAndDetect::processImages,
-                    this, std::placeholders::_1, std::placeholders::_2));
+          imageTopics_, odometryTopics_, &view, &outbag_, syncQueueSize_,
+          std::bind(
+            &SyncAndDetect::processImages, this, std::placeholders::_1,
+            std::placeholders::_2));
       } else {
         iterate_through_bag<ExactSync, sensor_msgs::Image>(
-          imageTopics_, odometryTopics_, &view, &outbag_,  syncQueueSize_,
-          std::bind(&SyncAndDetect::processImages,
-                    this, std::placeholders::_1, std::placeholders::_2));
+          imageTopics_, odometryTopics_, &view, &outbag_, syncQueueSize_,
+          std::bind(
+            &SyncAndDetect::processImages, this, std::placeholders::_1,
+            std::placeholders::_2));
       }
     }
     bag.close();
     outbag_.close();
     ros::shutdown();
   }
-  
-}  // namespace
+
+}  // namespace tagslam

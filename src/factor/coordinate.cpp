@@ -1,140 +1,158 @@
-/* -*-c++-*--------------------------------------------------------------------
- * 2019 Bernd Pfrommer bernd.pfrommer@gmail.com
- */
+// -*-c++-*---------------------------------------------------------------------------------------
+// Copyright 2024 Bernd Pfrommer <bernd.pfrommer@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-#include "tagslam/factor/coordinate.h"
-#include "tagslam/graph.h"
-#include "tagslam/body.h"
-#include "tagslam/logging.h"
-#include "tagslam/xml.h"
-#include <geometry_msgs/Point.h>
-#include <XmlRpcException.h>
-#include <string>
-#include <sstream>
 #include <boost/range/irange.hpp>
+#include <sstream>
+#include <string>
+#include <tagslam/body.hpp>
+#include <tagslam/factor/coordinate.hpp>
+#include <tagslam/graph.hpp>
+#include <tagslam/logging.hpp>
+#include <tagslam/xml.hpp>
 
-namespace tagslam {
-  namespace factor {
-    using boost::irange;
-    
-    Coordinate::Coordinate(double len, double noise, const Point3d &direction,
-                           const int corn, const TagConstPtr &tag,
-                           const string &name) :
-      Factor(name, ros::Time(0)),
-      length_(len), noise_(noise),
-      direction_(direction), corner_(corn),
-      tag_(tag) {
-    }
-    
-    VertexDesc Coordinate::addToGraph(const VertexPtr &vp, Graph *g) const {
-      const ros::Time t0 = ros::Time(0);
-      const VertexDesc vtp = g->findTagPose(getTag()->getId());
-      checkIfValid(vtp, "no tag pose found");
-      const VertexDesc vbp = g->findBodyPose(t0,
-                                             getTag()->getBody()->getName());
-      checkIfValid(vbp, "no body pose found");
-      const VertexDesc fv = g->insertFactor(vp);
-      g->addEdge(fv, vbp, 0);
-      g->addEdge(fv, vtp, 1);
-      return (fv);
-    }
+namespace tagslam
+{
+namespace factor
+{
+using boost::irange;
 
-    void Coordinate::addToOptimizer(Graph *g) const {
-      const VertexDesc v = g->find(this);
-      checkIfValid(v, "factor not found");
-      const std::vector<ValueKey> optKeys = g->getOptKeysForFactor(v, 2);
-      const FactorKey fk = g->getOptimizer()->addCoordinateMeasurement(
-        getLength(), getNoise(),
-        getDirection(), getCorner(),
-        optKeys[0] /* T_w_b */, optKeys[1] /* T_b_o */);
-      g->markAsOptimized(v, fk);
-    }
+Coordinate::Coordinate(
+  double len, double noise, const Point3d & direction, const int corn,
+  const TagConstPtr & tag, const string & name)
+: Factor(name, ros::Time(0)),
+  length_(len),
+  noise_(noise),
+  direction_(direction),
+  corner_(corn),
+  tag_(tag)
+{
+}
 
-    double Coordinate::coordinate(
-      const Transform &T_w_b, const Transform &T_b_o) const {
-      const auto X = T_w_b * T_b_o * getCorner();
-      return (direction_.dot(X));
-    }
+VertexDesc Coordinate::addToGraph(const VertexPtr & vp, Graph * g) const
+{
+  const ros::Time t0 = ros::Time(0);
+  const VertexDesc vtp = g->findTagPose(getTag()->getId());
+  checkIfValid(vtp, "no tag pose found");
+  const VertexDesc vbp = g->findBodyPose(t0, getTag()->getBody()->getName());
+  checkIfValid(vbp, "no body pose found");
+  const VertexDesc fv = g->insertFactor(vp);
+  g->addEdge(fv, vbp, 0);
+  g->addEdge(fv, vtp, 1);
+  return (fv);
+}
 
-    const Eigen::Vector3d Coordinate::getCorner() const {
-      return (tag_->getObjectCorner(corner_));
-    }
+void Coordinate::addToOptimizer(Graph * g) const
+{
+  const VertexDesc v = g->find(this);
+  checkIfValid(v, "factor not found");
+  const std::vector<ValueKey> optKeys = g->getOptKeysForFactor(v, 2);
+  const FactorKey fk = g->getOptimizer()->addCoordinateMeasurement(
+    getLength(), getNoise(), getDirection(), getCorner(),
+    optKeys[0] /* T_w_b */, optKeys[1] /* T_b_o */);
+  g->markAsOptimized(v, fk);
+}
 
-    CoordinateFactorPtr
-    Coordinate::parse(const string &name, XmlRpc::XmlRpcValue meas,
-                    TagFactory *tagFactory) {
-      int tag(-1), c(-1);
-      double len(-1e10), noise(-1);
-      Eigen::Vector3d dir(0.0, 0.0, 0.0);
-      try {
-        tag   = xml::parse<int>(meas, "tag");
-        c     = xml::parse<int>(meas, "corner");
-        len   = xml::parse<double>(meas, "length");
-        noise = xml::parse<double>(meas, "noise");
-        dir   = make_point(
-          xml::parse_container<std::vector<double>>(meas, "direction"));
-      } catch (const XmlRpc::XmlRpcException &e) {
-        BOMB_OUT("error parsing measurement: " << name);
-      }
-      if (std::abs(dir.norm() - 1.0) > 1e-5) {
-        BOMB_OUT("measurement " + name + " has non-unit direction");
-      }
-      CoordinateFactorPtr fp;
-      if (tag >= 0 && c >= 0 && len > -1e10 && noise > 0) {
-        TagConstPtr tagPtr = tagFactory->findTag(tag);
-        if (!tagPtr) {
-          ROS_WARN_STREAM("ignoring unknown measured tag: " << name);
-          return CoordinateFactorPtr();
-        }
-        fp.reset(new factor::Coordinate(len, noise, dir, c, tagPtr,
-                                        name));
-      } else {                                  
-        BOMB_OUT("coordinate measurement incomplete: " << name);
-      }
-      return (fp);
-    }
+double Coordinate::coordinate(
+  const Transform & T_w_b, const Transform & T_b_o) const
+{
+  const auto X = T_w_b * T_b_o * getCorner();
+  return (direction_.dot(X));
+}
 
-    CoordinateFactorPtrVec
-    Coordinate::parse(XmlRpc::XmlRpcValue meas, TagFactory *tagFactory) {
-      CoordinateFactorPtrVec fv;
-      if (meas.getType() != XmlRpc::XmlRpcValue::TypeArray) {
-        BOMB_OUT("invalid node type for coordinate measurements!");
-      }
-      for (const auto i: irange(0, meas.size())) {
-        if (meas[i].getType() != XmlRpc::XmlRpcValue::TypeStruct) continue;
-        for (XmlRpc::XmlRpcValue::iterator it = meas[i].begin();
-             it != meas[i].end(); ++it) {
-          if (it->second.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
-            continue;
-          }
-          CoordinateFactorPtr d = parse(it->first, it->second, tagFactory);
-          if (d) {
-            fv.push_back(d);
-          }
-        }
-      }
-      return (fv);
+const Eigen::Vector3d Coordinate::getCorner() const
+{
+  return (tag_->getObjectCorner(corner_));
+}
+
+CoordinateFactorPtr Coordinate::parse(
+  const string & name, XmlRpc::XmlRpcValue meas, TagFactory * tagFactory)
+{
+  int tag(-1), c(-1);
+  double len(-1e10), noise(-1);
+  Eigen::Vector3d dir(0.0, 0.0, 0.0);
+  try {
+    tag = xml::parse<int>(meas, "tag");
+    c = xml::parse<int>(meas, "corner");
+    len = xml::parse<double>(meas, "length");
+    noise = xml::parse<double>(meas, "noise");
+    dir =
+      make_point(xml::parse_container<std::vector<double>>(meas, "direction"));
+  } catch (const XmlRpc::XmlRpcException & e) {
+    BOMB_OUT("error parsing measurement: " << name);
+  }
+  if (std::abs(dir.norm() - 1.0) > 1e-5) {
+    BOMB_OUT("measurement " + name + " has non-unit direction");
+  }
+  CoordinateFactorPtr fp;
+  if (tag >= 0 && c >= 0 && len > -1e10 && noise > 0) {
+    TagConstPtr tagPtr = tagFactory->findTag(tag);
+    if (!tagPtr) {
+      ROS_WARN_STREAM("ignoring unknown measured tag: " << name);
+      return CoordinateFactorPtr();
     }
-    
-    string Coordinate::getLabel() const {
-      std::stringstream ss;
-      ss << name_;
-      return (ss.str());
-    }
-    // static function!
-    double Coordinate::getOptimized(const VertexDesc &v, const Graph &g) {
-      if (!g.isOptimized(v)) {
-        return (-1.0); // not optimized yet!
+    fp.reset(new factor::Coordinate(len, noise, dir, c, tagPtr, name));
+  } else {
+    BOMB_OUT("coordinate measurement incomplete: " << name);
+  }
+  return (fp);
+}
+
+CoordinateFactorPtrVec Coordinate::parse(
+  XmlRpc::XmlRpcValue meas, TagFactory * tagFactory)
+{
+  CoordinateFactorPtrVec fv;
+  if (meas.getType() != XmlRpc::XmlRpcValue::TypeArray) {
+    BOMB_OUT("invalid node type for coordinate measurements!");
+  }
+  for (const auto i : irange(0, meas.size())) {
+    if (meas[i].getType() != XmlRpc::XmlRpcValue::TypeStruct) continue;
+    for (XmlRpc::XmlRpcValue::iterator it = meas[i].begin();
+         it != meas[i].end(); ++it) {
+      if (it->second.getType() != XmlRpc::XmlRpcValue::TypeStruct) {
+        continue;
       }
-      const auto p = std::dynamic_pointer_cast<const factor::Coordinate>(g[v]);
-      if (!p) {
-        BOMB_OUT("vertex is not coord: " << *g[v]);
+      CoordinateFactorPtr d = parse(it->first, it->second, tagFactory);
+      if (d) {
+        fv.push_back(d);
       }
-      const std::vector<ValueKey> optKeys = g.getOptKeysForFactor(v, 2);
-      const auto opt = g.getOptimizer();
-      const double l = p->coordinate(opt->getPose(optKeys[0]),
-                                     opt->getPose(optKeys[1]));
-      return (l);
     }
-  } // namespace factor
+  }
+  return (fv);
+}
+
+string Coordinate::getLabel() const
+{
+  std::stringstream ss;
+  ss << name_;
+  return (ss.str());
+}
+// static function!
+double Coordinate::getOptimized(const VertexDesc & v, const Graph & g)
+{
+  if (!g.isOptimized(v)) {
+    return (-1.0);  // not optimized yet!
+  }
+  const auto p = std::dynamic_pointer_cast<const factor::Coordinate>(g[v]);
+  if (!p) {
+    BOMB_OUT("vertex is not coord: " << *g[v]);
+  }
+  const std::vector<ValueKey> optKeys = g.getOptKeysForFactor(v, 2);
+  const auto opt = g.getOptimizer();
+  const double l =
+    p->coordinate(opt->getPose(optKeys[0]), opt->getPose(optKeys[1]));
+  return (l);
+}
+}  // namespace factor
 }  // namespace tagslam

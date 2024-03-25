@@ -2,10 +2,10 @@
  * 2018 Bernd Pfrommer bernd.pfrommer@gmail.com
  */
 
-#include <ros/ros.h>
-#include "tagslam/sync_and_detect.h"
+#include <tagslam/sync_and_detect.hpp>
 
-int main(int argc, char** argv) {
+int main(int argc, char ** argv)
+{
   ros::init(argc, argv, "sync_and_detect_node");
   ros::NodeHandle pnh("~");
 
@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     tagslam::SyncAndDetect node(pnh);
     node.initialize();
     ros::spin();
-  } catch (const std::exception& e) {
+  } catch (const std::exception & e) {
     ROS_ERROR("%s: %s", pnh.getNamespace().c_str(), e.what());
   }
 }
