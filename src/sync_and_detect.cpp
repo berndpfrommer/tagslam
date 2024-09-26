@@ -14,7 +14,11 @@
 // limitations under the License.
 
 #include <algorithm>
+#ifdef USE_CV_BRIDGE_HPP
 #include <cv_bridge/cv_bridge.hpp>
+#else
+#include <cv_bridge/cv_bridge.h>
+#endif
 #include <tagslam/logging.hpp>
 #include <tagslam/sync_and_detect.hpp>
 
