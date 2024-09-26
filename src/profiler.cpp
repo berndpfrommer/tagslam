@@ -55,10 +55,10 @@ std::ostream & operator<<(std::ostream & os, const Profiler & p)
     int64_t dmin = (pt.count > 0) ? pt.min.count() : -1;
     int64_t dmax = (pt.count > 0) ? pt.max.count() : -1;
     os << std::setw(maxlen + 1) << std::left << it->first
-       << "= tot: " << std::setw(9) << std::right << pt.duration.count()
-       << "us per: " << dn << "+-" << static_cast<int>(stddev) << "(" << dmin
-       << "-" << dmax << ")"
-       << " count: " << pt.count << " " << std::endl;
+       << "= tot: " << std::setw(9) << std::right << pt.duration.count();
+    os << "us per: " << dn << "+-" << static_cast<int>(stddev) << "(" << dmin;
+    os << "-" << dmax << ")";
+    os << " count: " << pt.count << " " << std::endl;
   }
   return os;
 }
