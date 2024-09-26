@@ -57,7 +57,8 @@ std::ostream & operator<<(std::ostream & os, const Profiler & p)
     os << std::setw(maxlen + 1) << std::left << it->first
        << "= tot: " << std::setw(9) << std::right << pt.duration.count()
        << "us per: " << dn << "+-" << static_cast<int>(stddev) << "(" << dmin
-       << "-" << dmax << ")" << " count: " << pt.count << " " << std::endl;
+       << "-" << dmax << ")"
+       << " count: " << pt.count << " " << std::endl;
   }
   return os;
 }
