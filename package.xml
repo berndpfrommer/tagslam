@@ -26,6 +26,7 @@
   <depend>tf2_msgs</depend>
   <depend>tf2</depend>
   <depend>yaml-cpp</depend>
+  <depend>apriltag_detector</depend>
     
 
   <test_depend>ament_lint_auto</test_depend>
@@ -33,7 +34,6 @@
   <test_depend>ament_cmake_clang_format</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
 
-  <exec_depend>apriltag_detector</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

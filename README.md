@@ -19,7 +19,9 @@ repo=tagslam
 url=https://github.com/berndpfrommer/${repo}.git
 ```
 
-and follow the ROS2 build instructions [here](https://github.com/ros-misc-utilities/.github/blob/master/docs/build_ros_repository.md)
+and follow the ROS2 build instructions
+[here](https://github.com/ros-misc-utilities/.github/blob/master/docs/build_ros_repository.md).
+However, you need to modify the instructions to compile the ``ros2`` branch.
 
 Make sure to source your workspace's ``install/setup.bash`` afterwards.
 
@@ -53,12 +55,6 @@ image topics, but no tag topics in the rosbag, and will start ``sync_and_detect`
 Run TagSLAM from a rosbag like this:
 ```
 ros2 run tagslam tagslam_from_bag --ros-args -p "cameras:=./cameras.yaml" -p "tagslam_config:=./tagslam.yaml" -p "camera_poses:=./camera_poses.yaml" -p "in_bag:=./bag_with_tags_and_odom" -p "out_bag:=./out_bag"
-```
-
-
-## License
-
-This software and any future contributions to it 
 ```
 
 
