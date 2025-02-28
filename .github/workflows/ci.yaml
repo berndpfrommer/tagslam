@@ -13,7 +13,7 @@ on:
 
 jobs:
   build_ros2:
-    uses: ros-misc-utilities/ros_build_scripts/.github/workflows/ros2_recent_ci.yml@master
+    uses: ros-misc-utilities/ros_build_scripts/.github/workflows/ros2_since_jazzy.yml@master
     with:
       repo: ${{ github.event.repository.name }}
       vcs_url: https://raw.githubusercontent.com/${{ github.repository }}/ros2/${{ github.event.repository.name }}.repos
