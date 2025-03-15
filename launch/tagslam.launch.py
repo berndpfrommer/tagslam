@@ -29,10 +29,11 @@ def launch_setup(context, *args, **kwargs):
     """Create simple node."""
     node = Node(
         package="tagslam",
-        executable="sync_and_detect_node",
+        executable="tagslam_node",
         output="screen",
         # prefix=['xterm -e gdb -ex run --args'],
         parameters=[{"cameras": LaunchConfig("cameras"),
+                     "camera_poses": LaunchConfig("camera_poses"),
                      "tagslam_config": LaunchConfig("tagslam_config"),
                      "use_sim_time": LaunchConfig("use_sim_time"),
                      "use_approximate_sync": LaunchConfig("use_approximate_sync")}],
@@ -46,6 +47,7 @@ def generate_launch_description():
     return launch.LaunchDescription(
         [
             LaunchArg("cameras", default_value=["cameras.yaml"], description="name of cameras calib file"),
+            LaunchArg("camera_poses", default_value=["camera_poses.yaml"], description="name of camera poses file"),
             LaunchArg("tagslam_config", default_value=["tagslam.yaml"], description="name of tagslam config file"),
             LaunchArg("use_sim_time", default_value=["False"], description="whether to use sim time"),
             LaunchArg("use_approximate_sync", default_value=["True"], description="whether to use approximate sync"),

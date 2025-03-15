@@ -40,12 +40,19 @@ field to match exactly the ones of the image messages.
 
 You can run ``sync_and_detect`` either from a bag file, and write the
 detected tags into another bag, or you can run it as a stand-alone (composable) node.
+It will use the ``cameras.yaml`` file to determine what topics to read from the input bag, what image transport (raw vs compressed), what tag detector
+(MIT vs UMich), and what output tag topics to use. The ``tagslam.yaml`` file is searched for bodies with odometry topics.
+
+
 Here is how to run it from a bag:
 ```
 ros2 run tagslam sync_and_detect_from_bag --ros-args -p "cameras:=./cameras.yaml" -p "tagslam_config:=./tagslam.yaml" -p "in_bag:=name_of_input_bag" -p "out_bag:=./tag_bag"
 ```
-It will use the ``cameras.yaml`` file to determine what topics to read from the input bag, what image transport (raw vs compressed), what tag detector
-(MIT vs UMich), and what output tag topics to use. The ``tagslam.yaml`` file is searched for bodies with odometry topics.
+
+For online operation, launch a ``sync_and_detect`` node like this:
+```
+ros2 launch tagslam sync_and_detect.launch.py use_sim_time:=<True/False> cameras:=<path_to_cameras.yaml_file> tagslam_config:=<path_to_tagslam_config_file> use_approximate_sync:=<True/False>
+```
 
 ### TagSLAM
 
@@ -56,6 +63,37 @@ Run TagSLAM from a rosbag like this:
 ```
 ros2 run tagslam tagslam_from_bag --ros-args -p "cameras:=./cameras.yaml" -p "tagslam_config:=./tagslam.yaml" -p "camera_poses:=./camera_poses.yaml" -p "in_bag:=./bag_with_tags_and_odom" -p "out_bag:=./out_bag"
 ```
+
+For online operation, launch a ``tagslam`` node like this:
+```
+ros2 launch tagslam tagslam.launch.py use_sim_time:=<True/False> cameras:=<path_to_cameras.yaml_file> camera_poses:=<path_to_camera_poses.yaml file> tagslam_config:=<path_to_tagslam_config_file> use_approximate_sync:=<True/False>
+```
+
+### Rosbag
+
+When playing from a ros2 bag it's important to pass ``use_sim_time:=True`` to all launch scripts, and to let the ros2 bag player drive the clock:
+```
+ros2 bag play --clock-topics-all my_bag/
+```
+
+## Trouble Shooting
+
+### Nothing happens
+
+- Check that the topics match. ``ros2 node info`` is your friend.
+- If you have multiple cameras running, check that they are synchronized, i.e. that the ``header.stamp`` time stamps match between cameras. If they don't match, use an pproximate synchronizer.
+- Is ``use_sim_time`` set consistently across all nodes?
+
+### Jerky motions
+- Check for image quality and that the tag detector works as it should. Use the apriltag_detector and in particular ``apriltag_draw`` from [this repo](https://github.com/ros-misc-utilities/apriltag_detector), which is available as installable apt package under ROS2.
+
+### Large reprojection errors and SUBGRAPH ERROR warnings
+
+- poor image quality
+- bad calibration file
+- bad camera pose file
+- wrong tag size
+- wrong tag pose specified
 
 
 ## License
