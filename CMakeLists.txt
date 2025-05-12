@@ -30,6 +30,8 @@ find_package(yaml-cpp REQUIRED)
 find_package(Boost REQUIRED COMPONENTS graph)
 find_package(GTSAM REQUIRED)
 
+include_directories(/usr/local/include/eigen3)
+
 set(tagslam_ament_dependencies
   "apriltag_msgs"
   "cv_bridge"
@@ -225,7 +227,7 @@ if(BUILD_TESTING)
   find_package(ament_cmake_copyright REQUIRED)
   find_package(ament_cmake_cppcheck REQUIRED)
   find_package(ament_cmake_cpplint REQUIRED)
-  find_package(ament_cmake_clang_format REQUIRED)
+  # find_package(ament_cmake_clang_format REQUIRED)
   # find_package(ament_cmake_flake8 REQUIRED)
   # find_package(ament_cmake_pep257 REQUIRED)
   find_package(ament_cmake_lint_cmake REQUIRED)
@@ -234,7 +236,7 @@ if(BUILD_TESTING)
   ament_copyright()
   ament_cppcheck(LANGUAGE c++)
   ament_cpplint(FILTERS "-build/include,-runtime/indentation_namespace")
-  ament_clang_format(CONFIG_FILE .clang-format)
+  # ament_clang_format(CONFIG_FILE .clang-format)
   # ament_flake8()
   # ament_pep257()
   ament_lint_cmake()

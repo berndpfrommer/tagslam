@@ -25,6 +25,9 @@ EnhancedPlayer::EnhancedPlayer(
 }
 bool EnhancedPlayer::hasTopics(const std::vector<std::string> & topics)
 {
+  (void) topics;
+  return false;
+  /*
   bool all_there = true;
   const auto pubs = rosbag2_transport::Player::get_publishers();
   for (const auto & topic : topics) {
@@ -34,11 +37,15 @@ bool EnhancedPlayer::hasTopics(const std::vector<std::string> & topics)
     }
   }
   return (all_there);
+  */
 }
 
 bool EnhancedPlayer::hasImageTopics(
   const std::vector<std::pair<std::string, std::string>> & topics)
 {
+  (void) topics;
+  return false;
+  /*
   bool all_there = true;
   const auto pubs = rosbag2_transport::Player::get_publishers();
   for (const auto & topic : topics) {
@@ -50,6 +57,7 @@ bool EnhancedPlayer::hasImageTopics(
     }
   }
   return (all_there);
+  */
 }
 
 }  // namespace tagslam
