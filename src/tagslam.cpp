@@ -1175,6 +1175,12 @@ void TagSLAM::remapAndSquash(
                          << " > " << maxHammingDistance_);
         continue;
       }
+
+      if (amnesia_ && tagMap_.find(tag.id) == tagMap_.end()) {
+        LOG_WARN("time " << t << " amnesia mode: unknown tag " << tag.id);
+        continue;
+      }
+
       if (sq != squash_[i].end() && sq->second.count(tag.id) != 0) {
         LOG_INFO("time " << t << " squashed tag: " << tag.id);
       } else {
