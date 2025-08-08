@@ -19,8 +19,6 @@
 #include <cv_bridge/cv_bridge.h>
 #endif
 
-#include <tf2/LinearMath/Transform.h>
-#include <tf2/transform_datatypes.h>
 #include <yaml-cpp/yaml.h>
 
 #include <cmath>
@@ -46,6 +44,8 @@
 #include <tagslam/tagslam.hpp>
 #include <tagslam/yaml.hpp>
 #include <tagslam/yaml_utils.hpp>
+#include <tf2/LinearMath/Transform.hpp>
+#include <tf2/transform_datatypes.hpp>
 #include <unordered_set>
 
 const int QSZ = 1000;
