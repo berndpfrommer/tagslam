@@ -144,8 +144,8 @@ public:
    * @return point in (distorted) image coordinates
    */
   gtsam::Point2 uncalibrate(
-    const gtsam::Point2 & p, gtsam::OptionalJacobian<2, 8> Dcal = boost::none,
-    gtsam::OptionalJacobian<2, 2> Dp = boost::none) const;
+    const gtsam::Point2 & p, gtsam::OptionalJacobian<2, 8> Dcal = {},
+    gtsam::OptionalJacobian<2, 2> Dp = {}) const;
 
   /// Convert (distorted) image coordinates uv to intrinsic coordinates xy
   gtsam::Point2 calibrate(
@@ -175,6 +175,7 @@ private:
   /// @{
 
   /** Serialization function */
+#if 0  
   friend class boost::serialization::access;
   template <class Archive>
   void serialize(Archive & ar, const unsigned int /*version*/)
@@ -188,7 +189,7 @@ private:
     ar & BOOST_SERIALIZATION_NVP(k3_);
     ar & BOOST_SERIALIZATION_NVP(k4_);
   }
-
+#endif
   /// @}
 };
 // This is really ugly, injecting stuff into gtsam's namespace!

@@ -138,8 +138,7 @@ std::shared_ptr<Cal3FS2> GTSAMOptimizer::getEquiModel(
 
 static double distance(
   const gtsam::Point3 & p1, const gtsam::Point3 & p2,
-  gtsam::OptionalJacobian<1, 3> H1 = boost::none,
-  gtsam::OptionalJacobian<1, 3> H2 = boost::none)
+  gtsam::OptionalJacobian<1, 3> H1 = {}, gtsam::OptionalJacobian<1, 3> H2 = {})
 {
   const gtsam::Point3 d = p1 - p2;
   double r = sqrt(d.x() * d.x() + d.y() * d.y() + d.z() * d.z());
@@ -150,8 +149,7 @@ static double distance(
 
 static double proj(
   const gtsam::Point3 & p, const gtsam::Point3 & n,
-  gtsam::OptionalJacobian<1, 3> Hp = boost::none,
-  gtsam::OptionalJacobian<1, 3> Hn = boost::none)
+  gtsam::OptionalJacobian<1, 3> Hp = {}, gtsam::OptionalJacobian<1, 3> Hn = {})
 {
   double r = p.x() * n.x() + p.y() * n.y() + p.z() * n.z();
   if (Hp) *Hp << n.x(), n.y(), n.z();  // jacobian w.r.t to p
