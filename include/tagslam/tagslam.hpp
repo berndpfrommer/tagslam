@@ -16,8 +16,11 @@
 #ifndef TAGSLAM__TAGSLAM_HPP_
 #define TAGSLAM__TAGSLAM_HPP_
 
+#if __has_include(<tf2_ros/transform_broadcaster.hpp>)
+#include <tf2_ros/transform_broadcaster.hpp>
+#else
 #include <tf2_ros/transform_broadcaster.h>
-
+#endif
 #include <apriltag_msgs/msg/april_tag_detection.hpp>
 #include <apriltag_msgs/msg/april_tag_detection_array.hpp>
 #include <flex_sync/approximate_sync.hpp>
