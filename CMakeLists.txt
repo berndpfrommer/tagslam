@@ -71,6 +71,10 @@ if(${cv_bridge_VERSION} GREATER "3.3.0")
   add_definitions(-DUSE_CV_BRIDGE_HPP)
 endif()
 
+if(${image_transport_VERSION} VERSION_GREATER_EQUAL "6.3.0")
+  add_definitions(-DIMAGE_TRANSPORT_USE_QOS)
+endif()
+
 #
 # --------- library
 #

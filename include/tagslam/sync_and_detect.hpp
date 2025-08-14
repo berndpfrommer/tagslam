@@ -55,7 +55,12 @@ public:
         std::bind(
           &Subscriber<SyncT, Image>::callback, this, std::placeholders::_1),
         node->get_parameter_or<std::string>(param_name, "raw"),
-        qos.get_rmw_qos_profile()));
+#ifdef IMAGE_TRANSPORT_USE_QOS
+        qos
+#else
+        qos.get_rmw_qos_profile()
+#endif
+        ));
   }
   void callback(const TConstSharedPtr & msg) { sync_->process(topic_, msg); }
 
