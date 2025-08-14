@@ -175,7 +175,7 @@ private:
   /// @{
 
   /** Serialization function */
-#if 0  
+#if 0
   friend class boost::serialization::access;
   template <class Archive>
   void serialize(Archive & ar, const unsigned int /*version*/)
