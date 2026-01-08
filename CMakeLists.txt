@@ -61,47 +61,47 @@ set(sync_and_detect_packages
 
 set(all_packages ${tagslam_packages} ${sync_and_detect_packages})
 
- foreach(pkg ${all_packages})
+foreach(pkg ${all_packages})
   find_package(${pkg} REQUIRED)
 endforeach()
 
 set(sync_and_detect_dependencies
- ${apriltag_msgs_TARGETS}
- apriltag_detector::apriltag_detector
- cv_bridge::cv_bridge
- flex_sync::flex_sync
- image_transport::image_transport
- ${nav_msgs_TARGETS}
- pluginlib::pluginlib
- rclcpp::rclcpp
- ${sensor_msgs_TARGETS})
+  ${apriltag_msgs_TARGETS}
+  apriltag_detector::apriltag_detector
+  cv_bridge::cv_bridge
+  flex_sync::flex_sync
+  image_transport::image_transport
+  ${nav_msgs_TARGETS}
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+  ${sensor_msgs_TARGETS})
 
 set(tagslam_dependencies
- ${apriltag_msgs_TARGETS}
- cv_bridge::cv_bridge
- flex_sync::flex_sync
- ${geometry_msgs_TARGETS}
- gtsam
- image_transport::image_transport
- ${nav_msgs_TARGETS}
- opencv_core
- opencv_imgproc
- opencv_calib3d
- yaml-cpp
- rclcpp::rclcpp
- rclcpp_components::component
- rosbag2_cpp::rosbag2_cpp
- rosbag2_transport::rosbag2_transport
- ${rosgraph_msgs_TARGETS}
- ${sensor_msgs_TARGETS}
- ${std_srvs_TARGETS}
- tf2_ros::tf2_ros
- ${tf2_msgs_TARGETS}
- tf2::tf2)
- 
+  ${apriltag_msgs_TARGETS}
+  cv_bridge::cv_bridge
+  flex_sync::flex_sync
+  ${geometry_msgs_TARGETS}
+  gtsam
+  image_transport::image_transport
+  ${nav_msgs_TARGETS}
+  opencv_core
+  opencv_imgproc
+  opencv_calib3d
+  yaml-cpp
+  rclcpp::rclcpp
+  rclcpp_components::component
+  rosbag2_cpp::rosbag2_cpp
+  rosbag2_transport::rosbag2_transport
+  ${rosgraph_msgs_TARGETS}
+  ${sensor_msgs_TARGETS}
+  ${std_srvs_TARGETS}
+  tf2_ros::tf2_ros
+  ${tf2_msgs_TARGETS}
+  tf2::tf2)
 
- if(${image_transport_VERSION} VERSION_GREATER_EQUAL "6.3.0")
-   add_definitions(-DIMAGE_TRANSPORT_USE_QOS)
+
+if(${image_transport_VERSION} VERSION_GREATER_EQUAL "6.3.0")
+  add_definitions(-DIMAGE_TRANSPORT_USE_QOS)
 endif()
 if(${image_transport_VERSION} VERSION_GREATER_EQUAL "6.4.0")
   add_definitions(-DIMAGE_TRANSPORT_USE_NODEINTERFACE)
