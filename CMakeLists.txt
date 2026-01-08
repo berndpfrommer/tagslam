@@ -30,50 +30,83 @@ find_package(yaml-cpp REQUIRED)
 find_package(Boost REQUIRED COMPONENTS graph)
 find_package(GTSAM REQUIRED)
 
-set(tagslam_ament_dependencies
+set(tagslam_packages
   "apriltag_msgs"
   "cv_bridge"
+  "flex_sync"
   "geometry_msgs"
   "image_transport"
-  "flex_sync"
   "nav_msgs"
   "rclcpp"
   "rclcpp_components"
   "rosbag2_cpp"
   "rosbag2_transport"
+  "rosgraph_msgs"
   "sensor_msgs"
+  "std_srvs"
   "tf2_ros"
   "tf2_msgs"
-  "tf2"
-  "rosgraph_msgs"
-  "std_srvs")
+  "tf2")
 
-set(sync_and_detect_ament_dependencies
+set(sync_and_detect_packages
   "apriltag_msgs"
   "apriltag_detector"
   "cv_bridge"
   "flex_sync"
   "image_transport"
-  "pluginlib"
   "nav_msgs"
+  "pluginlib"
   "rclcpp"
   "sensor_msgs")
 
-set(all_ament_dependencies
-  ${tagslam_ament_dependencies}
-  ${sync_and_detect_ament_dependencies})
+set(all_packages ${tagslam_packages} ${sync_and_detect_packages})
 
-foreach(pkg ${all_ament_dependencies})
+ foreach(pkg ${all_packages})
   find_package(${pkg} REQUIRED)
 endforeach()
 
-if(${cv_bridge_VERSION} GREATER "3.3.0")
-  add_definitions(-DUSE_CV_BRIDGE_HPP)
+set(sync_and_detect_dependencies
+ ${apriltag_msgs_TARGETS}
+ apriltag_detector::apriltag_detector
+ cv_bridge::cv_bridge
+ flex_sync::flex_sync
+ image_transport::image_transport
+ ${nav_msgs_TARGETS}
+ pluginlib::pluginlib
+ rclcpp::rclcpp
+ ${sensor_msgs_TARGETS})
+
+set(tagslam_dependencies
+ ${apriltag_msgs_TARGETS}
+ cv_bridge::cv_bridge
+ flex_sync::flex_sync
+ ${geometry_msgs_TARGETS}
+ gtsam
+ image_transport::image_transport
+ ${nav_msgs_TARGETS}
+ opencv_core
+ opencv_imgproc
+ opencv_calib3d
+ yaml-cpp
+ rclcpp::rclcpp
+ rclcpp_components::component
+ rosbag2_cpp::rosbag2_cpp
+ rosbag2_transport::rosbag2_transport
+ ${rosgraph_msgs_TARGETS}
+ ${sensor_msgs_TARGETS}
+ ${std_srvs_TARGETS}
+ tf2_ros::tf2_ros
+ ${tf2_msgs_TARGETS}
+ tf2::tf2)
+ 
+
+ if(${image_transport_VERSION} VERSION_GREATER_EQUAL "6.3.0")
+   add_definitions(-DIMAGE_TRANSPORT_USE_QOS)
+endif()
+if(${image_transport_VERSION} VERSION_GREATER_EQUAL "6.4.0")
+  add_definitions(-DIMAGE_TRANSPORT_USE_NODEINTERFACE)
 endif()
 
-if(${image_transport_VERSION} VERSION_GREATER_EQUAL "6.3.0")
-  add_definitions(-DIMAGE_TRANSPORT_USE_QOS)
-endif()
 
 #
 # --------- library
@@ -120,8 +153,7 @@ add_library(${PROJECT_NAME} SHARED
   src/yaml.cpp
 )
 
-ament_target_dependencies(${PROJECT_NAME} ${tagslam_ament_dependencies})
-target_link_libraries(${PROJECT_NAME} opencv_core opencv_imgproc opencv_calib3d yaml-cpp gtsam)
+target_link_libraries(${PROJECT_NAME} PUBLIC ${tagslam_dependencies})
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 target_include_directories(
@@ -136,7 +168,6 @@ rclcpp_components_register_nodes(${PROJECT_NAME} "${PROJECT_NAME}::TagSLAM")
 # -------- node
 #
 add_executable(${PROJECT_NAME}_node src/tagslam_node.cpp)
-# ament_target_dependencies(${PROJECT_NAME}_node ${tagslam_ament_dependencies})
 target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME}_node PRIVATE include)
 target_compile_features(${PROJECT_NAME}_node PRIVATE cxx_std_17)
@@ -147,8 +178,7 @@ target_compile_features(${PROJECT_NAME}_node PRIVATE cxx_std_17)
 add_library(sync_and_detect SHARED
   src/sync_and_detect.cpp
 )
-ament_target_dependencies(sync_and_detect ${sync_and_detect_ament_dependencies})
-target_link_libraries(sync_and_detect yaml-cpp)
+target_link_libraries(sync_and_detect yaml-cpp ${sync_and_detect_dependencies})
 target_compile_features(sync_and_detect PRIVATE cxx_std_17)
 
 target_include_directories(
@@ -165,10 +195,7 @@ rclcpp_components_register_nodes(sync_and_detect "${PROJECT_NAME}::SyncAndDetect
 add_executable(${PROJECT_NAME}_from_bag
   src/${PROJECT_NAME}_from_bag.cpp
   src/enhanced_player.cpp)
-ament_target_dependencies(${PROJECT_NAME}_from_bag
-  ${tagslam_ament_dependencies}
-  rosbag2_transport)
-target_link_libraries(${PROJECT_NAME}_from_bag ${PROJECT_NAME} sync_and_detect)
+target_link_libraries(${PROJECT_NAME}_from_bag ${PROJECT_NAME} sync_and_detect ${tagslam_dependencies})
 target_include_directories(${PROJECT_NAME}_from_bag PRIVATE include)
 target_compile_features(${PROJECT_NAME}_from_bag PRIVATE cxx_std_17)
 
@@ -179,8 +206,7 @@ target_compile_features(${PROJECT_NAME}_from_bag PRIVATE cxx_std_17)
 add_executable(sync_and_detect_from_bag
   src/sync_and_detect_from_bag.cpp
   src/enhanced_player.cpp)
-ament_target_dependencies(sync_and_detect_from_bag rosbag2_transport)
-target_link_libraries(sync_and_detect_from_bag sync_and_detect yaml-cpp)
+target_link_libraries(sync_and_detect_from_bag sync_and_detect yaml-cpp rosbag2_transport::rosbag2_transport)
 
 target_include_directories(sync_and_detect_from_bag PRIVATE include)
 target_compile_features(sync_and_detect_from_bag PRIVATE cxx_std_17)
