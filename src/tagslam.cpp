@@ -13,12 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifdef USE_CV_BRIDGE_HPP
+#if __has_include(<cv_bridge/cv_bridge.hpp>)
 #include <cv_bridge/cv_bridge.hpp>
 #else
 #include <cv_bridge/cv_bridge.h>
 #endif
-
 #include <yaml-cpp/yaml.h>
 
 #include <cmath>
