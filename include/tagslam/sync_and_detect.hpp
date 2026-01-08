@@ -51,7 +51,12 @@ public:
     const std::string param_name = topic + ".image_transport";
     sub_ = std::make_shared<image_transport::Subscriber>(
       image_transport::create_subscription(
-        node, topic,
+#ifdef IMAGE_TRANSPORT_USE_NODEINTERFACE
+        *node,
+#else
+        node,
+#endif
+        topic,
         std::bind(
           &Subscriber<SyncT, Image>::callback, this, std::placeholders::_1),
         node->get_parameter_or<std::string>(param_name, "raw"),
