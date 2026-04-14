@@ -57,6 +57,7 @@ set(sync_and_detect_packages
   "nav_msgs"
   "pluginlib"
   "rclcpp"
+  "rclcpp_components"
   "sensor_msgs")
 
 set(all_packages ${tagslam_packages} ${sync_and_detect_packages})
@@ -74,6 +75,7 @@ set(sync_and_detect_dependencies
   ${nav_msgs_TARGETS}
   pluginlib::pluginlib
   rclcpp::rclcpp
+  rclcpp_components::component
   ${sensor_msgs_TARGETS})
 
 set(tagslam_dependencies

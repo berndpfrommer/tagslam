@@ -27,6 +27,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_components/register_node_macro.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <set>
 
@@ -175,4 +176,5 @@ private:
 
 }  // namespace tagslam
 
+RCLCPP_COMPONENTS_REGISTER_NODE(tagslam::SyncAndDetect);
 #endif  // TAGSLAM__SYNC_AND_DETECT_HPP_
