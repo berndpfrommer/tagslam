@@ -214,7 +214,11 @@ void SyncAndDetect::subscribe(
   const bool use_approx_sync =
     declare_parameter<bool>("use_approximate_sync", true);
   LOG_INFO("using approximate sync: " << (use_approx_sync ? "YES" : "NO"));
-  const int qs = 10;  // queue size
+  
+  // Expose the queue size as a ROS parameter, defaulting to 100 if not provided
+  const int qs = declare_parameter<int>("sync_queue_size", 100);
+  LOG_INFO("sync queue size: " << qs);
+
   if (odom_topics.empty()) {
     if (use_approx_sync) {
       image_approx_sync_ = std::make_shared<ImageApproxSync>(

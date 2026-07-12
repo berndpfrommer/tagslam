@@ -194,24 +194,24 @@ rclcpp_components_register_nodes(sync_and_detect "${PROJECT_NAME}::SyncAndDetect
 #
 # -------- processing from bag
 #
-add_executable(${PROJECT_NAME}_from_bag
-  src/${PROJECT_NAME}_from_bag.cpp
-  src/enhanced_player.cpp)
-target_link_libraries(${PROJECT_NAME}_from_bag ${PROJECT_NAME} sync_and_detect ${tagslam_dependencies})
-target_include_directories(${PROJECT_NAME}_from_bag PRIVATE include)
-target_compile_features(${PROJECT_NAME}_from_bag PRIVATE cxx_std_17)
+# add_executable(${PROJECT_NAME}_from_bag
+#   src/${PROJECT_NAME}_from_bag.cpp
+#   src/enhanced_player.cpp)
+# target_link_libraries(${PROJECT_NAME}_from_bag ${PROJECT_NAME} sync_and_detect ${tagslam_dependencies})
+# target_include_directories(${PROJECT_NAME}_from_bag PRIVATE include)
+# target_compile_features(${PROJECT_NAME}_from_bag PRIVATE cxx_std_17)
 
 #
 # -------- sync-and-detect from bag
 #
 
-add_executable(sync_and_detect_from_bag
-  src/sync_and_detect_from_bag.cpp
-  src/enhanced_player.cpp)
-target_link_libraries(sync_and_detect_from_bag sync_and_detect yaml-cpp rosbag2_transport::rosbag2_transport)
+# add_executable(sync_and_detect_from_bag
+#   src/sync_and_detect_from_bag.cpp
+#   src/enhanced_player.cpp)
+# target_link_libraries(sync_and_detect_from_bag sync_and_detect yaml-cpp rosbag2_transport::rosbag2_transport)
 
-target_include_directories(sync_and_detect_from_bag PRIVATE include)
-target_compile_features(sync_and_detect_from_bag PRIVATE cxx_std_17)
+# target_include_directories(sync_and_detect_from_bag PRIVATE include)
+# target_compile_features(sync_and_detect_from_bag PRIVATE cxx_std_17)
 
 #
 # -------- sync-and-detect node
@@ -231,9 +231,9 @@ target_compile_features(sync_and_detect_node PRIVATE cxx_std_17)
 
 install(TARGETS
   ${PROJECT_NAME}_node
-  ${PROJECT_NAME}_from_bag
+  # ${PROJECT_NAME}_from_bag
   sync_and_detect_node
-  sync_and_detect_from_bag
+  # sync_and_detect_from_bag
   DESTINATION lib/${PROJECT_NAME}/)
 
 # the shared library goes into the global lib dir so it can
